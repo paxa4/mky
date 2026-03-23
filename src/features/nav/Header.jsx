@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import Logo from "../../components/Logo.jsx";
-import RegModal from "../../components/RegModal.jsx";
 import MobileDrawer from "./MobileDrawer.jsx";
 import { NAV } from "../../constants/index.js";
 
@@ -8,7 +7,6 @@ export default function Header({ onGoAuth }) {
   const [scrolled,   setScrolled]   = useState(false);
   const [activeNav,  setActiveNav]  = useState(null);
   const [menuOpen,   setMenuOpen]   = useState(false);
-  const [regOpen,    setRegOpen]    = useState(false);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 8);
@@ -92,7 +90,6 @@ export default function Header({ onGoAuth }) {
         </div>
       </header>
 
-      <RegModal open={regOpen} onClose={() => setRegOpen(false)} />
       <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
   );
