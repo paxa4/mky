@@ -1,23 +1,44 @@
 import { useState } from "react";
+import { apiLogin, apiRegister } from "../api";
 
 export default function AuthPage({ onBack }) {
-  const [tab, setTab] = useState("login"); // "login" | "register"
-  const [loginForm, setLoginForm]   = useState({ email: "", password: "" });
-  const [regForm,   setRegForm]     = useState({ name: "", email: "", password: "" });
-  const [showPass,  setShowPass]    = useState(false);
-  const [done,      setDone]        = useState(false);
-  const [loggedIn,  setLoggedIn]    = useState(false);
+  const [tab, setTab]           = useState("login");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [regForm,   setRegForm]   = useState({ name: "", email: "", password: "" });
+  const [showPass,  setShowPass]  = useState(false);
+  const [done,      setDone]      = useState(false);
+  const [loggedIn,  setLoggedIn]  = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!loginForm.email || !loginForm.password) return;
-    setLoggedIn(true);
+    setLoading(true);
+    setError("");
+    try {
+      await apiLogin(loginForm.email, loginForm.password);
+      setLoggedIn(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regForm.name || !regForm.email || regForm.password.length < 8) return;
-    setDone(true);
+    if (!regForm.email || regForm.password.length < 8) return;
+    setLoading(true);
+    setError("");
+    try {
+      await apiRegister(regForm.email, regForm.password);
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,16 +70,6 @@ export default function AuthPage({ onBack }) {
         .tab-btn.active { background: #fff; color: #1D4ED8; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
         .tab-btn:not(.active) { color: #64748B; }
         .tab-btn:not(.active):hover { color: #334155; }
-        .divider { display: flex; align-items: center; gap: 12px; margin: 4px 0; }
-        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #E2E8F0; }
-        .social-btn {
-          width: 100%; padding: 11px; font-size: 14px; font-weight: 500;
-          color: #334155; background: #fff; border: 1.5px solid #E2E8F0;
-          border-radius: 10px; cursor: pointer; font-family: inherit;
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          transition: border-color 0.15s, background 0.15s;
-        }
-        .social-btn:hover { border-color: #93C5FD; background: #F8FAFC; }
       `}</style>
 
       {/* Top bar */}
@@ -96,9 +107,16 @@ export default function AuthPage({ onBack }) {
 
             {/* Tabs */}
             <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 11, padding: 4, marginBottom: 28 }}>
-              <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); }}>Вход</button>
-              <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setLoggedIn(false); }}>Регистрация</button>
+              <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); setError(""); }}>Вход</button>
+              <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setLoggedIn(false); setError(""); }}>Регистрация</button>
             </div>
+
+            {/* Ошибка */}
+            {error && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626" }}>
+                {error}
+              </div>
+            )}
 
             {/* LOGIN */}
             {tab === "login" && (
@@ -139,10 +157,9 @@ export default function AuthPage({ onBack }) {
                       </div>
                     </div>
                     <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!loginForm.email || !loginForm.password}>
-                      Войти
+                      disabled={!loginForm.email || !loginForm.password || loading}>
+                      {loading ? "Входим…" : "Войти"}
                     </button>
-
                   </form>
                 )}
               </>
@@ -160,17 +177,12 @@ export default function AuthPage({ onBack }) {
                     </div>
                     <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>Готово!</h3>
                     <p style={{ fontSize: 14, color: "#64748B", lineHeight: 1.6, marginBottom: 20 }}>
-                      На почту <strong>{regForm.email}</strong><br/>отправлено письмо с подтверждением.
+                      Аккаунт <strong>{regForm.email}</strong> успешно создан.
                     </p>
                     <button className="auth-btn" onClick={() => { setTab("login"); setDone(false); }}>Войти в аккаунт</button>
                   </div>
                 ) : (
                   <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>ФИО</label>
-                      <input className="auth-input" placeholder="Иванов Иван Иванович"
-                        value={regForm.name} onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))} required />
-                    </div>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Email</label>
                       <input className="auth-input" type="email" placeholder="example@mail.ru"
@@ -179,9 +191,14 @@ export default function AuthPage({ onBack }) {
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Пароль</label>
                       <div style={{ position: "relative" }}>
-                        <input className="auth-input" type={showPass ? "text" : "password"} placeholder="Минимум 8 символов"
-                          value={regForm.password} onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))}
-                          style={{ paddingRight: 42 }} minLength={8} required />
+                        <input className="auth-input"
+                          type={showPass ? "text" : "password"}
+                          placeholder="Минимум 8 символов"
+                          value={regForm.password}
+                          onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))}
+                          style={{ paddingRight: 42 }}
+                          minLength={8} required
+                        />
                         <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 0, display: "flex" }}>
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                             <path d="M1.5 8C2.3 5 5 3 8 3s5.7 2 6.5 5c-.8 3-3.5 5-6.5 5S2.3 11 1.5 8Z" stroke="currentColor" strokeWidth="1.4"/>
@@ -198,8 +215,8 @@ export default function AuthPage({ onBack }) {
                       )}
                     </div>
                     <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!regForm.name || !regForm.email || regForm.password.length < 8}>
-                      Зарегистрироваться
+                      disabled={!regForm.email || regForm.password.length < 8 || loading}>
+                      {loading ? "Регистрируем…" : "Зарегистрироваться"}
                     </button>
                     <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", lineHeight: 1.5, margin: 0 }}>
                       Нажимая кнопку, вы соглашаетесь с{" "}

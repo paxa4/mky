@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { apiAsk } from "../api";
 
 function Message({ msg }) {
   const isBot = msg.from === "bot";
@@ -22,6 +23,17 @@ function Message({ msg }) {
         whiteSpace: "pre-line",
       }}>
         {msg.text}
+        {msg.sources && msg.sources.length > 0 && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #CBD5E1" }}>
+            {msg.sources.map((src, i) => (
+              <div key={i} style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                • <a href={src.source} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", textDecoration: "none" }}>
+                  {src.title?.slice(0, 50)}
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -33,6 +45,7 @@ export default function ChatBot() {
     { id: 1, from: "bot", text: "Здравствуйте! 👋 Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос." }
   ]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -44,17 +57,30 @@ export default function ChatBot() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = (text) => {
-    if (!text.trim()) return;
-    setMessages(m => [...m, { id: Date.now(), from: "user", text: text.trim() }]);
+  const sendMessage = async (text) => {
+    if (!text.trim() || loading) return;
+    const userMsg = { id: Date.now(), from: "user", text: text.trim() };
+    setMessages(m => [...m, userMsg]);
     setInput("");
-    setTimeout(() => {
+    setLoading(true);
+
+    try {
+      const result = await apiAsk(text.trim());
       setMessages(m => [...m, {
         id: Date.now() + 1,
         from: "bot",
-        text: "Еще не добавлен функционал"
+        text: result.answer,
+        sources: result.sources,
       }]);
-    }, 800);
+    } catch (err) {
+      setMessages(m => [...m, {
+        id: Date.now() + 1,
+        from: "bot",
+        text: "Произошла ошибка: " + err.message,
+      }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKey = (e) => {
@@ -101,6 +127,10 @@ export default function ChatBot() {
           transition: background 0.15s, transform 0.15s;
         }
         .chat-fab:hover { background: #1E40AF; transform: scale(1.08); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .typing-dot { width:6px; height:6px; border-radius:50%; background:#94A3B8; animation: pulse 1.2s ease infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
         @media (max-width: 480px) {
           .chat-window { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
           .chat-fab { right: 16px; bottom: 16px; }
@@ -120,8 +150,8 @@ export default function ChatBot() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Помощник МКУ</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ADE80", display: "inline-block" }}/>
-                Онлайн
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: loading ? "#FCD34D" : "#4ADE80", display: "inline-block", transition: "background 0.3s" }}/>
+                {loading ? "Печатает..." : "Онлайн"}
               </div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -134,6 +164,15 @@ export default function ChatBot() {
           {/* Сообщения */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px 8px", display: "flex", flexDirection: "column" }}>
             {messages.map(msg => <Message key={msg.id} msg={msg} />)}
+
+            {/* Индикатор загрузки */}
+            {loading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12, marginLeft: 36 }}>
+                <div className="typing-dot" />
+                <div className="typing-dot" />
+                <div className="typing-dot" />
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -150,7 +189,7 @@ export default function ChatBot() {
                 onKeyDown={handleKey}
                 style={{ maxHeight: 80 }}
               />
-              <button className="chat-send" onClick={() => sendMessage(input)} disabled={!input.trim()}>
+              <button className="chat-send" onClick={() => sendMessage(input)} disabled={!input.trim() || loading}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M12.5 1.5L1.5 6l4.5 1.5L7.5 12l5-10.5Z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
                 </svg>
