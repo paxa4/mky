@@ -3,10 +3,10 @@ import Logo from "../../components/Logo.jsx";
 import MobileDrawer from "./MobileDrawer.jsx";
 import { NAV } from "../../constants/index.js";
 
-export default function Header({ onGoAuth }) {
-  const [scrolled,   setScrolled]   = useState(false);
-  const [activeNav,  setActiveNav]  = useState(null);
-  const [menuOpen,   setMenuOpen]   = useState(false);
+export default function Header({ onGoAuth, onGoAdmin }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [activeNav, setActiveNav] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 8);
@@ -28,17 +28,34 @@ export default function Header({ onGoAuth }) {
         .search-wrap:focus-within { border-color: #93C5FD; background: #fff; }
         .search-input { border: none; background: transparent; outline: none; font-size: 14px; color: #0F172A; width: 170px; }
         .search-input::placeholder { color: #94A3B8; }
-        .reg-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #fff; padding: 8px 18px; border-radius: 10px; background: #1D4ED8; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.15s, transform 0.1s; }
-        .reg-btn:hover { background: #1E40AF; transform: translateY(-1px); }
-        .reg-btn:active { transform: translateY(0); }
-        @media (max-width: 580px)  { .reg-btn span { display: none; } }
+        .reg-btn, .admin-btn { 
+          display: inline-flex; align-items: center; gap: 6px; 
+          font-size: 14px; font-weight: 600; color: #fff; 
+          padding: 8px 18px; border-radius: 10px; border: none; 
+          cursor: pointer; white-space: nowrap; flex-shrink: 0; 
+          transition: background 0.15s, transform 0.1s; 
+        }
+        .reg-btn { background: #1D4ED8; }
+        .admin-btn { background: #334155; }
+        .reg-btn:hover, .admin-btn:hover { transform: translateY(-1px); }
+        .admin-btn:hover { background: #1E2937; }
+        @media (max-width: 580px)  { .reg-btn span, .admin-btn span { display: none; } }
         @media (max-width: 760px)  { .search-wrap { display: none; } .desktop-nav { display: none !important; } }
         @media (min-width: 761px)  { .burger { display: none !important; } }
         .icon-btn { border: 1px solid #E2E8F0; background: none; cursor: pointer; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #64748B; flex-shrink: 0; transition: background 0.15s; }
         .icon-btn:hover { background: #F1F5F9; }
       `}</style>
 
-      <header style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", borderBottom: "1px solid #F1F5F9", boxShadow: scrolled ? "0 2px 18px rgba(0,0,0,0.07)" : "none", transition: "box-shadow 0.3s" }}>
+      <header style={{ 
+        position: "sticky", 
+        top: 0, 
+        zIndex: 200, 
+        background: "rgba(255,255,255,0.97)", 
+        backdropFilter: "blur(12px)", 
+        borderBottom: "1px solid #F1F5F9", 
+        boxShadow: scrolled ? "0 2px 18px rgba(0,0,0,0.07)" : "none", 
+        transition: "box-shadow 0.3s" 
+      }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", gap: 20 }}>
           <Logo />
 
@@ -73,13 +90,24 @@ export default function Header({ onGoAuth }) {
             <input className="search-input" placeholder="Поиск по сайту…" />
           </div>
 
-          {/* Register button */}
-          <button className="reg-btn" onClick={onGoAuth ?? (() => setRegOpen(true))}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-              <path d="M7 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6ZM1.5 13c0-2.485 2.462-4.5 5.5-4.5s5.5 2.015 5.5 4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span>Регистрация</span>
-          </button>
+          {/* Кнопки действий */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Админ-панель */}
+            <button 
+              className="admin-btn"
+              onClick={onGoAdmin}   // ← используем проп
+            >
+              ⚙️ Админ-панель
+            </button>
+
+            {/* Регистрация */}
+            <button className="reg-btn" onClick={onGoAuth}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M7 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6ZM1.5 13c0-2.485 3.582-4.5 5.5-4.5s5.5 2.015 5.5 4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>Регистрация</span>
+            </button>
+          </div>
 
           {/* Mobile menu button */}
           <button className="icon-btn burger" onClick={() => setMenuOpen(true)}>
