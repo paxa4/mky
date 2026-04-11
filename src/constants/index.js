@@ -1,3 +1,9 @@
+/** Базовый URL бэкенда (можно задать VITE_API_URL в .env) */
+export const API_BASE =
+  typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace(/\/$/, "")
+    : "http://127.0.0.1:8000";
+
 export const NAV = [
   { label: "Об организации", sub: ["История", "Руководство", "Документы", "Контакты"] },
   { label: "Деятельность",   sub: ["Методическая работа", "Аттестация", "Конкурсы"] },
