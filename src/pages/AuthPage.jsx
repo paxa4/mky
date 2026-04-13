@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function AuthPage({ onBack }) {
+export default function AuthPage({ onBack, onLogin }) {
   const [tab, setTab] = useState("login"); // "login" | "register"
   const [loginForm, setLoginForm]   = useState({ email: "", password: "" });
   const [regForm,   setRegForm]     = useState({ name: "", email: "", password: "" });
@@ -11,7 +11,11 @@ export default function AuthPage({ onBack }) {
   const handleLogin = (e) => {
     e.preventDefault();
     if (!loginForm.email || !loginForm.password) return;
-    setLoggedIn(true);
+    if (onLogin) {
+      onLogin({ email: loginForm.email, password: loginForm.password });
+    } else {
+      setLoggedIn(true);
+    }
   };
 
   const handleRegister = (e) => {
