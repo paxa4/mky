@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAdminStore, generateSlug } from "./adminStore.js";
+import { useAdminMeta, generateSlug } from "./adminStore.js";
 import { BlockConstructor } from "./BlockEditor.jsx";
 
 const STATUS_LABELS = { published: "Опубликована", draft: "Черновик", archive: "Архив" };
@@ -371,8 +371,15 @@ const SUB_TABS = [
   { id: "tags",       label: "Теги",      icon: "🏷️" },
 ];
 
-export default function ArticlesModule() {
-  const store = useAdminStore();
+export default function ArticlesModule({ articles, saveArticle, deleteArticle, changeArticleStatus }) {
+  const meta = useAdminMeta();
+  const store = {
+    articles,
+    saveArticle,
+    deleteArticle,
+    changeArticleStatus,
+    ...meta,
+  };
   const [subTab, setSubTab] = useState("articles");
   const [editing, setEditing] = useState(null);
 

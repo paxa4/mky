@@ -1,16 +1,18 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
 
-export default function NewsCard({ news }) {
+export default function NewsCard({ news, onClick }) {
   const [hov, setHov] = useState(false);
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: "#fff", borderRadius: 16, overflow: "hidden", cursor: "pointer",
-        border: "1px solid #F1F5F9", display: "flex", flexDirection: "column",
+        background: "#fff", borderRadius: 16, overflow: "hidden",
+        cursor: "pointer", border: "1px solid #F1F5F9",
+        display: "flex", flexDirection: "column",
         boxShadow: hov ? "0 12px 36px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.04)",
         transform: hov ? "translateY(-3px)" : "translateY(0)",
         transition: "box-shadow 0.25s, transform 0.25s",
@@ -31,7 +33,20 @@ export default function NewsCard({ news }) {
         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", lineHeight: 1.45, margin: "0 0 8px", flex: 1 }}>
           {news.title}
         </h3>
-        <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6, margin: 0 }}>{news.excerpt}</p>
+        <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6, margin: "0 0 14px" }}>
+          {news.excerpt}
+        </p>
+        {/* Ссылка "Читать" */}
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          fontSize: 12, fontWeight: 600, color: "#1D4ED8",
+          opacity: hov ? 1 : 0.7, transition: "opacity 0.2s",
+        }}>
+          Читать далее
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M2 5.5h7M6 3l2.5 2.5L6 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
       </div>
     </div>
   );

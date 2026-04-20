@@ -19,6 +19,19 @@ import AccuratePreview from "./shared/AccuratePreview.jsx";
 const PAGE_W = 210; // мм
 const PAGE_H = 297; // мм
 
+// ── Утилиты ───────────────────────────────────────────────────────────────────
+
+const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
+
+const smartAlign = (xPct, xMin, xMax) => {
+  const range = xMax - xMin;
+  if (range <= 0) return "center";
+  const rel = (xPct - xMin) / range;
+  if (rel < 0.33) return "left";
+  if (rel > 0.67) return "right";
+  return "center";
+};
+
 // ── Компонент ─────────────────────────────────────────────────────────────────
 
 export default function TemplateConstructor({ templates, onTemplatesSaved }) {

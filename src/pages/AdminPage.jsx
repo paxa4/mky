@@ -54,7 +54,7 @@ function IssueModule({ templates }) {
 
 // ── Главный компонент ─────────────────────────────────────────────────────────
 
-export default function AdminPage({ onBack }) {
+export default function AdminPage({ onBack, articles, saveArticle, deleteArticle, changeArticleStatus }) {
   const [activeModule, setActiveModule] = useState("issue");
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -148,7 +148,14 @@ export default function AdminPage({ onBack }) {
                 onTemplatesSaved={loadTemplates}
               />
             )}
-            {activeModule === "articles" && <ArticlesModule />}
+            {activeModule === "articles" && (
+              <ArticlesModule
+                articles={articles}
+                saveArticle={saveArticle}
+                deleteArticle={deleteArticle}
+                changeArticleStatus={changeArticleStatus}
+              />
+            )}
             {activeModule === "chat"     && <ChatSettings />}
           </>
         )}

@@ -8,7 +8,7 @@ import Projects      from "../features/projects/Projects.jsx";
 import Partners      from "../features/projects/Partners.jsx";
 import Footer        from "../components/Footer.jsx";
 
-export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser }) {
+export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser, publishedNews, onOpenArticle }) {
   useEffect(() => {
     document.title = "МКУ развития образования города Иркутска";
   }, []);
@@ -30,7 +30,7 @@ export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser
 
       <main style={{ flex: 1 }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "36px 24px 0", width: "100%" }}>
-          <NewsFeed />
+          <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} />
           <Stats />
           <QuickAccess />
         </div>

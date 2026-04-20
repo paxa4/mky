@@ -1,20 +1,28 @@
 import { useState } from "react";
 import FeaturedCard from "./FeaturedCard.jsx";
-import NewsCard from "./NewsCard.jsx";
-import { NEWS } from "./newsData.js";
+import NewsCard     from "./NewsCard.jsx";
+import { NEWS }     from "./newsData.js";
 
-const TOTAL_PAGES = 5;
+const ITEMS_PER_PAGE = 5;
 
-export default function NewsFeed() {
+export default function NewsFeed({ publishedNews, onOpenArticle }) {
   const [page, setPage] = useState(1);
 
+  // Если publishedNews не передан (старый вызов без пропса) — используем статичные данные
+  // Если передан (новый App.jsx) — используем его (он уже содержит и статичные, и из редактора)
+  const allNews = publishedNews !== undefined ? publishedNews : NEWS;
+
+  const totalPages = Math.max(1, Math.ceil(allNews.length / ITEMS_PER_PAGE));
+  const start      = (page - 1) * ITEMS_PER_PAGE;
+  const pageItems  = allNews.slice(start, start + ITEMS_PER_PAGE);
+
   const getPageNumbers = () => {
-    if (TOTAL_PAGES <= 7) return Array.from({ length: TOTAL_PAGES }, (_, i) => i + 1);
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const pages = [1];
     if (page > 3) pages.push("...");
-    for (let i = Math.max(2, page - 1); i <= Math.min(TOTAL_PAGES - 1, page + 1); i++) pages.push(i);
-    if (page < TOTAL_PAGES - 2) pages.push("...");
-    pages.push(TOTAL_PAGES);
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
     return pages;
   };
 
@@ -34,7 +42,6 @@ export default function NewsFeed() {
           min-height: 500px;
         }
         .featured-cell { grid-row: 1 / 3; }
-
         @media (max-width: 960px) {
           .news-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto; min-height: unset; }
           .featured-cell { grid-row: auto; grid-column: 1 / 3; min-height: 320px; }
@@ -43,7 +50,6 @@ export default function NewsFeed() {
           .news-grid { grid-template-columns: 1fr; }
           .featured-cell { grid-column: auto; min-height: 260px; }
         }
-
         .pagination {
           display: flex; align-items: center; justify-content: center;
           gap: 4px; margin-top: 36px; flex-wrap: wrap;
@@ -55,10 +61,9 @@ export default function NewsFeed() {
           display: flex; align-items: center; justify-content: center;
           padding: 0 10px; transition: all 0.15s; font-family: inherit;
         }
-        .page-btn:hover:not(:disabled) { border-color: #93C5FD; color: #1D4ED8; background: #EFF6FF; }
+        .page-btn:hover { border-color: #93C5FD; color: #1D4ED8; background: #EFF6FF; }
         .page-btn.active { background: #1D4ED8; color: #fff; border-color: #1D4ED8; }
         .page-btn.dots { cursor: default; border-color: transparent; background: none; }
-        .page-btn.dots:hover { background: none; color: #475569; border-color: transparent; }
         .nav-btn {
           height: 36px; border: 1px solid #E2E8F0; background: #fff;
           border-radius: 20px; font-size: 13px; font-weight: 600; color: #475569;
@@ -69,7 +74,7 @@ export default function NewsFeed() {
         .nav-btn:disabled { opacity: 0.4; cursor: default; }
       `}</style>
 
-      {/* Section header */}
+      {/* Шапка секции — один раз */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", textTransform: "uppercase" }}>
           Новости
@@ -82,37 +87,47 @@ export default function NewsFeed() {
         </button>
       </div>
 
-      {/* Grid */}
-      <div className="news-grid">
-        <div className="featured-cell"><FeaturedCard news={NEWS[0]} /></div>
-        {NEWS.slice(1, 3).map(n => <NewsCard key={n.id} news={n} />)}
-        {NEWS.slice(3, 5).map(n => <NewsCard key={n.id} news={n} />)}
-      </div>
+      {/* Сетка карточек */}
+      {pageItems.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8", fontSize: 15 }}>
+          Нет опубликованных новостей
+        </div>
+      ) : (
+        <div className="news-grid">
 
-      {/* Pagination */}
-      <div className="pagination">
-        <button className="nav-btn" disabled={page === 1} onClick={() => goTo(page - 1)}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Предыдущая
-        </button>
+          {pageItems.slice(1, 3).map(n => (
+            <NewsCard key={n.id} news={n} onClick={() => onOpenArticle?.(n)} />
+          ))}
+          {pageItems.slice(3, 5).map(n => (
+            <NewsCard key={n.id} news={n} onClick={() => onOpenArticle?.(n)} />
+          ))}
+        </div>
+      )}
 
-        {getPageNumbers().map((p, i) =>
-          p === "..." ? (
-            <button key={`d${i}`} className="page-btn dots">...</button>
-          ) : (
-            <button key={p} className={`page-btn${page === p ? " active" : ""}`} onClick={() => goTo(p)}>{p}</button>
-          )
-        )}
-
-        <button className="nav-btn" disabled={page === TOTAL_PAGES} onClick={() => goTo(page + 1)}>
-          Следующая
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
+      {/* Пагинация */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button className="nav-btn" disabled={page === 1} onClick={() => goTo(page - 1)}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Предыдущая
+          </button>
+          {getPageNumbers().map((p, i) =>
+            p === "..." ? (
+              <button key={`d${i}`} className="page-btn dots">...</button>
+            ) : (
+              <button key={p} className={`page-btn${page === p ? " active" : ""}`} onClick={() => goTo(p)}>{p}</button>
+            )
+          )}
+          <button className="nav-btn" disabled={page === totalPages} onClick={() => goTo(page + 1)}>
+            Следующая
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
