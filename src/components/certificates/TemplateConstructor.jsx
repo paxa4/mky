@@ -19,27 +19,6 @@ import AccuratePreview from "./shared/AccuratePreview.jsx";
 const PAGE_W = 210; // мм
 const PAGE_H = 297; // мм
 
-// ── Утилиты ───────────────────────────────────────────────────────────────────
-
-/** Ограничивает значение val в диапазоне [min, max] */
-const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
-
-/**
- * Определяет выравнивание текста по позиции X элемента (в %) относительно
- * рабочей зоны (xMin..xMax):
- *   — левая треть  → "left"
- *   — средняя треть → "center"
- *   — правая треть  → "right"
- */
-const smartAlign = (xPct, xMin, xMax) => {
-  const range = xMax - xMin;
-  if (range <= 0) return "center";
-  const rel = (xPct - xMin) / range; // 0..1 внутри рабочей зоны
-  if (rel < 0.33) return "left";
-  if (rel > 0.67) return "right";
-  return "center";
-};
-
 // ── Компонент ─────────────────────────────────────────────────────────────────
 
 export default function TemplateConstructor({ templates, onTemplatesSaved }) {
