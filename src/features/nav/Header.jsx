@@ -81,6 +81,8 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .desktop-nav { display: none !important; }
           .reg-btn span { display: none; }
           .reg-name { display: none; }
+          .admin-label { display: none; }
+          .admin-btn { padding: 8px 10px !important; }
         }
         @media (min-width: 901px) { .burger { display: none !important; } }
       `}</style>
@@ -96,7 +98,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", gap: 16 }}>
           <Logo />
 
-          {/* Desktop nav */}
           <nav className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
             {NAV.map(item => (
               <div key={item.label} style={{ position: "relative" }}
@@ -110,7 +111,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
                     onMouseLeave={() => setActiveNav(null)}
                   >
                     <div className="dropdown-inner">
-                    
                       {item.sub.map((s, i) => (
                         <div
                           key={i}
@@ -133,7 +133,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
             ))}
           </nav>
 
-          {/* Search */}
           <div className="search-wrap">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <circle cx="5.5" cy="5.5" r="4" stroke="#94A3B8" strokeWidth="1.5"/>
@@ -142,19 +141,33 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
             <input className="search-input" placeholder="Поиск по сайту…" />
           </div>
 
-          {/* Admin button */}
           {onGoAdmin && (
-            <button onClick={onGoAdmin} className="icon-btn" title="Панель администратора">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <button
+              onClick={onGoAdmin}
+              title="Панель администратора"
+              className="admin-btn"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "8px 14px", borderRadius: 10,
+                border: "1px solid #E2E8F0", background: "#fff",
+                cursor: "pointer", fontFamily: "inherit",
+                fontSize: 13, fontWeight: 600, color: "#334155",
+                whiteSpace: "nowrap", flexShrink: 0,
+                transition: "border-color 0.15s, background 0.15s, color 0.15s",
+              }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#1D4ED8"; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#334155"; }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
                 <rect x="2" y="2" width="5" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
                 <rect x="9" y="2" width="5" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
                 <rect x="2" y="9" width="5" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
                 <rect x="9" y="9" width="5" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
               </svg>
+              <span className="admin-label">Админ-панель</span>
             </button>
           )}
 
-          {/* Profile / Register */}
           {currentUser ? (
             <button
               onClick={onGoProfile}
@@ -169,7 +182,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
               onMouseOver={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.background = "#F8FAFC"; }}
               onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#fff"; }}
             >
-              {/* Аватар */}
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
                 background: "linear-gradient(135deg, #1D4ED8, #7C3AED)",
@@ -191,8 +203,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
             </button>
           )}
 
-
-          {/* Burger */}
           <button className="icon-btn burger" onClick={() => setMenuOpen(true)}>
             <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
               <path d="M0 1h16M0 6h16M0 11h16" stroke="#334155" strokeWidth="1.5" strokeLinecap="round"/>
@@ -200,7 +210,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           </button>
         </div>
       </header>
-      
 
       <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} setCurrentPage={() => {}} />
     </>

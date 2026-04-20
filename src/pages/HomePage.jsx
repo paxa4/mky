@@ -1,9 +1,12 @@
 import { useEffect } from "react";
-import Header      from "../features/nav/Header.jsx";
-import NewsFeed    from "../features/news/NewsFeed.jsx";
-import Stats       from "../features/stats/Stats.jsx";
-import QuickAccess from "../features/quick/QuickAccess.jsx";
-import Footer      from "../components/Footer.jsx";
+import Header        from "../features/nav/Header.jsx";
+import NewsFeed      from "../features/news/NewsFeed.jsx";
+import Stats         from "../features/stats/Stats.jsx";
+import QuickAccess   from "../features/quick/QuickAccess.jsx";
+import EventCalendar from "../features/calendar/EventCalendar.jsx";
+import Projects      from "../features/projects/Projects.jsx";
+import Partners      from "../features/projects/Partners.jsx";
+import Footer        from "../components/Footer.jsx";
 
 export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser }) {
   useEffect(() => {
@@ -11,7 +14,13 @@ export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ fontFamily: "'PT Sans', system-ui, sans-serif", background: "#F8FAFC", minHeight: "100vh", width: "100%", color: "#0F172A", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body, #root { width: 100%; min-height: 100vh; overflow-x: hidden; }
+      `}</style>
+
       <Header
         onGoAuth={onGoAuth}
         onGoAdmin={onGoAdmin}
@@ -19,11 +28,18 @@ export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser
         currentUser={currentUser}
       />
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 24px 56px", width: "100%", flex: 1 }}>
-        <NewsFeed />
-        <Stats />
-        <QuickAccess />
+      <main style={{ flex: 1 }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "36px 24px 0", width: "100%" }}>
+          <NewsFeed />
+          <Stats />
+          <QuickAccess />
+        </div>
+
+        <EventCalendar />
+        <Projects />
+        <Partners />
       </main>
+
       <Footer />
     </div>
   );

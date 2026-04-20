@@ -11,6 +11,7 @@ import GenerateSingle from "../components/certificates/GenerateSingle.jsx";
 import GenerateBatch from "../components/certificates/GenerateBatch.jsx";
 import TemplateConstructor from "../components/certificates/TemplateConstructor.jsx";
 import ChatSettings from "../components/chat/ChatSettings.jsx";
+import ArticlesModule from "../features/admin/ArticlesModule.jsx";
 
 // ── Компонент модуля «Выпуск документов» ─────────────────────────────────────
 
@@ -106,9 +107,10 @@ export default function AdminPage({ onBack }) {
         {/* Главные вкладки — два модуля */}
         <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 14, padding: 5, marginBottom: 32, width: "fit-content" }}>
           {[
-            { key: "issue",  label: "Выпуск документов" },
-            { key: "editor", label: "Конструктор шаблонов" },
-            { key: "chat",   label: "Настройки чата" },
+            { key: "issue",    label: "Выпуск документов" },
+            { key: "editor",   label: "Конструктор шаблонов" },
+            { key: "articles", label: "Статьи" },
+            { key: "chat",     label: "Настройки чата" },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -139,14 +141,15 @@ export default function AdminPage({ onBack }) {
           </div>
         ) : (
           <>
-            {activeModule === "issue"  && <IssueModule templates={templates} />}
-            {activeModule === "editor" && (
+            {activeModule === "issue"    && <IssueModule templates={templates} />}
+            {activeModule === "editor"   && (
               <TemplateConstructor
                 templates={templates}
                 onTemplatesSaved={loadTemplates}
               />
             )}
-            {activeModule === "chat"   && <ChatSettings />}
+            {activeModule === "articles" && <ArticlesModule />}
+            {activeModule === "chat"     && <ChatSettings />}
           </>
         )}
       </div>
