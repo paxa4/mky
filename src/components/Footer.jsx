@@ -1,41 +1,38 @@
 const FOOTER_COLS = [
-  { title: "Разделы",   links: ["Об организации", "Деятельность", "Мероприятия", "Проекты"] },
-  { title: "Сервисы",   links: ["Аттестация", "Курсы ПК", "Конкурсы", "Мониторинг"] },
-  { title: "Контакты",  links: ["664025, Иркутск, ул. Ленина, 26", "+7 (3952) 201 985", "irk_imcro@bk.ru"] },
+  { 
+    title: "О НАС", 
+    links: ["Об организации", "Руководство", "Структура", "Документы", "Вакансии"] 
+  },
+  { 
+    title: "РАЗДЕЛЫ", 
+    links: ["Деятельность", "Подразделения", "Аттестация", "Повышение квалификации"] 
+  },
+  { 
+    title: "ПРОЕКТЫ", 
+    links: ["ФГОС 2.0", "Эврика", "ВСОШ", "Конкурсы и гранты"] 
+  },
+  { 
+    title: "ССЫЛКИ", 
+    links: ["Министерство просвещения РФ", "Портал Госуслуг", "Администрация г. Иркутска"] 
+  },
 ];
 
 export default function Footer() {
   return (
-    <footer style={{ background: "#0F172A", padding: "52px 24px 28px" }}>
+    <footer style={{ background: "linear-gradient(180deg, #173285 0%, #1E40AF 100%)", padding: "60px 24px 30px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 40, marginBottom: 44 }}>
-
-          {/* Logo + description */}
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <img
-                src="https://mc.eduirk.ru/images/headers/imcro2.png"
-                alt="МКУ"
-                style={{ height: 44, width: "auto", objectFit: "contain", filter: "brightness(0) invert(1)" }}
-              />
-            </div>
-            <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>
-              Муниципальное казённое учреждение развития образования города Иркутска
-            </p>
-          </div>
-
-          {/* Link columns */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 30, marginBottom: 50 }}>
           {FOOTER_COLS.map(col => (
             <div key={col.title}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>
                 {col.title}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {col.links.map(l => (
-                  <a key={l} style={{ fontSize: 13, color: "#64748B", cursor: "pointer", textDecoration: "none", display: "block", transition: "color 0.15s" }}
+                  <a key={l} href="#" style={{ fontSize: 13, color: "#BFDBFE", textDecoration: "none", transition: "color 0.15s" }}
                     onMouseOver={e => e.currentTarget.style.color = "#fff"}
-                    onMouseOut={e => e.currentTarget.style.color = "#64748B"}
+                    onMouseOut={e => e.currentTarget.style.color = "#BFDBFE"}
                   >{l}</a>
                 ))}
               </div>
@@ -44,22 +41,43 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div style={{ borderTop: "1px solid #1E293B", paddingTop: 22, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <span style={{ fontSize: 12, color: "#475569" }}>
-            © 2025 МКУ развития образования города Иркутска. Все права защищены.
-          </span>
-          <div style={{ display: "flex", gap: 20 }}>
-            <button style={{ fontSize: 12, color: "#64748B", background: "none", border: "none", padding: 0, cursor: "pointer", transition: "color 0.15s" }}
+        <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.15)", paddingTop: 30, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <span style={{ fontSize: 12, color: "#BFDBFE" }}>
+              © 2025 МКУ развития образования города Иркутска
+            </span>
+            <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>|</span>
+            <a href="#" style={{ fontSize: 12, color: "#BFDBFE", textDecoration: "none", transition: "color 0.15s" }}
               onMouseOver={e => e.currentTarget.style.color = "#fff"}
-              onMouseOut={e => e.currentTarget.style.color = "#64748B"}
-            >Политика конфиденциальности</button>
-            <button style={{ fontSize: 12, color: "#64748B", background: "none", border: "none", padding: 0, cursor: "pointer", transition: "color 0.15s" }}
-              onMouseOver={e => e.currentTarget.style.color = "#fff"}
-              onMouseOut={e => e.currentTarget.style.color = "#64748B"}
-            >Карта сайта</button>
+              onMouseOut={e => e.currentTarget.style.color = "#BFDBFE"}
+            >Политика конфиденциальности</a>
           </div>
-        </div>
 
+          {/* Social icons */}
+          <div style={{ display: "flex", gap: 16 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <a key={i} href="#" style={{ 
+                width: 32, height: 32, 
+                borderRadius: "50%", 
+                border: "1px solid rgba(255, 255, 255, 0.2)", 
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#BFDBFE",
+                textDecoration: "none",
+                transition: "all 0.15s"
+              }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = "#fff"; e.currentTarget.style.color = "#fff"; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)"; e.currentTarget.style.color = "#BFDBFE"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  {/* Generic icon shape */}
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+              </a>
+            ))}
+          </div>
+
+        </div>
       </div>
     </footer>
   );

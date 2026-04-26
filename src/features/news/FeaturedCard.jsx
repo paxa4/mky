@@ -1,11 +1,12 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
 
-export default function FeaturedCard({ news }) {
+export default function FeaturedCard({ news, onClick }) {
   const [hov, setHov] = useState(false);
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
