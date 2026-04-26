@@ -1,12 +1,10 @@
 import { useEffect } from "react";
-import Header        from "../features/nav/Header.jsx";
-import NewsFeed      from "../features/news/NewsFeed.jsx";
-import Stats         from "../features/stats/Stats.jsx";
-import QuickAccess   from "../features/quick/QuickAccess.jsx";
-import EventCalendar from "../features/calendar/EventCalendar.jsx";
-import Projects      from "../features/projects/Projects.jsx";
-import Partners      from "../features/projects/Partners.jsx";
-import Footer        from "../components/Footer.jsx";
+import Header              from "../features/nav/Header.jsx";
+import NewsFeed            from "../features/news/NewsFeed.jsx";
+import EventsSection       from "../features/events/EventsSection.jsx";
+import DepartmentsSection  from "../features/departments/DepartmentsSection.jsx";
+import MapSection          from "../components/MapSection.jsx";
+import Footer              from "../components/Footer.jsx";
 
 export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser, publishedNews, onOpenArticle }) {
   useEffect(() => {
@@ -14,7 +12,7 @@ export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser
   }, []);
 
   return (
-    <div style={{ fontFamily: "'PT Sans', system-ui, sans-serif", background: "#F8FAFC", minHeight: "100vh", width: "100%", color: "#0F172A", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'PT Sans', system-ui, sans-serif", color: "#0F172A" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,15 +27,10 @@ export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser
       />
 
       <main style={{ flex: 1 }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "36px 24px 0", width: "100%" }}>
-          <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} />
-          <Stats />
-          <QuickAccess />
-        </div>
-
-        <EventCalendar />
-        <Projects />
-        <Partners />
+        <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} />
+        <EventsSection />
+        <DepartmentsSection />
+        <MapSection />
       </main>
 
       <Footer />

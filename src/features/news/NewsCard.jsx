@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
 
-export default function NewsCard({ news, onClick }) {
+export default function NewsCard({ news, onClick, horizontal = false }) {
   const [hov, setHov] = useState(false);
 
   return (
@@ -10,15 +10,16 @@ export default function NewsCard({ news, onClick }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: "#fff", borderRadius: 16, overflow: "hidden",
-        cursor: "pointer", border: "1px solid #F1F5F9",
-        display: "flex", flexDirection: "column",
+        background: "#fff", borderRadius: 16, overflow: "hidden", cursor: "pointer",
+        border: "1px solid #F1F5F9", display: "flex",
+        flexDirection: horizontal ? "row" : "column",
         boxShadow: hov ? "0 12px 36px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.04)",
         transform: hov ? "translateY(-3px)" : "translateY(0)",
         transition: "box-shadow 0.25s, transform 0.25s",
+        height: "100%",
       }}
     >
-      <div style={{ height: 178, overflow: "hidden", flexShrink: 0 }}>
+      <div style={{ height: horizontal ? "auto" : 178, width: horizontal ? "40%" : "100%", overflow: "hidden", flexShrink: 0 }}>
         <img src={news.image} alt={news.title} style={{
           width: "100%", height: "100%", objectFit: "cover", display: "block",
           transform: hov ? "scale(1.06)" : "scale(1)",
@@ -33,20 +34,9 @@ export default function NewsCard({ news, onClick }) {
         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", lineHeight: 1.45, margin: "0 0 8px", flex: 1 }}>
           {news.title}
         </h3>
-        <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6, margin: "0 0 14px" }}>
+        <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6, margin: 0 }}>
           {news.excerpt}
         </p>
-        {/* Ссылка "Читать" */}
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          fontSize: 12, fontWeight: 600, color: "#1D4ED8",
-          opacity: hov ? 1 : 0.7, transition: "opacity 0.2s",
-        }}>
-          Читать далее
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-            <path d="M2 5.5h7M6 3l2.5 2.5L6 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </span>
       </div>
     </div>
   );
