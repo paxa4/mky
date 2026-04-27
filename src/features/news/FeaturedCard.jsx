@@ -4,6 +4,8 @@ import Badge from "../../components/Badge.jsx";
 export default function FeaturedCard({ news, onClick }) {
   const [hov, setHov] = useState(false);
 
+  if (!news) return null;
+
   return (
     <div
       onClick={onClick}

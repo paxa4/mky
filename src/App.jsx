@@ -1,10 +1,23 @@
 import { useState, useCallback, useEffect } from "react";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import HomePage     from "./pages/HomePage.jsx";
 import AuthPage     from "./pages/AuthPage.jsx";
 import AdminPage    from "./pages/AdminPage.jsx";
 import ArticlePage  from "./pages/ArticlePage.jsx";
 import ProfilePage  from "./pages/ProfilePage.jsx";
 import ChatBot      from "./components/ChatBot.jsx";
+// TPMPK-страницы из rudak-frontend (роутятся через /tpmpk/*)
+import TpmpkPage         from "./pages/TpmpkPage.jsx";
+import TpmpkZapisPage    from "./pages/TpmpkZapisPage.jsx";
+import BlankiPage        from "./pages/tpmpk/BlankiPage.jsx";
+import DlyaPedagogovPage from "./pages/tpmpk/DlyaPedagogovPage.jsx";
+import DlyaRoditeleyPage from "./pages/tpmpk/DlyaRoditeleyPage.jsx";
+import DokumentyPage     from "./pages/tpmpk/DokumentyPage.jsx";
+import FaqPage           from "./pages/tpmpk/FaqPage.jsx";
+import GrafikPage        from "./pages/tpmpk/GrafikPage.jsx";
+import KontaktyPage      from "./pages/tpmpk/KontaktyPage.jsx";
+import NpaPage           from "./pages/tpmpk/NpaPage.jsx";
+import SostavPage        from "./pages/tpmpk/SostavPage.jsx";
 import { INITIAL_ARTICLES } from "./features/admin/adminStore.js";
 import { NEWS } from "./features/news/newsData.js";
 
@@ -69,6 +82,8 @@ function staticNewsToItem(news) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [page,           setPage]          = useState("home");
   const [openedArticle,  setOpenedArticle] = useState(null);
   const [currentUser,    setCurrentUser]   = useState(() => {
@@ -143,6 +158,44 @@ export default function App() {
     setPage("home");
     window.scrollTo({ top: 0 });
   }, []);
+
+  // Мост между URL-роутингом (TPMPK) и нашей state-навигацией.
+  // Если ссылка из TPMPK ведёт «На главную»/«Войти»/«Админка»/«Профиль» —
+  // переключаем URL обратно на "/" и поднимаем нужное значение page.
+  const goHomeAs = useCallback((targetPage) => {
+    setPage(targetPage);
+    if (location.pathname !== "/") navigate("/");
+  }, [location.pathname, navigate]);
+
+  const tpmpkProps = {
+    currentUser,
+    onGoAuth:    () => goHomeAs("auth"),
+    onGoAdmin:   isAdmin ? () => goHomeAs("admin") : null,
+    onGoProfile: currentUser ? () => goHomeAs("profile") : null,
+    onBack:      () => goHomeAs("home"),
+  };
+
+  // /tpmpk/* — рендерим Routes из rudak-frontend, остальное — старая state-нав.
+  if (location.pathname.startsWith("/tpmpk")) {
+    return (
+      <>
+        <Routes>
+          <Route path="/tpmpk"                 element={<TpmpkPage         {...tpmpkProps} />} />
+          <Route path="/tpmpk/zapis"           element={<TpmpkZapisPage    {...tpmpkProps} />} />
+          <Route path="/tpmpk/dokumenty/*"     element={<DokumentyPage     {...tpmpkProps} />} />
+          <Route path="/tpmpk/blanki/*"        element={<BlankiPage        {...tpmpkProps} />} />
+          <Route path="/tpmpk/grafik/*"        element={<GrafikPage        {...tpmpkProps} />} />
+          <Route path="/tpmpk/sostav/*"        element={<SostavPage        {...tpmpkProps} />} />
+          <Route path="/tpmpk/npa/*"           element={<NpaPage           {...tpmpkProps} />} />
+          <Route path="/tpmpk/faq/*"           element={<FaqPage           {...tpmpkProps} />} />
+          <Route path="/tpmpk/dlya-roditeley/*" element={<DlyaRoditeleyPage {...tpmpkProps} />} />
+          <Route path="/tpmpk/dlya-pedagogov/*" element={<DlyaPedagogovPage {...tpmpkProps} />} />
+          <Route path="/tpmpk/kontakty/*"      element={<KontaktyPage      {...tpmpkProps} />} />
+        </Routes>
+        <ChatBot />
+      </>
+    );
+  }
 
   return (
     <>

@@ -1,27 +1,31 @@
 import { useEffect } from "react";
-import Header              from "../features/nav/Header.jsx";
-import NewsFeed            from "../features/news/NewsFeed.jsx";
-import EventsSection       from "../features/events/EventsSection.jsx";
-import DepartmentsSection  from "../features/departments/DepartmentsSection.jsx";
-import MapSection          from "../components/MapSection.jsx";
-import Footer              from "../components/Footer.jsx";
+import { useNavigate } from "react-router-dom";
+import Header from "../features/nav/Header.jsx";
+import NewsFeed from "../features/news/NewsFeed.jsx";
+import EventsSection from "../features/events/EventsSection.jsx";
+import DepartmentsSection from "../features/departments/DepartmentsSection.jsx";
+import MapSection from "../components/MapSection.jsx";
+import Footer from "../components/Footer.jsx";
 
-export default function HomePage({ onGoAuth, onGoAdmin, onGoProfile, currentUser, publishedNews, onOpenArticle }) {
+export default function HomePage({
+  onGoAuth,
+  onGoAdmin,
+  onGoProfile,
+  currentUser,
+  publishedNews,
+  onOpenArticle,
+}) {
+  const navigate = useNavigate();
+
   useEffect(() => {
     document.title = "МКУ развития образования города Иркутска";
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'PT Sans', system-ui, sans-serif", color: "#0F172A" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body, #root { width: 100%; min-height: 100vh; overflow-x: hidden; }
-      `}</style>
-
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Header
-        onGoAuth={onGoAuth}
-        onGoAdmin={onGoAdmin}
+        onGoAuth={onGoAuth || ((tab) => navigate(`/auth?tab=${tab || 'login'}`))}
+        onGoAdmin={onGoAdmin || (() => navigate("/admin"))}
         onGoProfile={onGoProfile}
         currentUser={currentUser}
       />

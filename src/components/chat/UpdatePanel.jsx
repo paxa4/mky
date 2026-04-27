@@ -1,11 +1,9 @@
 /**
  * UpdatePanel — кнопки управления индексом:
- *   — обновить всё (сайт + документы)
- *   — обновить только страницы сайта
- *   — обновить только документы
- *   — полная переиндексация
+ *   — инкрементальное обновление (добавляет новые/изменённые данные)
+ *   — полная переиндексация (удаляет всё и строит заново)
  *
- * Все задачи идут в фоне; статус отображается в StatusPanel через polling.
+ * Обе задачи идут в фоне; статус отображается в StatusPanel через polling.
  */
 import { useState } from "react";
 import { cardStyle } from "../certificates/shared/styles.js";
@@ -35,11 +33,11 @@ export default function UpdatePanel({ status, onRun }) {
   const taskRunning = !!status?.background?.running;
   const disabled    = busy || taskRunning;
 
-  const runUpdate = async (endpoint, okMessage) => {
+  const runIncremental = async () => {
     setMsg(null); setBusy(true);
     try {
-      await onRun(endpoint);
-      setMsg(okMessage);
+      await onRun("/admin/update/run");
+      setMsg("Инкрементальное обновление запущено. Следите за прогрессом в блоке «Состояние системы».");
       setMsgType("info");
     } catch (e) {
       setMsg(e.message || "Не удалось запустить обновление");
@@ -83,45 +81,12 @@ export default function UpdatePanel({ status, onRun }) {
         <button
           type="button"
           disabled={disabled}
-          onClick={() => runUpdate(
-            "/admin/update/run",
-            "Обновление сайта и документов запущено. Следите за прогрессом в блоке «Состояние системы»."
-          )}
+          onClick={runIncremental}
           style={actionBtn({ bg: "#1D4ED8", disabled })}
         >
-          <div style={{ fontSize: 15, marginBottom: 4 }}>🔄 Обновить всё</div>
+          <div style={{ fontSize: 15, marginBottom: 4 }}>🔄 Обновить индекс</div>
           <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9 }}>
-            Страницы сайта + документы из Yandex S3
-          </div>
-        </button>
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => runUpdate(
-            "/admin/update/site",
-            "Обновление страниц сайта запущено."
-          )}
-          style={actionBtn({ bg: "#0EA5E9", disabled })}
-        >
-          <div style={{ fontSize: 15, marginBottom: 4 }}>🌐 Обновить только сайт</div>
-          <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9 }}>
-            Краулинг mc.eduirk.ru — только новые и изменённые страницы
-          </div>
-        </button>
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => runUpdate(
-            "/admin/update/docs",
-            "Обновление документов запущено. Для сканов идёт OCR — может занять время."
-          )}
-          style={actionBtn({ bg: "#059669", disabled })}
-        >
-          <div style={{ fontSize: 15, marginBottom: 4 }}>📄 Обновить только документы</div>
-          <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9 }}>
-            Yandex S3 — только новые и изменённые файлы (PDF/DOCX)
+            Инкрементально — только новые и изменённые данные
           </div>
         </button>
 

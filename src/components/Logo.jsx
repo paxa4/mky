@@ -1,8 +1,18 @@
+import { useNavigate } from "react-router-dom";
+
 export default function Logo() {
+  const navigate = useNavigate();
+
   return (
-    <div
-      style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, transition: "transform 0.2s" }}
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+    <div 
+      style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, transition: "transform 0.2s" }} 
+      onClick={() => {
+        if (window.location.pathname === "/mky" || window.location.pathname === "/mky/") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          navigate("/");
+        }
+      }}
       onMouseOver={e => e.currentTarget.style.transform = "scale(1.02)"}
       onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
     >

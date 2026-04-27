@@ -64,30 +64,10 @@ export default function StatusPanel({ status, loading, error }) {
   const schedulerRunning = !!scheduler.running;
   const taskRunning      = !!bg.running;
 
-  const MODE_LABELS = {
-    reindex:           "полная переиндексация",
-    incremental:       "обновление: сайт + документы",
-    incremental_site:  "обновление: только сайт",
-    incremental_docs:  "обновление: только документы",
-    full_reindex:      "полная переиндексация",
-  };
-  const modeLabel = (m, fallback = "обновление") => MODE_LABELS[m] || fallback;
-
-  const STAGE_LABELS = {
-    site_crawl:    "Краулинг сайта",
-    s3_list:       "Листинг S3",
-    s3:            "Обработка документов",
-    chroma_delete: "Удаление старых чанков",
-    chroma_add:    "Добавление в индекс",
-    reindex_clear: "Очистка коллекции",
-  };
-
-  const progress = bg.progress;
-
   // Цвет точки состояния
   const dotColor = taskRunning ? "#F59E0B" : (schedulerRunning ? "#10B981" : "#94A3B8");
   const dotText  = taskRunning
-    ? `Идёт задача: ${modeLabel(bg.mode)}`
+    ? `Идёт задача: ${bg.mode === "reindex" ? "полная переиндексация" : "инкрементальное обновление"}`
     : (schedulerRunning ? "Планировщик активен" : "Планировщик остановлен");
 
   return (
@@ -124,59 +104,12 @@ export default function StatusPanel({ status, loading, error }) {
         }/>
         <Metric label="Текущая задача"
           value={taskRunning
-            ? `${modeLabel(bg.mode, "инкремент.")} · с ${formatDate(bg.started_at)}`
+            ? `${bg.mode === "reindex" ? "переиндексация" : "инкремент."} · с ${formatDate(bg.started_at)}`
             : "—"
           }
           valueColor={taskRunning ? "#D97706" : "#0F172A"}
         />
       </div>
-
-      {/* Прогресс текущей задачи */}
-      {taskRunning && progress && (
-        <div style={{
-          marginTop: 16, padding: "14px 16px",
-          background: "#FFFBEB", borderRadius: 10, border: "1px solid #FDE68A",
-        }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginBottom: 8, fontSize: 13, color: "#92400E",
-          }}>
-            <strong>{STAGE_LABELS[progress.stage] || progress.stage}</strong>
-            <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-              {progress.total > 0
-                ? `${progress.current}/${progress.total}`
-                : "…"}
-            </span>
-          </div>
-          <div style={{
-            height: 8, background: "#FEF3C7", borderRadius: 999, overflow: "hidden",
-          }}>
-            <div style={{
-              height: "100%",
-              width: progress.total > 0
-                ? `${Math.min(100, (progress.current / progress.total) * 100)}%`
-                : "30%",
-              background: "#F59E0B",
-              transition: "width 0.3s ease",
-              animation: progress.total === 0 ? "indeterminate 1.5s ease-in-out infinite" : "none",
-            }}/>
-          </div>
-          {progress.detail && (
-            <div style={{
-              marginTop: 8, fontSize: 12, color: "#78350F",
-              wordBreak: "break-word", lineHeight: 1.4,
-            }}>
-              {progress.detail}
-            </div>
-          )}
-          <style>{`
-            @keyframes indeterminate {
-              0%   { transform: translateX(-100%); }
-              100% { transform: translateX(300%); }
-            }
-          `}</style>
-        </div>
-      )}
 
       {/* Итог последнего обновления */}
       {scheduler.last_stats && (
@@ -196,7 +129,7 @@ export default function StatusPanel({ status, loading, error }) {
       {/* Результат или ошибка предыдущей ручной задачи */}
       {!taskRunning && bg.result && (
         <AlertBanner type="success">
-          Задача «{modeLabel(bg.result.mode, "обновление")}» завершена.
+          Задача «{bg.result.mode === "full_reindex" ? "переиндексация" : "инкрементальное обновление"}» завершена.
           {bg.result.vectors ? ` Векторов в базе: ${bg.result.vectors}.` : ""}
         </AlertBanner>
       )}

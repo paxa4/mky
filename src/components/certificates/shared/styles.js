@@ -7,19 +7,6 @@ export const cardStyle = {
   boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
 };
 
-export const pillBtn = (active) => ({
-  padding: "12px 24px",
-  borderRadius: 12,
-  fontWeight: 700,
-  cursor: "pointer",
-  border: "none",
-  fontSize: 15,
-  transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
-  background: active ? "#1D4ED8" : "#F1F5F9",
-  color: active ? "#fff" : "#64748B",
-  boxShadow: active ? "0 4px 12px rgba(29,78,216,0.25)" : "none",
-});
-
 export const inputStyle = {
   width: "100%",
   padding: "14px 16px",

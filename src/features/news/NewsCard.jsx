@@ -1,8 +1,10 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
 
-export default function NewsCard({ news, onClick, horizontal = false }) {
+export default function NewsCard({ news, horizontal = false, onClick }) {
   const [hov, setHov] = useState(false);
+
+  if (!news) return null;
 
   return (
     <div
@@ -11,12 +13,12 @@ export default function NewsCard({ news, onClick, horizontal = false }) {
       onMouseLeave={() => setHov(false)}
       style={{
         background: "#fff", borderRadius: 16, overflow: "hidden", cursor: "pointer",
-        border: "1px solid #F1F5F9", display: "flex",
+        border: "1px solid #F1F5F9", display: "flex", 
         flexDirection: horizontal ? "row" : "column",
         boxShadow: hov ? "0 12px 36px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.04)",
         transform: hov ? "translateY(-3px)" : "translateY(0)",
         transition: "box-shadow 0.25s, transform 0.25s",
-        height: "100%",
+        height: "100%"
       }}
     >
       <div style={{ height: horizontal ? "auto" : 178, width: horizontal ? "40%" : "100%", overflow: "hidden", flexShrink: 0 }}>
