@@ -1,23 +1,199 @@
 import { useState } from "react";
+import { API_BASE } from "../constants/index.js";
 
-export default function AuthPage({ onBack }) {
+// FastAPI на 422 возвращает detail в виде массива объектов {loc, msg, type}.
+// Приводим к читабельной строке, чтобы не получить "[object Object]".
+function formatApiError(err, fallback) {
+  const d = err?.detail ?? err?.message;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d
+      .map(e => (typeof e === "string" ? e : e?.msg || JSON.stringify(e)))
+      .join("; ");
+  }
+  if (d && typeof d === "object") return d.msg || JSON.stringify(d);
+  return fallback;
+}
+
+// Бэк может отдавать роль в куче разных форматов. Поддерживаем все типичные:
+// role / role_name / roles[] / is_admin / is_superuser / is_staff / scope.
+// Источник — объединённый объект из /auth/me и payload JWT.
+function detectRole(...sources) {
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+
+    if (src.is_admin || src.is_superuser || src.is_staff) return "admin";
+
+    const direct = src.role || src.role_name || src.user_role;
+    if (typeof direct === "string" && direct.toLowerCase() === "admin") return "admin";
+
+    if (Array.isArray(src.roles)) {
+      const has = src.roles.some(r => {
+        const v = typeof r === "string" ? r : r?.name || r?.role;
+        return String(v || "").toLowerCase() === "admin";
+      });
+      if (has) return "admin";
+    }
+
+    const scope = src.scope || src.scopes;
+    if (typeof scope === "string" && /\badmin\b/i.test(scope)) return "admin";
+    if (Array.isArray(scope) && scope.some(s => String(s).toLowerCase() === "admin")) return "admin";
+
+    // Фолбэк: бэк не отдаёт роль, но логин/email/sub === "admin".
+    // Снять, как только в /auth/me появится явное поле роли.
+    const ident = String(src.username || src.login || src.email || src.sub || "").toLowerCase();
+    if (ident === "admin") return "admin";
+  }
+  return "user";
+}
+
+// Декодируем payload JWT-токена (без проверки подписи — это делает бэк).
+// Нужен только для извлечения email из поля `sub`.
+function decodeJWT(token) {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch { return null; }
+}
+
+// Пробуем получить данные пользователя (роль и т.п.) по токену.
+// Если эндпоинта /auth/me нет — вернём null и обойдёмся email из JWT.
+async function fetchMe(token) {
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+// Собираем структуру пользователя для UI.
+// email — реальный (из JWT или /auth/me), роль — admin/user.
+// Остальные поля — заглушки, пока на бэке нет соответствующих данных.
+function buildUser({ email = "", username = "", role, name = "" }) {
+  const safeRole = String(role || "user").toLowerCase() === "admin" ? "admin" : "user";
+  const baseForName = name || username || (email ? email.split("@")[0] : "");
+  const [firstName = "", lastName = ""] = baseForName.trim().split(/\s+/);
+
+  return {
+    email,
+    role: safeRole,
+    firstName,
+    lastName,
+    middleName:    "",
+    username:      username || email,
+    phone:         "",
+    position:      safeRole === "admin" ? "Администратор" : "Пользователь",
+    organization:  "МКУ развития образования города Иркутска",
+    qualification: "",
+    workExperience: 0,
+    birthDate:     "",
+    created_at:    new Date().toISOString(),
+    subjects:      [],
+    certificates:  [],
+    achievements:  [],
+  };
+}
+
+export default function AuthPage({ onBack, onLogin }) {
   const [tab, setTab] = useState("login"); // "login" | "register"
-  const [loginForm, setLoginForm]   = useState({ email: "", password: "" });
-  const [regForm,   setRegForm]     = useState({ name: "", email: "", password: "" });
+  const [loginForm, setLoginForm]   = useState({ login: "", password: "" });
+  const [regForm,   setRegForm]     = useState({ login: "", email: "", password: "" });
   const [showPass,  setShowPass]    = useState(false);
   const [done,      setDone]        = useState(false);
   const [loggedIn,  setLoggedIn]    = useState(false);
+  const [loading,   setLoading]     = useState(false);
+  const [error,     setError]       = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!loginForm.email || !loginForm.password) return;
-    setLoggedIn(true);
+    if (!loginForm.login || !loginForm.password) return;
+    setError("");
+    setLoading(true);
+    try {
+      // Бэк ожидает OAuth2 form-urlencoded с полями username/password.
+      // В username отправляем введённый логин — на бэке он матчится по полю username/login.
+      const body = new URLSearchParams();
+      body.append("username", loginForm.login);
+      body.append("password", loginForm.password);
+
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(formatApiError(err, `Ошибка входа (${res.status})`));
+      }
+
+      const data = await res.json();
+      const token = data.access_token;
+      if (!token) throw new Error("Сервер не вернул access_token");
+
+      // Сохраняем токен — пригодится для всех будущих авторизованных запросов
+      localStorage.setItem("access_token", token);
+
+      // Email достаём из JWT (поле sub), как фолбэк — введённый логин (если он был email-видный)
+      const decoded = decodeJWT(token);
+      const sub = decoded?.sub || loginForm.login;
+
+      // Пытаемся получить роль и имя через /auth/me; если эндпоинта нет — обойдёмся
+      const me = await fetchMe(token);
+
+      // Диагностика: видно в DevTools, какие поля реально пришли (поможет настроить роль)
+      if (typeof window !== "undefined") {
+        // eslint-disable-next-line no-console
+        console.debug("[auth] /me:", me, "jwt:", decoded);
+      }
+
+      const user = buildUser({
+        email:    me?.email    || (String(sub).includes("@") ? sub : ""),
+        username: me?.username || me?.login || loginForm.login,
+        role:     detectRole(me, decoded),
+        name:     me?.name     || "",
+      });
+
+      setLoggedIn(true);
+      onLogin?.(user);
+    } catch (err) {
+      setError(err.message || "Не удалось войти");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regForm.name || !regForm.email || regForm.password.length < 8) return;
-    setDone(true);
+    if (!regForm.login || !regForm.email || regForm.password.length < 8) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // На бэке поле может называться login или username — отправляем оба
+          login:    regForm.login,
+          username: regForm.login,
+          email:    regForm.email,
+          password: regForm.password,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(formatApiError(err, `Ошибка регистрации (${res.status})`));
+      }
+      // После успешной регистрации бэк может либо сразу логинить, либо нет.
+      // В обоих случаях показываем экран успеха — войдёт пользователь через вкладку «Вход».
+      setDone(true);
+    } catch (err) {
+      setError(err.message || "Не удалось зарегистрироваться");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -96,8 +272,8 @@ export default function AuthPage({ onBack }) {
 
             {/* Tabs */}
             <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 11, padding: 4, marginBottom: 28 }}>
-              <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); }}>Вход</button>
-              <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setLoggedIn(false); }}>Регистрация</button>
+              <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); setError(""); }}>Вход</button>
+              <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setLoggedIn(false); setError(""); }}>Регистрация</button>
             </div>
 
             {/* LOGIN */}
@@ -111,15 +287,20 @@ export default function AuthPage({ onBack }) {
                       </svg>
                     </div>
                     <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>Вы вошли!</h3>
-                    <p style={{ fontSize: 14, color: "#64748B", marginBottom: 20 }}>Добро пожаловать, {loginForm.email}</p>
+                    <p style={{ fontSize: 14, color: "#64748B", marginBottom: 20 }}>Добро пожаловать, {loginForm.login}</p>
                     {onBack && <button className="auth-btn" onClick={onBack}>Перейти на главную</button>}
                   </div>
                 ) : (
                   <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {error && (
+                      <div style={{ padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", fontSize: 13, fontWeight: 500 }}>
+                        {error}
+                      </div>
+                    )}
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Email</label>
-                      <input className="auth-input" type="email" placeholder="example@mail.ru"
-                        value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))} required />
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Логин или Email</label>
+                      <input className="auth-input" type="text" placeholder="Логин или email" autoComplete="username"
+                        value={loginForm.login} onChange={e => setLoginForm(f => ({ ...f, login: e.target.value }))} required />
                     </div>
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -139,8 +320,8 @@ export default function AuthPage({ onBack }) {
                       </div>
                     </div>
                     <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!loginForm.email || !loginForm.password}>
-                      Войти
+                      disabled={!loginForm.login || !loginForm.password || loading}>
+                      {loading ? "Вход…" : "Войти"}
                     </button>
 
                   </form>
@@ -166,10 +347,15 @@ export default function AuthPage({ onBack }) {
                   </div>
                 ) : (
                   <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {error && (
+                      <div style={{ padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", fontSize: 13, fontWeight: 500 }}>
+                        {error}
+                      </div>
+                    )}
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>ФИО</label>
-                      <input className="auth-input" placeholder="Иванов Иван Иванович"
-                        value={regForm.name} onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))} required />
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Логин</label>
+                      <input className="auth-input" type="text" placeholder="Например, ivanov_ii" autoComplete="username"
+                        value={regForm.login} onChange={e => setRegForm(f => ({ ...f, login: e.target.value }))} required />
                     </div>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Email</label>
@@ -198,8 +384,8 @@ export default function AuthPage({ onBack }) {
                       )}
                     </div>
                     <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!regForm.name || !regForm.email || regForm.password.length < 8}>
-                      Зарегистрироваться
+                      disabled={!regForm.login || !regForm.email || regForm.password.length < 8 || loading}>
+                      {loading ? "Регистрация…" : "Зарегистрироваться"}
                     </button>
                     <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", lineHeight: 1.5, margin: 0 }}>
                       Нажимая кнопку, вы соглашаетесь с{" "}

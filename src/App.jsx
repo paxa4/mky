@@ -1,9 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import HomePage     from "./pages/HomePage.jsx";
 import AuthPage     from "./pages/AuthPage.jsx";
 import AdminPage    from "./pages/AdminPage.jsx";
 import ArticlePage  from "./pages/ArticlePage.jsx";
-import ProfilePage, { MOCK_USER } from "./pages/ProfilePage.jsx";
+import ProfilePage  from "./pages/ProfilePage.jsx";
 import ChatBot      from "./components/ChatBot.jsx";
 import { INITIAL_ARTICLES } from "./features/admin/adminStore.js";
 import { NEWS } from "./features/news/newsData.js";
@@ -71,9 +71,36 @@ function staticNewsToItem(news) {
 export default function App() {
   const [page,           setPage]          = useState("home");
   const [openedArticle,  setOpenedArticle] = useState(null);
-  const [isAdmin]                          = useState(true);
-  const [currentUser]                      = useState(MOCK_USER);
+  const [currentUser,    setCurrentUser]   = useState(() => {
+    try {
+      const raw = localStorage.getItem("currentUser");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
   const [articles,       setArticles]      = useState(INITIAL_ARTICLES);
+
+  // Роль определяется только из объекта пользователя
+  const isAdmin = currentUser?.role === "admin";
+
+  // Синхронизация пользователя с localStorage
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
+  }, [currentUser]);
+
+  const handleLogin = useCallback((user) => {
+    setCurrentUser(user);
+    setPage("home");
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("access_token");
+    setCurrentUser(null);
+    setPage("home");
+  }, []);
 
   const saveArticle = useCallback((article) => {
     const now = new Date().toISOString().slice(0, 10);
@@ -131,7 +158,7 @@ export default function App() {
       )}
 
       {page === "auth" && (
-        <AuthPage onBack={() => setPage("home")} />
+        <AuthPage onBack={() => setPage("home")} onLogin={handleLogin} />
       )}
 
       {page === "article" && openedArticle && (
@@ -141,7 +168,7 @@ export default function App() {
         />
       )}
 
-      {page === "admin" && (
+      {page === "admin" && isAdmin && (
         <AdminPage
           onBack={() => setPage("home")}
           articles={articles}
@@ -151,11 +178,11 @@ export default function App() {
         />
       )}
 
-      {page === "profile" && (
+      {page === "profile" && currentUser && (
         <ProfilePage
           user={currentUser}
           onBack={() => setPage("home")}
-          onLogout={() => setPage("home")}
+          onLogout={handleLogout}
         />
       )}
 

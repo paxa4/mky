@@ -4,12 +4,41 @@ import { useState, useEffect, useRef } from "react";
 const API_BASE   = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const SESSION_ID = crypto.randomUUID(); // уникальная сессия на каждый tab
 
+// ── Преобразование URL в кликабельные ссылки ──────────────────────────────────
+
+function linkify(text, isBot) {
+  if (!text) return text;
+  const urlRegex = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    const url  = match[0];
+    const href = url.startsWith("www.") ? `https://${url}` : url;
+    parts.push(
+      <a
+        key={`${match.index}-${url}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={isBot ? "chat-link-bot" : "chat-link-user"}
+      >
+        {url}
+      </a>
+    );
+    lastIndex = match.index + url.length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 // ── Компонент сообщения ───────────────────────────────────────────────────────
 
 function Message({ msg }) {
   const isBot = msg.from === "bot";
   return (
-    <div style={{ display: "flex", justifyContent: isBot ? "flex-start" : "flex-end", marginBottom: 12 }}>
+    <div style={{ display: "flex", justifyContent: isBot ? "flex-start" : "flex-end", marginBottom: 12, minWidth: 0 }}>
       {isBot && (
         <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1D4ED8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -19,6 +48,7 @@ function Message({ msg }) {
       )}
       <div style={{
         maxWidth: "80%",
+        minWidth: 0,
         padding: "10px 14px",
         borderRadius: isBot ? "4px 16px 16px 16px" : "16px 4px 16px 16px",
         background: isBot ? "#F1F5F9" : "#1D4ED8",
@@ -26,8 +56,10 @@ function Message({ msg }) {
         fontSize: 13,
         lineHeight: 1.55,
         whiteSpace: "pre-line",
+        wordBreak: "break-word",
+        overflowWrap: "anywhere",
       }}>
-        {msg.text}
+        {linkify(msg.text, isBot)}
 
         {/* Источники — показываем только у ответов бота */}
         {isBot && msg.sources?.length > 0 && (
@@ -39,7 +71,7 @@ function Message({ msg }) {
                 href={src.source}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "block", fontSize: 11, color: "#1D4ED8", textDecoration: "none", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                className="chat-source-link"
                 title={src.title || src.source}
               >
                 🔗 {src.title || src.source}
@@ -190,6 +222,32 @@ export default function ChatBot() {
           0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
           40%            { transform: scale(1.1); opacity: 1; }
         }
+        .chat-link-bot, .chat-link-user {
+          text-decoration: underline;
+          word-break: break-all;
+          overflow-wrap: anywhere;
+          font-weight: 600;
+        }
+        .chat-link-bot  { color: #1D4ED8; }
+        .chat-link-bot:hover  { color: #1E40AF; }
+        .chat-link-user { color: #fff; }
+        .chat-link-user:hover { color: #DBEAFE; }
+        .chat-source-link {
+          display: block;
+          font-size: 11px;
+          color: #1D4ED8;
+          font-weight: 600;
+          text-decoration: none;
+          margin-bottom: 4px;
+          padding: 4px 8px;
+          background: rgba(29,78,216,0.06);
+          border-radius: 6px;
+          word-break: break-all;
+          overflow-wrap: anywhere;
+          line-height: 1.4;
+          transition: background 0.15s;
+        }
+        .chat-source-link:hover { background: rgba(29,78,216,0.12); text-decoration: underline; }
         .chat-input {
           flex: 1; border: none; outline: none; background: transparent;
           font-size: 13px; color: #0F172A; font-family: inherit; resize: none;

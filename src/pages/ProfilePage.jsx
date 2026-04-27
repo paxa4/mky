@@ -87,6 +87,7 @@ const LEVEL_COLORS = {
 
 const ROLE_LABELS = {
   admin:     "Администратор",
+  user:      "Пользователь",
   methodist: "Методист",
   teacher:   "Педагог",
   guest:     "Гость",
@@ -116,9 +117,11 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userAr
     ? Math.floor((new Date(user.nextAttestationDate) - new Date()) / 86400000)
     : null;
 
-  const roleName = typeof user.role === "object"
-    ? user.role?.role_name
-    : user.role_id === 1 ? "admin" : user.role_id === 2 ? "methodist" : "teacher";
+  const roleName = typeof user.role === "string"
+    ? user.role
+    : typeof user.role === "object"
+      ? user.role?.role_name
+      : user.role_id === 1 ? "admin" : user.role_id === 2 ? "methodist" : "teacher";
 
   const handleSave = () => {
     setSaved(true);
@@ -213,7 +216,10 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userAr
               {user.lastName} {user.firstName} {user.middleName}
             </div>
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", marginTop: 5 }}>
-              @{form.username || user.username} · {user.email}
+              {[
+                (form.username || user.username) && `@${form.username || user.username}`,
+                user.email,
+              ].filter(Boolean).join(" · ")}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
               <Tag bg="rgba(255,255,255,0.2)" color="#fff">
@@ -302,7 +308,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userAr
                 {editMode ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {[
-                      { label: "Имя пользователя (username)", key: "username" },
+                      { label: "Логин",                       key: "username" },
                       { label: "Телефон",                     key: "phone" },
                       { label: "Должность",                   key: "position" },
                       { label: "Организация",                 key: "organization" },
@@ -327,9 +333,9 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userAr
                   </div>
                 ) : (
                   <>
-                    <InfoRow label="ID пользователя" value={`#${user.id}`} />
+                    <InfoRow label="ID пользователя" value={user.id ? `#${user.id}` : null} />
+                    <InfoRow label="Логин"            value={form.username || user.username} />
                     <InfoRow label="Email"            value={user.email} />
-                    <InfoRow label="Username"         value={`@${form.username}`} />
                     <InfoRow label="Роль"             value={ROLE_LABELS[roleName] || roleName} />
                     <InfoRow label="Дата регистрации" value={new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })} />
                     <InfoRow label="Телефон"          value={form.phone} />
