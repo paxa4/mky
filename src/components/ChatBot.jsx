@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
-// ── Настройки ─────────────────────────────────────────────────────────────────
 const API_BASE   = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const SESSION_ID = crypto.randomUUID(); // уникальная сессия на каждый tab
-
-// ── Преобразование URL в кликабельные ссылки ──────────────────────────────────
+const SESSION_ID = crypto.randomUUID();
 
 function linkify(text, isBot) {
   if (!text) return text;
@@ -33,8 +30,6 @@ function linkify(text, isBot) {
   return parts;
 }
 
-// ── Компонент сообщения ───────────────────────────────────────────────────────
-
 function Message({ msg }) {
   const isBot = msg.from === "bot";
   return (
@@ -61,7 +56,6 @@ function Message({ msg }) {
       }}>
         {linkify(msg.text, isBot)}
 
-        {/* Источники — показываем только у ответов бота */}
         {isBot && msg.sources?.length > 0 && (
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #CBD5E1" }}>
             <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Источники:</div>
@@ -83,8 +77,6 @@ function Message({ msg }) {
     </div>
   );
 }
-
-// ── Индикатор печати ──────────────────────────────────────────────────────────
 
 function TypingIndicator() {
   return (
@@ -108,19 +100,17 @@ function TypingIndicator() {
   );
 }
 
-// ── Основной компонент ────────────────────────────────────────────────────────
-
 export default function ChatBot() {
-  const [open,     setOpen]    = useState(false);
+  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { id: 1, from: "bot", text: "Здравствуйте! 👋 Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос." }
   ]);
-  const [input,   setInput]   = useState("");
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);   // сообщение об ошибке сети
+  const [error, setError] = useState(null);
 
   const bottomRef = useRef(null);
-  const inputRef  = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
@@ -129,8 +119,6 @@ export default function ChatBot() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  // ── Отправка сообщения ──────────────────────────────────────────────────────
 
   const sendMessage = async (text) => {
     if (!text.trim() || loading) return;
@@ -152,7 +140,6 @@ export default function ChatBot() {
       });
 
       if (!res.ok) {
-        // Пробуем получить текст ошибки от сервера
         let detail = `Ошибка сервера (${res.status})`;
         try {
           const err = await res.json();
@@ -169,7 +156,6 @@ export default function ChatBot() {
         text:    data.answer,
         sources: data.sources || [],
       }]);
-
     } catch (e) {
       const errText = e.message || "Не удалось подключиться к серверу";
       setError(errText);
@@ -187,8 +173,6 @@ export default function ChatBot() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
-  // ── Сброс истории ───────────────────────────────────────────────────────────
-
   const clearHistory = async () => {
     try {
       await fetch(`${API_BASE}/assistant/clear/${SESSION_ID}`, { method: "POST" });
@@ -199,14 +183,12 @@ export default function ChatBot() {
     }]);
   };
 
-  // ── Рендер ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <style>{`
         .chat-window {
-          position: fixed; bottom: 88px; right: 24px; z-index: 400;
-          width: 320px; max-height: 480px;
+          position: fixed; bottom: 94px; right: 24px; z-index: 400;
+          width: 340px; height: 500px; max-height: calc(100vh - 120px);
           background: #fff; border-radius: 20px;
           border: 1px solid #E2E8F0;
           box-shadow: 0 16px 48px rgba(0,0,0,0.14);
@@ -260,17 +242,21 @@ export default function ChatBot() {
           align-items: center; justify-content: center; flex-shrink: 0;
           transition: background 0.15s, transform 0.1s;
         }
-        .chat-send:hover  { background: #1E40AF; transform: scale(1.05); }
+        .chat-send:hover { background: #1E40AF; transform: scale(1.05); }
         .chat-send:disabled { background: #CBD5E1; cursor: default; transform: none; }
         .chat-fab {
           position: fixed; bottom: 24px; right: 24px; z-index: 400;
-          width: 52px; height: 52px; border-radius: 50%; border: none;
-          background: #1D4ED8; cursor: pointer;
+          width: 60px; height: 60px; border-radius: 50%;
+          background: #1D4ED8; cursor: pointer; color: #fff;
           display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 4px 20px rgba(29,78,216,0.4);
-          transition: background 0.15s, transform 0.15s;
+          box-shadow: 0 8px 24px rgba(29,78,216,0.35);
+          border: 4px solid #fff;
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
         }
-        .chat-fab:hover { background: #1E40AF; transform: scale(1.08); }
+        .chat-fab:hover {
+          transform: scale(1.08) translateY(-4px);
+          box-shadow: 0 12px 32px rgba(29,78,216,0.45);
+        }
         .chat-clear {
           background: none; border: none; cursor: pointer; padding: 4px;
           color: rgba(255,255,255,0.7); font-size: 11px;
@@ -279,7 +265,7 @@ export default function ChatBot() {
         .chat-clear:hover { color: #fff; }
         @media (max-width: 480px) {
           .chat-window { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
-          .chat-fab    { right: 16px; bottom: 16px; }
+          .chat-fab { right: 16px; bottom: 16px; }
         }
       `}</style>
 
@@ -300,11 +286,9 @@ export default function ChatBot() {
                 {loading ? "Печатает…" : "Онлайн"}
               </div>
             </div>
-            {/* Кнопка очистки истории */}
             <button className="chat-clear" onClick={clearHistory} title="Очистить историю">
               ↺
             </button>
-            {/* Кнопка закрытия */}
             <button onClick={() => setOpen(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M1 1l10 10M11 1L1 11" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
@@ -347,13 +331,13 @@ export default function ChatBot() {
       {/* Кнопка открытия */}
       <button className="chat-fab" onClick={() => setOpen(v => !v)} title="Написать нам">
         {open ? (
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M4 4l12 12M16 4L4 16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+            <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
           </svg>
         ) : (
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-            <path d="M3 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7l-4 3V5Z" stroke="white" strokeWidth="1.8" strokeLinejoin="round"/>
-            <path d="M7 9h8M7 12h5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+          <svg width="26" height="26" viewBox="0 0 22 22" fill="none">
+            <path d="M3 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7l-4 3V5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+            <path d="M7 9h8M7 12h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         )}
       </button>

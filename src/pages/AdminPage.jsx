@@ -79,6 +79,8 @@ function IssueModule({ templates }) {
 export default function AdminPage({
   currentUser,
   articles = [],
+  categories,
+  apiOnline,
   saveArticle,
   deleteArticle,
   changeArticleStatus,
@@ -167,6 +169,8 @@ export default function AdminPage({
               {activeModule === "articles" && (
                 <ArticlesModule
                   articles={articles}
+                  categories={categories}
+                  apiOnline={apiOnline}
                   saveArticle={saveArticle}
                   deleteArticle={deleteArticle}
                   changeArticleStatus={changeArticleStatus}

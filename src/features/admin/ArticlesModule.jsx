@@ -120,6 +120,11 @@ function ArticleForm({ article, store, onSave, onCancel }) {
                 </span>
               </label>
             ))}
+            {form.status === "published" && (
+              <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#ECFDF5", fontSize: 12, color: "#059669", fontWeight: 500 }}>
+                ✓ Статья появится на главной странице
+              </div>
+            )}
           </div>
 
           <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #F1F5F9", padding: "16px 18px" }}>
@@ -371,14 +376,17 @@ const SUB_TABS = [
   { id: "tags",       label: "Теги",      icon: "🏷️" },
 ];
 
-export default function ArticlesModule({ articles, saveArticle, deleteArticle, changeArticleStatus }) {
+export default function ArticlesModule({ articles, categories: propCategories, saveArticle, deleteArticle, changeArticleStatus }) {
   const meta = useAdminMeta();
+  // Если категории переданы из App (загружены с бэка) — используем их, иначе локальные.
+  const categories = propCategories && propCategories.length > 0 ? propCategories : meta.categories;
   const store = {
     articles,
     saveArticle,
     deleteArticle,
     changeArticleStatus,
     ...meta,
+    categories,
   };
   const [subTab, setSubTab] = useState("articles");
   const [editing, setEditing] = useState(null);

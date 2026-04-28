@@ -1,23 +1,23 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { canAccessAdmin, getRoleLabel } from "../auth.js";
 
-// ─── Mock-данные пользователя (заменить на API при интеграции бэкенда) ────────
 export const MOCK_USER = {
   id: 1,
-  firstName:   "Ирина",
-  lastName:    "Абрамова",
-  middleName:  "Владимировна",
-  username:    "abramova_iv",
-  email:       "abramova@mc.eduirk.ru",
-  phone:       "+7 (3952) 20-19-85",
-  position:    "Методист",
-  organization:"МКУ развития образования города Иркутска",
-  qualification:"Высшая категория",
+  firstName: "Ирина",
+  lastName: "Абрамова",
+  middleName: "Владимировна",
+  username: "abramova_iv",
+  email: "abramova@mc.eduirk.ru",
+  phone: "+7 (3952) 20-19-85",
+  position: "Методист",
+  organization: "МКУ развития образования города Иркутска",
+  qualification: "Высшая категория",
   workExperience: 14,
-  birthDate:   "1985-04-20",
-  created_at:  "2024-09-01T00:00:00",
-  role:        { role_name: "methodist" },
+  birthDate: "1985-04-20",
+  created_at: "2024-09-01T00:00:00",
+  role: { role_name: "methodist" },
   nextAttestationDate: "2026-11-01",
-  subjects:    ["Дополнительное образование", "Методическая работа"],
+  subjects: ["Дополнительное образование", "Методическая работа"],
   certificates: [
     { id: 1, title: "Школьный театр как ресурс воспитания", issuer: "ИРО Иркутской области", hours: 36, date: "2025-11-14" },
     { id: 2, title: "Цифровые инструменты педагога", issuer: "МКУ РОИ", hours: 72, date: "2025-04-20" },
@@ -30,98 +30,148 @@ export const MOCK_USER = {
   ],
 };
 
-// ─── Вспомогательные компоненты ───────────────────────────────────────────────
+const LEVEL_COLORS = {
+  Муниципальный: { bg: "#EFF6FF", color: "#1D4ED8" },
+  Региональный: { bg: "#F5F3FF", color: "#6D28D9" },
+  Федеральный: { bg: "#ECFDF5", color: "#047857" },
+};
 
-function Avatar({ user, size = 80 }) {
+const TABS = [
+  { id: "overview", label: "Обзор", icon: "user" },
+  { id: "articles", label: "Мои статьи", icon: "edit" },
+  { id: "certificates", label: "Курсы", icon: "graduation" },
+  { id: "achievements", label: "Достижения", icon: "award" },
+  { id: "admin", label: "Администрирование", icon: "shield" },
+  { id: "settings", label: "Настройки", icon: "settings" },
+];
+
+function Icon({ name, size = 18 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.9",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+
+  const paths = {
+    arrowLeft: <path d="M15 18l-6-6 6-6" />,
+    home: <><path d="m3 10.5 9-7 9 7" /><path d="M5 9.5V20h14V9.5" /><path d="M9 20v-6h6v6" /></>,
+    logout: <><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 3v18" /></>,
+    user: <><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></>,
+    edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
+    graduation: <><path d="m22 10-10-5-10 5 10 5 10-5Z" /><path d="M6 12v5c3 2 9 2 12 0v-5" /></>,
+    award: <><circle cx="12" cy="8" r="5" /><path d="M8.5 12.5 7 22l5-3 5 3-1.5-9.5" /></>,
+    settings: <><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.28.6.88 1 1.55 1H21a2 2 0 0 1 0 4h-.09c-.67 0-1.27.4-1.55 1Z" /></>,
+    mail: <><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></>,
+    phone: <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.18 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L8 9.7a16 16 0 0 0 6.3 6.3l1.26-1.24a2 2 0 0 1 2.11-.45c.84.27 1.72.47 2.61.59A2 2 0 0 1 22 16.9Z" />,
+    calendar: <><path d="M8 2v4" /><path d="M16 2v4" /><path d="M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="3" /></>,
+    briefcase: <><path d="M10 6V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1" /><rect x="3" y="6" width="18" height="14" rx="2" /><path d="M3 12h18" /></>,
+    building: <><path d="M4 22V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v18" /><path d="M9 22v-4h3v4" /><path d="M8 6h1" /><path d="M12 6h1" /><path d="M8 10h1" /><path d="M12 10h1" /><path d="M8 14h1" /><path d="M12 14h1" /><path d="M17 9h1a2 2 0 0 1 2 2v11" /></>,
+    book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H21" /><path d="M4 4v15.5A2.5 2.5 0 0 1 6.5 22H21V6a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 6.5" /></>,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-5" /></>,
+    download: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>,
+  };
+
+  return <svg {...common}>{paths[name] || paths.user}</svg>;
+}
+
+function Avatar({ user, size = 88, compact = false }) {
   const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`;
   return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%",
-      background: "linear-gradient(135deg, #1D4ED8, #7C3AED)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      color: "#fff", fontSize: size * 0.3, fontWeight: 800, flexShrink: 0,
-      fontFamily: "'PT Sans', system-ui, sans-serif",
-    }}>
+    <div className={compact ? "profile-avatar profile-avatar--compact" : "profile-avatar"} style={{ "--avatar-size": `${size}px` }}>
       {initials || "?"}
     </div>
   );
 }
 
-function Card({ children, title, icon, style: s = {} }) {
+function Card({ children, title, icon, action, className = "" }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #F1F5F9", padding: "20px 24px", ...s }}>
-      {title && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid #F8FAFC" }}>
-          {icon && <span style={{ fontSize: 18 }}>{icon}</span>}
-          <span style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>{title}</span>
+    <section className={`profile-card ${className}`}>
+      {(title || action) && (
+        <div className="profile-card__head">
+          <div>
+            {title && (
+              <h2>
+                {icon && <span className="profile-card__icon"><Icon name={icon} size={18} /></span>}
+                {title}
+              </h2>
+            )}
+          </div>
+          {action}
         </div>
       )}
       {children}
-    </div>
+    </section>
   );
 }
 
-function InfoRow({ label, value }) {
+function Tag({ children, tone = "blue" }) {
+  return <span className={`profile-tag profile-tag--${tone}`}>{children}</span>;
+}
+
+function InfoTile({ icon, label, value, wide = false }) {
   if (!value && value !== 0) return null;
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 0", borderBottom: "1px solid #F8FAFC" }}>
-      <span style={{ fontSize: 13, color: "#94A3B8", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, color: "#0F172A", fontWeight: 500, textAlign: "right" }}>{value}</span>
+    <div className={`info-tile ${wide ? "info-tile--wide" : ""}`}>
+      <div className="info-tile__icon"><Icon name={icon} size={18} /></div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
     </div>
   );
 }
 
-function Tag({ children, bg = "#EFF6FF", color = "#1D4ED8" }) {
+function EmptyState({ icon, text }) {
   return (
-    <span style={{ display: "inline-flex", padding: "3px 10px", borderRadius: 20, background: bg, color, fontSize: 12, fontWeight: 600 }}>
-      {children}
-    </span>
+    <div className="empty-state">
+      <span><Icon name={icon} size={34} /></span>
+      <p>{text}</p>
+    </div>
   );
 }
 
-const LEVEL_COLORS = {
-  "Муниципальный": { bg: "#EFF6FF", color: "#1D4ED8" },
-  "Региональный":  { bg: "#F5F3FF", color: "#7C3AED" },
-  "Федеральный":   { bg: "#ECFDF5", color: "#059669" },
-};
-
-const ROLE_LABELS = {
-  admin:     "Администратор",
-  user:      "Пользователь",
-  methodist: "Методист",
-  teacher:   "Педагог",
-  guest:     "Гость",
-};
-
-const TABS = [
-  { id: "overview",      label: "Обзор",          icon: "👤" },
-  { id: "articles",      label: "Мои статьи",     icon: "📝" },
-  { id: "certificates",  label: "Курсы",           icon: "🎓" },
-  { id: "achievements",  label: "Достижения",      icon: "🏆" },
-  { id: "settings",      label: "Настройки",       icon: "⚙️" },
-];
-
-// ─── Главный компонент ────────────────────────────────────────────────────────
-export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userArticles = [] }) {
+export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogout, userArticles = [] }) {
   const [activeTab, setActiveTab] = useState("overview");
-  const [editMode,  setEditMode]  = useState(false);
-  const [saved,     setSaved]     = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({
-    username:     user.username     || "",
-    phone:        user.phone        || "",
-    position:     user.position     || "",
+    username: user.username || "",
+    phone: user.phone || "",
+    position: user.position || "",
     organization: user.organization || "",
+  });
+
+  const roleName = typeof user.role === "object"
+    ? user.role?.role_name
+    : user.role || (user.role_id === 1 ? "admin" : user.role_id === 2 ? "methodist" : "user");
+  const isUser = roleName === "user";
+  const isMethodist = roleName === "methodist";
+  const isAdmin = roleName === "admin";
+  const hasAdminAccess = canAccessAdmin({ role: roleName });
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab.id === "articles") return isMethodist || isAdmin;
+    if (tab.id === "admin") return isAdmin;
+    return true;
   });
 
   const daysLeft = user.nextAttestationDate
     ? Math.floor((new Date(user.nextAttestationDate) - new Date()) / 86400000)
     : null;
 
-  const roleName = typeof user.role === "string"
-    ? user.role
-    : typeof user.role === "object"
-      ? user.role?.role_name
-      : user.role_id === 1 ? "admin" : user.role_id === 2 ? "methodist" : "teacher";
+  const attestationProgress = useMemo(() => {
+    if (daysLeft === null) return 0;
+    const totalWindow = 5 * 365;
+    return Math.max(8, Math.min(100, Math.round(((totalWindow - daysLeft) / totalWindow) * 100)));
+  }, [daysLeft]);
+
+  const totalHours = (user.certificates || []).reduce((sum, certificate) => sum + (certificate.hours || 0), 0);
 
   const handleSave = () => {
     setSaved(true);
@@ -130,356 +180,626 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onLogout, userAr
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'PT Sans', system-ui, sans-serif" }}>
+    <div className="profile-page">
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+        .profile-page {
+          --blue-950: #0B1F49;
+          --blue-900: #123C7C;
+          --blue-700: #1D4ED8;
+          --blue-600: #2563EB;
+          --violet-600: #7C3AED;
+          --violet-100: #F3EEFF;
+          --slate-900: #0F172A;
+          --slate-700: #334155;
+          --slate-500: #64748B;
+          --slate-300: #CBD5E1;
+          --slate-100: #F1F5F9;
+          --paper: #FFFFFF;
+          --line: rgba(148, 163, 184, 0.22);
+          min-height: 100vh;
+          color: var(--slate-900);
+          font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+          background:
+            radial-gradient(circle at 11% 7%, rgba(37, 99, 235, 0.13), transparent 28rem),
+            radial-gradient(circle at 91% 4%, rgba(124, 58, 237, 0.13), transparent 26rem),
+            linear-gradient(180deg, #F8FBFF 0%, #F4F7FB 48%, #F8FAFC 100%);
+        }
+        .profile-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+        .profile-topbar {
+          position: sticky; top: 0; z-index: 20;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+          background: rgba(255, 255, 255, 0.82);
+          backdrop-filter: blur(18px);
+        }
+        .profile-topbar__inner {
+          height: 64px; display: flex; align-items: center; gap: 14px;
+        }
+        .profile-brand {
+          display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--blue-950);
+          letter-spacing: -0.02em;
+        }
+        .profile-logo {
+          width: 34px; height: 34px; border-radius: 12px;
+          display: grid; place-items: center; color: white; font-weight: 800;
+          background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
+          box-shadow: 0 12px 30px rgba(37, 99, 235, 0.24);
+        }
+        .topbar-spacer { flex: 1; }
+        .profile-btn {
+          border: 0; border-radius: 14px; min-height: 38px; padding: 0 16px;
+          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+          transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+        }
+        .profile-btn:hover { transform: translateY(-1px); }
+        .profile-btn:focus-visible, .ptab:focus-visible, .pinput:focus-visible {
+          outline: 3px solid rgba(37, 99, 235, 0.24);
+          outline-offset: 3px;
+        }
+        .profile-btn--ghost {
+          color: var(--blue-900); background: #fff; border: 1px solid rgba(37, 99, 235, 0.18);
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+        .profile-btn--primary {
+          color: #fff; background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
+          box-shadow: 0 16px 34px rgba(37, 99, 235, 0.28);
+        }
+        .profile-btn--danger {
+          color: #B91C1C; background: #fff; border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        .profile-btn--small { min-height: 34px; border-radius: 12px; padding: 0 13px; font-size: 12px; }
+        .saved-pill {
+          color: #047857; background: #ECFDF5; border: 1px solid rgba(16, 185, 129, 0.18);
+          padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 800;
+        }
+        .profile-hero { padding: 30px 0 24px; }
+        .profile-hero__card {
+          position: relative; overflow: hidden;
+          display: grid; grid-template-columns: auto 1fr auto; gap: 26px; align-items: center;
+          min-height: 220px; padding: 34px;
+          border: 1px solid rgba(255,255,255,0.78); border-radius: 32px;
+          background:
+            linear-gradient(135deg, rgba(11,31,73,0.95), rgba(29,78,216,0.92) 52%, rgba(124,58,237,0.86)),
+            radial-gradient(circle at 70% 35%, rgba(255,255,255,0.3), transparent 18rem);
+          box-shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
+        }
+        .profile-hero__card::before {
+          content: ""; position: absolute; inset: 16px; border-radius: 26px;
+          border: 1px solid rgba(255,255,255,0.14); pointer-events: none;
+        }
+        .profile-hero__card::after {
+          content: ""; position: absolute; right: -90px; top: -120px; width: 360px; height: 360px;
+          background: radial-gradient(circle, rgba(255,255,255,0.24), transparent 62%);
+        }
+        .profile-hero__main, .profile-hero__actions, .profile-avatar { position: relative; z-index: 1; }
+        .profile-avatar {
+          width: var(--avatar-size); height: var(--avatar-size); border-radius: 28px;
+          display: grid; place-items: center;
+          color: #fff; font-size: calc(var(--avatar-size) * .28); font-weight: 800;
+          background: linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08));
+          border: 1px solid rgba(255,255,255,0.36);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 20px 48px rgba(5, 14, 36, 0.24);
+        }
+        .profile-avatar--compact {
+          border-radius: 13px;
+          background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
+          border: 0; box-shadow: none; font-size: 12px;
+        }
+        .profile-kicker {
+          display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.76);
+          font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+        }
+        .profile-kicker::before {
+          content: ""; width: 8px; height: 8px; border-radius: 99px; background: #A7F3D0;
+          box-shadow: 0 0 0 6px rgba(167, 243, 208, 0.14);
+        }
+        .profile-hero h1 {
+          margin: 10px 0 8px; max-width: 720px;
+          color: #fff; font-size: clamp(28px, 4vw, 46px); line-height: 1.03; letter-spacing: -0.055em;
+        }
+        .profile-subtitle { color: rgba(255,255,255,0.78); font-size: 15px; font-weight: 600; }
+        .profile-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+        .profile-tag {
+          display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px;
+          font-size: 12px; font-weight: 800; border: 1px solid transparent;
+        }
+        .profile-tag--hero { color: #fff; background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.2); }
+        .profile-tag--blue { color: #1D4ED8; background: #EFF6FF; border-color: #DBEAFE; }
+        .profile-tag--violet { color: #6D28D9; background: #F5F3FF; border-color: #EDE9FE; }
+        .profile-tag--green { color: #047857; background: #ECFDF5; border-color: #D1FAE5; }
+        .profile-tag--gray { color: #475569; background: #F8FAFC; border-color: #E2E8F0; }
+        .profile-hero__actions { display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+        .hero-mini-card {
+          min-width: 180px; padding: 14px 16px; border-radius: 20px; color: #fff;
+          background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+          backdrop-filter: blur(12px);
+        }
+        .hero-mini-card span { display: block; color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 700; }
+        .hero-mini-card strong { display: block; margin-top: 3px; font-size: 22px; letter-spacing: -0.03em; }
+        .profile-layout {
+          display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; align-items: start;
+          padding-bottom: 52px;
+        }
+        .profile-sidebar { display: grid; gap: 16px; position: sticky; top: 84px; }
+        .profile-card {
+          background: rgba(255,255,255,0.86); border: 1px solid rgba(226, 232, 240, 0.86); border-radius: 26px;
+          padding: 22px; box-shadow: 0 20px 60px rgba(15,23,42,0.07);
+          backdrop-filter: blur(16px);
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .profile-card:hover { transform: translateY(-2px); box-shadow: 0 26px 70px rgba(15,23,42,0.1); border-color: rgba(37,99,235,0.16); }
+        .profile-card__head {
+          display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 18px;
+        }
+        .profile-card h2 {
+          margin: 0; display: flex; align-items: center; gap: 10px;
+          font-size: 18px; line-height: 1.2; letter-spacing: -0.02em;
+        }
+        .profile-card__icon {
+          width: 36px; height: 36px; border-radius: 14px; display: grid; place-items: center;
+          color: var(--blue-700); background: #EFF6FF;
+        }
+        .ptabs-col { display: grid; gap: 6px; }
         .ptab {
-          padding: 9px 14px; border-radius: 10px; border: none;
-          background: none; cursor: pointer; font-size: 13px; font-weight: 500;
-          color: #64748B; display: flex; align-items: center; gap: 7px;
-          font-family: inherit; transition: background 0.15s, color 0.15s;
-          white-space: nowrap; width: 100%; text-align: left;
+          width: 100%; border: 0; border-radius: 16px; padding: 12px 13px;
+          display: flex; align-items: center; gap: 11px;
+          background: transparent; color: var(--slate-500); font: inherit; font-size: 14px; font-weight: 800;
+          text-align: left; cursor: pointer; transition: background .18s ease, color .18s ease, transform .18s ease;
         }
-        .ptab:hover  { background: #F1F5F9; color: #334155; }
-        .ptab.active { background: #EFF6FF; color: #1D4ED8; font-weight: 700; }
+        .ptab:hover { color: var(--blue-900); background: #F8FAFC; transform: translateX(2px); }
+        .ptab.active {
+          color: var(--blue-700); background: linear-gradient(135deg, #EFF6FF, #F5F3FF);
+          box-shadow: inset 3px 0 0 var(--blue-700);
+        }
+        .ptab span {
+          width: 34px; height: 34px; border-radius: 13px; display: grid; place-items: center;
+          background: #F8FAFC; color: currentColor;
+        }
+        .profile-content { display: grid; gap: 18px; min-width: 0; }
+        .attestation-card {
+          background: linear-gradient(180deg, #fff 0%, #FFFBEB 100%);
+        }
+        .eyebrow {
+          color: var(--slate-500); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
+        }
+        .attestation-date { margin-top: 8px; font-size: 18px; font-weight: 800; color: var(--blue-950); letter-spacing: -0.02em; }
+        .attestation-note {
+          margin-top: 10px; display: inline-flex; gap: 6px; align-items: baseline; padding: 8px 10px; border-radius: 14px;
+          color: #92400E; background: #FEF3C7; font-size: 12px; font-weight: 700;
+        }
+        .attestation-note strong { font-size: 14px; }
+        .progress {
+          height: 9px; border-radius: 999px; overflow: hidden; margin-top: 15px;
+          background: rgba(251, 191, 36, 0.2);
+        }
+        .progress span {
+          display: block; height: 100%; border-radius: inherit;
+          background: linear-gradient(90deg, #F59E0B, #7C3AED);
+        }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .stat-card {
+          padding: 18px; border-radius: 22px; border: 1px solid rgba(226,232,240,.86);
+          background: #fff; box-shadow: 0 14px 38px rgba(15,23,42,.05);
+        }
+        .stat-card span { color: var(--slate-500); font-size: 12px; font-weight: 800; }
+        .stat-card strong { display: block; margin-top: 8px; color: var(--blue-950); font-size: 30px; line-height: 1; letter-spacing: -0.05em; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .info-tile {
+          display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: center;
+          min-height: 82px; padding: 14px; border-radius: 20px;
+          background: linear-gradient(180deg, #fff, #F8FAFC); border: 1px solid rgba(226,232,240,.9);
+        }
+        .info-tile--wide { grid-column: 1 / -1; }
+        .info-tile__icon {
+          width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center;
+          color: var(--blue-700); background: #EFF6FF;
+        }
+        .info-tile span { display: block; color: var(--slate-500); font-size: 12px; font-weight: 800; }
+        .info-tile strong {
+          display: block; margin-top: 4px; color: var(--slate-900); font-size: 14px; line-height: 1.35; word-break: break-word;
+        }
         .pinput {
-          width: 100%; padding: 10px 13px; font-size: 14px;
-          border: 1.5px solid #E2E8F0; border-radius: 10px;
-          outline: none; font-family: inherit; background: #F8FAFC;
-          transition: border-color 0.2s; box-sizing: border-box;
+          width: 100%; min-height: 46px; padding: 0 14px; border-radius: 15px; border: 1px solid #D8E0EA;
+          background: #F8FAFC; color: var(--slate-900); font: inherit; font-size: 14px; font-weight: 700;
+          transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
         }
-        .pinput:focus { border-color: #93C5FD; background: #fff; }
-        @media (max-width: 768px) {
-          .playout    { flex-direction: column !important; }
-          .psidebar   { width: 100% !important; }
-          .ptabs-col  { flex-direction: row !important; overflow-x: auto; gap: 4px !important; }
-          .pstats     { grid-template-columns: 1fr 1fr !important; }
+        .pinput:focus { background: #fff; border-color: #93C5FD; box-shadow: 0 0 0 4px rgba(147,197,253,.18); outline: none; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .form-field label {
+          display: block; margin-bottom: 7px; color: var(--slate-500); font-size: 11px; font-weight: 800;
+          text-transform: uppercase; letter-spacing: .09em;
+        }
+        .form-field--wide { grid-column: 1 / -1; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+        .subjects-cloud { display: flex; flex-wrap: wrap; gap: 10px; }
+        .subject-chip {
+          display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 15px; border-radius: 999px;
+          color: var(--blue-900); background: linear-gradient(135deg, #EFF6FF, #F5F3FF);
+          border: 1px solid rgba(37,99,235,.12); font-size: 13px; font-weight: 800;
+        }
+        .subject-chip::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--violet-600); }
+        .list-stack { display: grid; gap: 12px; }
+        .list-item {
+          display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: center;
+          padding: 14px; border-radius: 20px; border: 1px solid rgba(226,232,240,.86);
+          background: linear-gradient(180deg, #fff, #F8FAFC);
+        }
+        .list-icon {
+          width: 48px; height: 48px; border-radius: 17px; display: grid; place-items: center;
+          color: var(--blue-700); background: #EFF6FF;
+        }
+        .list-item h3 { margin: 0 0 5px; color: var(--slate-900); font-size: 14px; line-height: 1.3; }
+        .list-item p { margin: 0; color: var(--slate-500); font-size: 13px; font-weight: 600; }
+        .list-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+        .empty-state {
+          display: grid; place-items: center; text-align: center; gap: 12px; min-height: 190px;
+          color: var(--slate-500); border: 1px dashed #CBD5E1; border-radius: 22px; background: #F8FAFC;
+        }
+        .empty-state span {
+          width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center;
+          color: var(--blue-700); background: #EFF6FF;
+        }
+        .empty-state p { margin: 0; font-size: 14px; font-weight: 700; }
+        .security-note {
+          margin: 12px 0 0; color: var(--slate-500); font-size: 12px; line-height: 1.6;
+        }
+        code { color: var(--blue-700); font-weight: 800; }
+        @media (max-width: 960px) {
+          .profile-hero__card { grid-template-columns: auto 1fr; }
+          .profile-hero__actions { grid-column: 1 / -1; align-items: stretch; flex-direction: row; }
+          .hero-mini-card { min-width: 0; flex: 1; }
+          .profile-layout { grid-template-columns: 1fr; }
+          .profile-sidebar { position: static; }
+          .ptabs-col { grid-template-columns: repeat(5, minmax(140px, 1fr)); overflow-x: auto; padding-bottom: 3px; }
+        }
+        @media (max-width: 680px) {
+          .profile-shell { width: min(100% - 24px, 1180px); }
+          .profile-topbar__inner { height: auto; min-height: 64px; padding: 10px 0; flex-wrap: wrap; }
+          .profile-brand { order: -1; width: 100%; }
+          .profile-hero { padding-top: 18px; }
+          .profile-hero__card { grid-template-columns: 1fr; padding: 24px; border-radius: 26px; }
+          .profile-avatar { border-radius: 24px; }
+          .profile-hero h1 { font-size: 30px; }
+          .profile-hero__actions { flex-direction: column; }
+          .profile-card { padding: 18px; border-radius: 22px; }
+          .stats-grid, .info-grid, .form-grid { grid-template-columns: 1fr; }
+          .info-tile--wide, .form-field--wide { grid-column: auto; }
+          .list-item { grid-template-columns: 44px 1fr; }
+          .list-item .profile-btn { grid-column: 1 / -1; }
+          .ptabs-col { grid-template-columns: repeat(5, minmax(132px, 1fr)); }
         }
       `}</style>
 
-      {/* ── Шапка ──────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: "#fff", borderBottom: "1px solid #F1F5F9",
-        padding: "0 24px", height: 58,
-        display: "flex", alignItems: "center", gap: 12,
-        boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
-        position: "sticky", top: 0, zIndex: 100,
-      }}>
-        <button onClick={onBack} style={{
-          background: "none", border: "1px solid #E2E8F0", cursor: "pointer",
-          fontSize: 13, fontWeight: 600, color: "#64748B",
-          padding: "6px 14px", borderRadius: 9, fontFamily: "inherit",
-          display: "flex", alignItems: "center", gap: 5,
-          transition: "all 0.15s",
-        }}
-          onMouseOver={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.color = "#1D4ED8"; }}
-          onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#64748B"; }}
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M8 2L3 6.5 8 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          На главную
-        </button>
-
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Личный кабинет</span>
-
-        <div style={{ flex: 1 }} />
-
-        {/* Уведомление об успешном сохранении */}
-        {saved && (
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#059669", background: "#ECFDF5", padding: "5px 12px", borderRadius: 8 }}>
-            ✓ Сохранено
-          </span>
-        )}
-
-        {onLogout && (
-          <button onClick={onLogout} style={{
-            background: "none", border: "1px solid #FECACA", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, color: "#EF4444",
-            padding: "6px 14px", borderRadius: 9, fontFamily: "inherit",
-            transition: "all 0.15s",
-          }}
-            onMouseOver={e => { e.currentTarget.style.background = "#FEF2F2"; }}
-            onMouseOut={e => { e.currentTarget.style.background = "none"; }}
-          >
-            Выйти
+      <header className="profile-topbar">
+        <div className="profile-shell profile-topbar__inner">
+          <button className="profile-btn profile-btn--ghost" onClick={onBack}>
+            <Icon name="arrowLeft" size={17} />
+            На главную
           </button>
-        )}
-      </div>
+          <div className="profile-brand">
+            <span className="profile-logo">ИМ</span>
+            <span>Личный кабинет</span>
+          </div>
+          <div className="topbar-spacer" />
+          {saved && <span className="saved-pill">Сохранено</span>}
+          <Avatar user={user} size={34} compact />
+          {onLogout && (
+            <button className="profile-btn profile-btn--danger" onClick={onLogout}>
+              <Icon name="logout" size={16} />
+              Выйти
+            </button>
+          )}
+        </div>
+      </header>
 
-      {/* ── Баннер профиля ─────────────────────────────────────────────────── */}
-      <div style={{ background: "linear-gradient(135deg, #1D4ED8 0%, #7C3AED 100%)", padding: "32px 24px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
-          <Avatar user={user} size={88} />
-          <div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>
-              {user.lastName} {user.firstName} {user.middleName}
-            </div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", marginTop: 5 }}>
-              {[
-                (form.username || user.username) && `@${form.username || user.username}`,
-                user.email,
-              ].filter(Boolean).join(" · ")}
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <Tag bg="rgba(255,255,255,0.2)" color="#fff">
-                {ROLE_LABELS[roleName] || roleName}
-              </Tag>
-              {user.position && (
-                <Tag bg="rgba(255,255,255,0.15)" color="rgba(255,255,255,0.9)">
-                  {user.position}
-                </Tag>
-              )}
-              {user.qualification && (
-                <Tag bg="rgba(255,255,255,0.15)" color="rgba(255,255,255,0.9)">
-                  {user.qualification}
-                </Tag>
-              )}
-              <Tag bg="rgba(255,255,255,0.1)" color="rgba(255,255,255,0.7)">
-                На сайте с {new Date(user.created_at).toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
-              </Tag>
+      <main>
+        <section className="profile-hero">
+          <div className="profile-shell">
+            <div className="profile-hero__card">
+              <Avatar user={user} size={118} />
+              <div className="profile-hero__main">
+                <span className="profile-kicker">Рабочий центр методиста</span>
+                <h1>{user.lastName} {user.firstName} {user.middleName}</h1>
+                <div className="profile-subtitle">
+                  {form.position || user.position} · @{form.username || user.username} · {user.email}
+                </div>
+                <div className="profile-tags">
+                  <Tag tone="hero">{getRoleLabel(roleName)}</Tag>
+                  {user.qualification && <Tag tone="hero">{user.qualification}</Tag>}
+                  <Tag tone="hero">На сайте с {new Date(user.created_at).toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}</Tag>
+                </div>
+              </div>
+              <div className="profile-hero__actions">
+                <div className="hero-mini-card">
+                  <span>Обучение</span>
+                    <strong>{isAdmin ? "Admin" : `${totalHours} ч.`}</strong>
+                </div>
+                <button className="profile-btn profile-btn--primary" onClick={() => setEditMode(true)}>
+                  <Icon name="edit" size={17} />
+                  Редактировать профиль
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* ── Контент ────────────────────────────────────────────────────────── */}
-      <div className="playout" style={{ maxWidth: 1100, margin: "24px auto", padding: "0 24px 40px", display: "flex", gap: 20, alignItems: "flex-start" }}>
-
-        {/* Сайдбар */}
-        <div className="psidebar" style={{ width: 220, flexShrink: 0 }}>
-          <Card style={{ padding: "8px 6px" }}>
-            <div className="ptabs-col" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  className={`ptab${activeTab === tab.id ? " active" : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  <span>{tab.icon}</span> {tab.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          {/* Блок аттестации */}
-          {daysLeft !== null && (
-            <Card style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                Аттестация
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-                {new Date(user.nextAttestationDate).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
-              </div>
-              <div style={{
-                marginTop: 10, padding: "8px 10px", borderRadius: 9,
-                background: daysLeft < 365 ? "#FFFBEB" : "#ECFDF5",
-              }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: daysLeft < 365 ? "#D97706" : "#059669" }}>
-                  {daysLeft > 0 ? `${Math.ceil(daysLeft / 30)} мес.` : "Просрочена"}
-                </span>
-                <span style={{ fontSize: 12, color: "#94A3B8" }}> до истечения</span>
+        <div className="profile-shell profile-layout">
+          <aside className="profile-sidebar">
+            <Card>
+              <div className="ptabs-col">
+                {visibleTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`ptab${activeTab === tab.id ? " active" : ""}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span><Icon name={tab.icon} size={18} /></span>
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </Card>
-          )}
-        </div>
 
-        {/* Основная область */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+            {isMethodist && daysLeft !== null && (
+              <Card className="attestation-card">
+                <div className="eyebrow">Аттестация</div>
+                <div className="attestation-date">
+                  {new Date(user.nextAttestationDate).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+                <div className="attestation-note">
+                  <strong>{daysLeft > 0 ? `${Math.ceil(daysLeft / 30)} мес.` : "Просрочена"}</strong>
+                  <span>до истечения</span>
+                </div>
+                <div className="progress" aria-label="Прогресс аттестационного периода">
+                  <span style={{ width: `${attestationProgress}%` }} />
+                </div>
+              </Card>
+            )}
+          </aside>
 
-          {/* ── ОБЗОР ─────────────────────────────────────────────────────── */}
-          {activeTab === "overview" && (
-            <>
-              <Card title="Данные аккаунта" icon="👤">
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-                  <button
-                    onClick={() => setEditMode(v => !v)}
-                    style={{
-                      padding: "6px 14px", borderRadius: 8,
-                      border: "1.5px solid #BFDBFE", background: "#EFF6FF",
-                      color: "#1D4ED8", fontSize: 13, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    {editMode ? "Отмена" : "✏️ Редактировать"}
-                  </button>
+          <div className="profile-content">
+            {activeTab === "overview" && (
+              <>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <span>Курсов пройдено</span>
+                    <strong>{(user.certificates || []).length}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Достижений</span>
+                    <strong>{(user.achievements || []).length}</strong>
+                  </div>
+                  <div className="stat-card">
+                    <span>Часов обучения</span>
+                    <strong>{totalHours}</strong>
+                  </div>
                 </div>
 
-                {editMode ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {[
-                      { label: "Логин",                       key: "username" },
-                      { label: "Телефон",                     key: "phone" },
-                      { label: "Должность",                   key: "position" },
-                      { label: "Организация",                 key: "organization" },
-                    ].map(f => (
-                      <div key={f.key}>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                          {f.label}
-                        </label>
-                        <input
-                          className="pinput"
-                          value={form[f.key]}
-                          onChange={e => setForm(v => ({ ...v, [f.key]: e.target.value }))}
-                        />
-                      </div>
-                    ))}
-                    <button
-                      onClick={handleSave}
-                      style={{ padding: "10px", borderRadius: 10, border: "none", background: "#1D4ED8", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
-                    >
-                      Сохранить изменения
+                <Card
+                  title="Данные аккаунта"
+                  icon="shield"
+                  action={
+                    <button className="profile-btn profile-btn--ghost profile-btn--small" onClick={() => setEditMode((value) => !value)}>
+                      <Icon name="edit" size={15} />
+                      {editMode ? "Отмена" : "Изменить"}
                     </button>
-                  </div>
+                  }
+                >
+                  {editMode ? (
+                    <>
+                      <div className="form-grid">
+                        {[
+                          { label: "Username", key: "username" },
+                          { label: "Телефон", key: "phone" },
+                          { label: "Должность", key: "position" },
+                          { label: "Организация", key: "organization", wide: true },
+                        ].map((field) => (
+                          <div className={`form-field ${field.wide ? "form-field--wide" : ""}`} key={field.key}>
+                            <label>{field.label}</label>
+                            <input
+                              className="pinput"
+                              value={form[field.key]}
+                              onChange={(event) => setForm((value) => ({ ...value, [field.key]: event.target.value }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="form-actions">
+                        <button className="profile-btn profile-btn--ghost" onClick={() => setEditMode(false)}>Отмена</button>
+                        <button className="profile-btn profile-btn--primary" onClick={handleSave}>Сохранить изменения</button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="info-grid">
+                      <InfoTile icon="mail" label="Email" value={user.email} />
+                      <InfoTile icon="user" label="Username" value={`@${form.username}`} />
+                      <InfoTile icon="shield" label="Роль" value={getRoleLabel(roleName)} />
+                      <InfoTile icon="calendar" label="Регистрация" value={new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })} />
+                      <InfoTile icon="phone" label="Телефон" value={form.phone} />
+                      <InfoTile icon="calendar" label="Дата рождения" value={user.birthDate ? new Date(user.birthDate).toLocaleDateString("ru-RU") : null} />
+                      <InfoTile icon="briefcase" label="Должность" value={form.position} />
+                      <InfoTile icon="award" label="Квалификация" value={user.qualification} />
+                      <InfoTile icon="building" label="Организация" value={form.organization} wide />
+                    </div>
+                  )}
+                </Card>
+
+                {user.subjects?.length > 0 && (
+                  <Card title="Предметы и направления" icon="book">
+                    <div className="subjects-cloud">
+                      {user.subjects.map((subject) => <span className="subject-chip" key={subject}>{subject}</span>)}
+                    </div>
+                  </Card>
+                )}
+
+                {isUser && (
+                  <Card title="Персональная траектория" icon="graduation">
+                    <div className="info-grid">
+                      <InfoTile icon="book" label="Доступный формат" value="Курсы, мероприятия и материалы ИМЦРО" />
+                      <InfoTile icon="award" label="Статус" value="Участник образовательного сообщества" />
+                    </div>
+                  </Card>
+                )}
+
+                {isAdmin && (
+                  <Card
+                    title="Администрирование платформы"
+                    icon="shield"
+                    action={onAdmin && (
+                      <button className="profile-btn profile-btn--primary profile-btn--small" onClick={onAdmin}>
+                        Открыть админку
+                      </button>
+                    )}
+                  >
+                    <div className="info-grid">
+                      <InfoTile icon="shield" label="Уровень доступа" value="Полное управление контентом и разделами" />
+                      <InfoTile icon="edit" label="Рабочая зона" value="Новости, статьи, сертификаты и настройки сайта" />
+                      <InfoTile icon="building" label="Организация" value={form.organization} wide />
+                    </div>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {activeTab === "articles" && (isMethodist || isAdmin) && (
+              <Card title="Мои статьи" icon="edit">
+                {userArticles.length === 0 ? (
+                  <EmptyState icon="edit" text="Статей пока нет" />
                 ) : (
-                  <>
-                    <InfoRow label="ID пользователя" value={user.id ? `#${user.id}` : null} />
-                    <InfoRow label="Логин"            value={form.username || user.username} />
-                    <InfoRow label="Email"            value={user.email} />
-                    <InfoRow label="Роль"             value={ROLE_LABELS[roleName] || roleName} />
-                    <InfoRow label="Дата регистрации" value={new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })} />
-                    <InfoRow label="Телефон"          value={form.phone} />
-                    <InfoRow label="Дата рождения"    value={user.birthDate ? new Date(user.birthDate).toLocaleDateString("ru-RU") : null} />
-                    <InfoRow label="Должность"        value={form.position} />
-                    <InfoRow label="Организация"      value={form.organization} />
-                    <InfoRow label="Стаж работы"      value={user.workExperience ? `${user.workExperience} лет` : null} />
-                    <InfoRow label="Квалификация"     value={user.qualification} />
-                  </>
+                  <div className="list-stack">
+                    {userArticles.map((article) => {
+                      const statusMap = {
+                        published: { tone: "green", label: "Опубликована" },
+                        draft: { tone: "violet", label: "Черновик" },
+                        archive: { tone: "gray", label: "Архив" },
+                      };
+                      const status = statusMap[article.status?.name || article.status] || statusMap.archive;
+                      return (
+                        <article className="list-item" key={article.id}>
+                          <div className="list-icon"><Icon name="edit" /></div>
+                          <div>
+                            <h3>{article.title}</h3>
+                            <p>/{article.slug} · обновлено {(article.updated_at || article.updatedAt || "").slice(0, 10)}</p>
+                          </div>
+                          <Tag tone={status.tone}>{status.label}</Tag>
+                        </article>
+                      );
+                    })}
+                  </div>
                 )}
               </Card>
+            )}
 
-              {user.subjects?.length > 0 && (
-                <Card title="Предметы и направления" icon="📚">
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {user.subjects.map(s => <Tag key={s}>{s}</Tag>)}
-                  </div>
-                </Card>
-              )}
-
-              {/* Статистика */}
-              <div className="pstats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                {[
-                  { label: "Курсов пройдено", value: (user.certificates || []).length, icon: "🎓", bg: "#EFF6FF", tc: "#1D4ED8" },
-                  { label: "Достижений",      value: (user.achievements || []).length,  icon: "🏆", bg: "#FFFBEB", tc: "#D97706" },
-                  { label: "Часов обучения",  value: (user.certificates || []).reduce((s, c) => s + (c.hours || 0), 0), icon: "⏱️", bg: "#F0FDF4", tc: "#059669" },
-                ].map(st => (
-                  <div key={st.label} style={{ background: st.bg, borderRadius: 14, padding: "18px 16px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28 }}>{st.icon}</div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: st.tc, lineHeight: 1.2, marginTop: 6 }}>{st.value}</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 5 }}>{st.label}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* ── МОИ СТАТЬИ ───────────────────────────────────────────────── */}
-          {activeTab === "articles" && (
-            <Card title="Мои статьи" icon="📝">
-              {userArticles.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <div style={{ fontSize: 36, marginBottom: 10 }}>📄</div>
-                  <p style={{ color: "#94A3B8", fontSize: 14, margin: 0 }}>Статей пока нет</p>
-                </div>
-              ) : userArticles.map(a => {
-                const statusMap = {
-                  published: { bg: "#ECFDF5", color: "#059669", label: "Опубликована" },
-                  draft:     { bg: "#FFFBEB", color: "#D97706", label: "Черновик" },
-                  archive:   { bg: "#F1F5F9", color: "#64748B", label: "Архив" },
-                };
-                const st = statusMap[a.status?.name || a.status] || statusMap.archive;
-                return (
-                  <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 0", borderBottom: "1px solid #F8FAFC" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title}</div>
-                      <div style={{ fontSize: 12, color: "#94A3B8" }}>/{a.slug} · обновлено {(a.updated_at || a.updatedAt || "").slice(0, 10)}</div>
-                    </div>
-                    <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
-                  </div>
-                );
-              })}
-            </Card>
-          )}
-
-          {/* ── КУРСЫ ────────────────────────────────────────────────────── */}
-          {activeTab === "certificates" && (
-            <Card title="Курсы повышения квалификации" icon="🎓">
-              {(user.certificates || []).length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <div style={{ fontSize: 36, marginBottom: 10 }}>🎓</div>
-                  <p style={{ color: "#94A3B8", fontSize: 14, margin: 0 }}>Курсов пока нет</p>
-                </div>
-              ) : (user.certificates || []).map(cert => (
-                <div key={cert.id} style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 0", borderBottom: "1px solid #F8FAFC" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>🎓</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>{cert.title}</div>
-                    <div style={{ fontSize: 13, color: "#64748B", marginBottom: 8 }}>{cert.issuer}</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Tag>{cert.hours} часов</Tag>
-                      <Tag bg="#F1F5F9" color="#475569">
-                        {new Date(cert.date).toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
-                      </Tag>
-                    </div>
-                  </div>
-                  <button style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", fontSize: 12, fontWeight: 600, color: "#1D4ED8", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}>
-                    📄 Скачать
+            {activeTab === "admin" && isAdmin && (
+              <Card
+                title="Быстрый доступ администратора"
+                icon="shield"
+                action={onAdmin && (
+                  <button className="profile-btn profile-btn--primary profile-btn--small" onClick={onAdmin}>
+                    Перейти в /admin
                   </button>
-                </div>
-              ))}
-            </Card>
-          )}
-
-          {/* ── ДОСТИЖЕНИЯ ───────────────────────────────────────────────── */}
-          {activeTab === "achievements" && (
-            <Card title="Конкурсы и достижения" icon="🏆">
-              {(user.achievements || []).length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <div style={{ fontSize: 36, marginBottom: 10 }}>🏆</div>
-                  <p style={{ color: "#94A3B8", fontSize: 14, margin: 0 }}>Достижений пока нет</p>
-                </div>
-              ) : (user.achievements || []).map(ach => {
-                const lc = LEVEL_COLORS[ach.level] || { bg: "#F1F5F9", color: "#475569" };
-                return (
-                  <div key={ach.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "14px 0", borderBottom: "1px solid #F8FAFC" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>🏆</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>{ach.title}</div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Tag bg={lc.bg} color={lc.color}>{ach.level}</Tag>
-                        <Tag bg="#F1F5F9" color="#475569">{ach.year}</Tag>
-                      </div>
+                )}
+              >
+                <div className="list-stack">
+                  <article className="list-item">
+                    <div className="list-icon"><Icon name="edit" /></div>
+                    <div>
+                      <h3>Управление публикациями</h3>
+                      <p>Создание, редактирование и публикация материалов сайта.</p>
                     </div>
-                  </div>
-                );
-              })}
-            </Card>
-          )}
+                    <Tag tone="blue">Доступно</Tag>
+                  </article>
+                  <article className="list-item">
+                    <div className="list-icon"><Icon name="shield" /></div>
+                    <div>
+                      <h3>Системные разделы</h3>
+                      <p>Административные функции доступны только ролям methodist и admin.</p>
+                    </div>
+                    <Tag tone="green">Защищено</Tag>
+                  </article>
+                </div>
+              </Card>
+            )}
 
-          {/* ── НАСТРОЙКИ ────────────────────────────────────────────────── */}
-          {activeTab === "settings" && (
-            <Card title="Безопасность" icon="🔒">
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {["Текущий пароль", "Новый пароль", "Повторите новый пароль"].map(l => (
-                  <div key={l}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      {l}
-                    </label>
-                    <input type="password" className="pinput" placeholder="••••••••" />
+            {activeTab === "certificates" && (
+              <Card title="Курсы повышения квалификации" icon="graduation">
+                {(user.certificates || []).length === 0 ? (
+                  <EmptyState icon="graduation" text="Курсов пока нет" />
+                ) : (
+                  <div className="list-stack">
+                    {(user.certificates || []).map((certificate) => (
+                      <article className="list-item" key={certificate.id}>
+                        <div className="list-icon"><Icon name="graduation" /></div>
+                        <div>
+                          <h3>{certificate.title}</h3>
+                          <p>{certificate.issuer}</p>
+                          <div className="list-meta">
+                            <Tag tone="blue">{certificate.hours} часов</Tag>
+                            <Tag tone="gray">{new Date(certificate.date).toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}</Tag>
+                          </div>
+                        </div>
+                        <button className="profile-btn profile-btn--ghost profile-btn--small">
+                          <Icon name="download" size={15} />
+                          Скачать
+                        </button>
+                      </article>
+                    ))}
                   </div>
-                ))}
-                <button style={{ padding: "10px", borderRadius: 10, border: "none", background: "#1D4ED8", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-                  Сохранить пароль
-                </button>
-                <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>
-                  Поле <code>password_hash</code> в таблице <code>users</code> обновляется через хэширование bcrypt на сервере.
+                )}
+              </Card>
+            )}
+
+            {activeTab === "achievements" && (
+              <Card title="Конкурсы и достижения" icon="award">
+                {(user.achievements || []).length === 0 ? (
+                  <EmptyState icon="award" text="Достижений пока нет" />
+                ) : (
+                  <div className="list-stack">
+                    {(user.achievements || []).map((achievement) => {
+                      const colors = LEVEL_COLORS[achievement.level] || { bg: "#F1F5F9", color: "#475569" };
+                      return (
+                        <article className="list-item" key={achievement.id}>
+                          <div className="list-icon"><Icon name="award" /></div>
+                          <div>
+                            <h3>{achievement.title}</h3>
+                            <div className="list-meta">
+                              <span className="profile-tag" style={{ background: colors.bg, color: colors.color, borderColor: colors.bg }}>
+                                {achievement.level}
+                              </span>
+                              <Tag tone="gray">{achievement.year}</Tag>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {activeTab === "settings" && (
+              <Card title="Безопасность" icon="settings">
+                <div className="form-grid">
+                  {["Текущий пароль", "Новый пароль", "Повторите новый пароль"].map((label, index) => (
+                    <div className={`form-field ${index === 2 ? "form-field--wide" : ""}`} key={label}>
+                      <label>{label}</label>
+                      <input type="password" className="pinput" placeholder="••••••••" />
+                    </div>
+                  ))}
+                </div>
+                <div className="form-actions">
+                  <button className="profile-btn profile-btn--primary">Сохранить пароль</button>
+                </div>
+                <p className="security-note">
+                  Поле <code>password_hash</code> в таблице <code>users</code> обновляется через хеширование bcrypt на сервере.
                 </p>
-              </div>
-            </Card>
-          )}
-
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

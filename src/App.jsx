@@ -1,35 +1,63 @@
-import { useState, useCallback, useEffect } from "react";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import HomePage     from "./pages/HomePage.jsx";
-import AuthPage     from "./pages/AuthPage.jsx";
-import AdminPage    from "./pages/AdminPage.jsx";
-import ArticlePage  from "./pages/ArticlePage.jsx";
-import ProfilePage  from "./pages/ProfilePage.jsx";
-import ChatBot      from "./components/ChatBot.jsx";
-// TPMPK-страницы из rudak-frontend (роутятся через /tpmpk/*)
-import TpmpkPage         from "./pages/TpmpkPage.jsx";
-import TpmpkZapisPage    from "./pages/TpmpkZapisPage.jsx";
-import BlankiPage        from "./pages/tpmpk/BlankiPage.jsx";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import HomePage from "./pages/HomePage.jsx";
+import AuthPage from "./pages/AuthPage.jsx";
+import AdminPage from "./pages/AdminPage.jsx";
+import ArticlePage from "./pages/ArticlePage.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
+import Smart404 from "./pages/Smart404.jsx";
+import TpmpkPage from "./pages/TpmpkPage.jsx";
+import TpmpkZapisPage from "./pages/TpmpkZapisPage.jsx";
+import TpmpkAdmin from "./pages/admin/tpmpk/TpmpkAdmin.jsx";
+import BlankiPage from "./pages/tpmpk/BlankiPage.jsx";
 import DlyaPedagogovPage from "./pages/tpmpk/DlyaPedagogovPage.jsx";
 import DlyaRoditeleyPage from "./pages/tpmpk/DlyaRoditeleyPage.jsx";
-import DokumentyPage     from "./pages/tpmpk/DokumentyPage.jsx";
-import FaqPage           from "./pages/tpmpk/FaqPage.jsx";
-import GrafikPage        from "./pages/tpmpk/GrafikPage.jsx";
-import KontaktyPage      from "./pages/tpmpk/KontaktyPage.jsx";
-import NpaPage           from "./pages/tpmpk/NpaPage.jsx";
-import SostavPage        from "./pages/tpmpk/SostavPage.jsx";
+import DokumentyPage from "./pages/tpmpk/DokumentyPage.jsx";
+import FaqPage from "./pages/tpmpk/FaqPage.jsx";
+import GrafikPage from "./pages/tpmpk/GrafikPage.jsx";
+import KontaktyPage from "./pages/tpmpk/KontaktyPage.jsx";
+import NpaPage from "./pages/tpmpk/NpaPage.jsx";
+import SostavPage from "./pages/tpmpk/SostavPage.jsx";
+import ChatBot from "./components/ChatBot.jsx";
 import { INITIAL_ARTICLES } from "./features/admin/adminStore.js";
 import { NEWS } from "./features/news/newsData.js";
+import { canAccessAdmin, canAccessTpmpkAdmin, clearStoredUser, getStoredUser, storeUser } from "./auth.js";
+import * as api from "./api/client.js";
+
+// Бэк может присылать поля в snake_case (created_at, category_ids).
+// Приводим к локальному формату (camelCase, числовые id категорий).
+function normalizeApiArticle(article) {
+  const catIds = (article.category_ids || article.categories || [])
+    .map((x) => (typeof x === "object" ? x.id : Number(x)));
+  return {
+    ...article,
+    categories: catIds,
+    tags: (article.tags || []).map((t) => (typeof t === "object" ? t.id : t)),
+    createdAt: article.createdAt || article.created_at?.slice(0, 10) || "",
+    updatedAt: article.updatedAt || article.updated_at?.slice(0, 10) || "",
+    blocks: article.blocks || [],
+    author: typeof article.author === "object" ? article.author?.username : article.author,
+  };
+}
 
 const CATEGORY_STYLE = {
-  "Мероприятия": { categoryColor: "#fff",    categoryBg: "rgba(255,255,255,0.18)" },
-  "Курсы":       { categoryColor: "#7C3AED", categoryBg: "#F5F3FF"               },
-  "Достижения":  { categoryColor: "#059669", categoryBg: "#ECFDF5"               },
-  "Новости":     { categoryColor: "#D97706", categoryBg: "#FFFBEB"               },
-  "Проекты":     { categoryColor: "#2563EB", categoryBg: "#EFF6FF"               },
-  "Семинары":    { categoryColor: "#D97706", categoryBg: "#FFFBEB"               },
-  "События":     { categoryColor: "#059669", categoryBg: "#ECFDF5"               },
+  "Мероприятия": { categoryColor: "#fff", categoryBg: "rgba(255,255,255,0.18)" },
+  "Курсы": { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" },
+  "Достижения": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
+  "Новости": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
+  "Проекты": { categoryColor: "#2563EB", categoryBg: "#EFF6FF" },
+  "Семинары": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
+  "События": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
 };
+
+const DEFAULT_CATEGORIES = [
+  { id: 1, name: "Мероприятия" },
+  { id: 2, name: "Курсы" },
+  { id: 3, name: "Достижения" },
+  { id: 4, name: "Новости" },
+  { id: 5, name: "Проекты" },
+  { id: 6, name: "Семинары" },
+];
 
 const FALLBACK_IMAGES = [
   "/mky/images/news1.jpg",
@@ -38,208 +66,325 @@ const FALLBACK_IMAGES = [
   "/mky/images/news4.jpg",
 ];
 
-const DEFAULT_CATEGORIES = [
-  { id: 1, name: "Мероприятия" }, { id: 2, name: "Курсы"      },
-  { id: 3, name: "Достижения"  }, { id: 4, name: "Новости"    },
-  { id: 5, name: "Проекты"     }, { id: 6, name: "Семинары"   },
-];
+function normalizeMojibake(value) {
+  return String(value || "")
+    .replaceAll("РњРµСЂРѕРїСЂРёСЏС‚РёСЏ", "Мероприятия")
+    .replaceAll("РљСѓСЂСЃС‹", "Курсы")
+    .replaceAll("Р”РѕСЃС‚РёР¶РµРЅРёСЏ", "Достижения")
+    .replaceAll("РќРѕРІРѕСЃС‚Рё", "Новости")
+    .replaceAll("РџСЂРѕРµРєС‚С‹", "Проекты")
+    .replaceAll("РЎРµРјРёРЅР°СЂС‹", "Семинары")
+    .replaceAll("РЎРѕР±С‹С‚РёСЏ", "События");
+}
 
 function articleToNewsItem(article) {
-  const catObj  = DEFAULT_CATEGORIES.find(c => article.categories?.includes(c.id));
+  const catObj = DEFAULT_CATEGORIES.find((category) => article.categories?.includes(category.id));
   const catName = catObj?.name ?? "Новости";
-  const style   = CATEGORY_STYLE[catName] ?? CATEGORY_STYLE["Новости"];
-
-  const heroBlock = article.blocks?.find(b => b.type === "hero");
-  const paraBlock = article.blocks?.find(b => b.type === "paragraph");
-  const excerpt   = heroBlock?.data?.intro || paraBlock?.data?.text || article.excerpt || "";
-
-  const imgBlock = article.blocks?.find(b => b.type === "image" || b.type === "imagetext");
-  const image    = imgBlock?.data?.url || article.image
-    || FALLBACK_IMAGES[(article.id - 1) % FALLBACK_IMAGES.length];
+  const style = CATEGORY_STYLE[catName] ?? CATEGORY_STYLE["Новости"];
+  const heroBlock = article.blocks?.find((block) => block.type === "hero");
+  const paraBlock = article.blocks?.find((block) => block.type === "paragraph");
+  const imgBlock = article.blocks?.find((block) => block.type === "image" || block.type === "imagetext");
+  const excerpt = heroBlock?.data?.intro || paraBlock?.data?.text || article.excerpt || "";
+  const image = imgBlock?.data?.url || article.image || FALLBACK_IMAGES[(article.id - 1) % FALLBACK_IMAGES.length];
 
   return {
-    id:            article.id,
-    date:          article.updatedAt || article.createdAt || "",
-    category:      catName,
+    id: `admin-${article.id}`,
+    articleId: article.id,
+    date: article.updatedAt || article.createdAt || "",
+    category: catName,
     categoryColor: style.categoryColor,
-    categoryBg:    style.categoryBg,
-    title:         article.title,
-    excerpt:       String(excerpt).slice(0, 220),
+    categoryBg: style.categoryBg,
+    title: article.title,
+    excerpt: String(excerpt).slice(0, 220),
     image,
-    blocks:        article.blocks || [],
-    author:        article.author || "",
-    _isAdmin:      true,
+    blocks: article.blocks || [],
+    author: article.author || "",
+    _isAdmin: true,
   };
 }
 
 function staticNewsToItem(news) {
+  const category = normalizeMojibake(news.category);
+  const style = CATEGORY_STYLE[category] || {};
   return {
     ...news,
-    blocks:   [],
-    author:   "",
+    id: `static-${news.id}`,
+    articleId: news.id,
+    category,
+    categoryColor: style.categoryColor || news.categoryColor,
+    categoryBg: style.categoryBg || news.categoryBg,
+    blocks: [],
+    author: "",
     _isAdmin: false,
   };
 }
 
-export default function App() {
+function AppRoutes() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [page,           setPage]          = useState("home");
-  const [openedArticle,  setOpenedArticle] = useState(null);
-  const [currentUser,    setCurrentUser]   = useState(() => {
-    try {
-      const raw = localStorage.getItem("currentUser");
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  });
-  const [articles,       setArticles]      = useState(INITIAL_ARTICLES);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
+  const [articles, setArticles] = useState(INITIAL_ARTICLES);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [apiOnline, setApiOnline] = useState(false);
 
-  // Роль определяется только из объекта пользователя
-  const isAdmin = currentUser?.role === "admin";
-
-  // Синхронизация пользователя с localStorage
+  // Подгружаем статьи и категории из API. При недоступности — оставляем локальные.
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("currentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("currentUser");
-    }
-  }, [currentUser]);
+    api.getArticles()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setArticles(data.map(normalizeApiArticle));
+          setApiOnline(true);
+        }
+      })
+      .catch(() => setApiOnline(false));
 
-  const handleLogin = useCallback((user) => {
-    setCurrentUser(user);
-    setPage("home");
+    api.getCategories()
+      .then((data) => { if (Array.isArray(data) && data.length) setCategories(data); })
+      .catch(() => {});
   }, []);
 
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem("access_token");
-    setCurrentUser(null);
-    setPage("home");
-  }, []);
-
-  const saveArticle = useCallback((article) => {
+  const saveArticle = useCallback(async (article) => {
     const now = new Date().toISOString().slice(0, 10);
-    setArticles(prev => {
-      const exists = prev.find(a => a.id === article.id);
-      if (exists) return prev.map(a => a.id === article.id ? { ...article, updatedAt: now } : a);
+
+    if (apiOnline) {
+      try {
+        const isExisting = typeof article.id === "number" && articles.find((a) => a.id === article.id);
+        const saved = isExisting
+          ? await api.updateArticle(article.id, article)
+          : await api.createArticle(article);
+        const normalized = normalizeApiArticle(saved);
+        setArticles((prev) => {
+          const exists = prev.find((a) => a.id === normalized.id);
+          if (exists) return prev.map((a) => (a.id === normalized.id ? normalized : a));
+          return [normalized, ...prev];
+        });
+        return;
+      } catch (err) {
+        console.warn("API saveArticle failed, fallback to local:", err.message);
+      }
+    }
+
+    setArticles((prev) => {
+      const exists = prev.find((item) => item.id === article.id);
+      if (exists) return prev.map((item) => item.id === article.id ? { ...article, updatedAt: now } : item);
       return [...prev, { ...article, id: Date.now(), createdAt: now, updatedAt: now, author: "Администратор" }];
     });
-  }, []);
+  }, [apiOnline, articles]);
 
-  const deleteArticle = useCallback((id) => {
-    setArticles(prev => prev.filter(a => a.id !== id));
-  }, []);
+  const deleteArticle = useCallback(async (id) => {
+    if (apiOnline) {
+      try { await api.deleteArticle(id); } catch (err) { console.warn(err.message); }
+    }
+    setArticles((prev) => prev.filter((article) => article.id !== id));
+  }, [apiOnline]);
 
-  const changeArticleStatus = useCallback((id, status) => {
-    setArticles(prev => prev.map(a =>
-      a.id === id ? { ...a, status, updatedAt: new Date().toISOString().slice(0, 10) } : a
+  const changeArticleStatus = useCallback(async (id, status) => {
+    if (apiOnline) {
+      try {
+        const updated = await api.changeArticleStatus(id, status);
+        setArticles((prev) => prev.map((a) => (a.id === id ? normalizeApiArticle(updated) : a)));
+        return;
+      } catch (err) { console.warn(err.message); }
+    }
+    setArticles((prev) => prev.map((article) =>
+      article.id === id ? { ...article, status, updatedAt: new Date().toISOString().slice(0, 10) } : article
     ));
-  }, []);
+  }, [apiOnline]);
 
-  const adminNews = articles
-    .filter(a => a.status === "published")
-    .map(articleToNewsItem);
+  const publishedNews = useMemo(() => {
+    // Бэк может присылать status строкой, объектом {name} или status_id.
+    const isPublished = (a) =>
+      a.status === "published" || a.status?.name === "published" || a.status_id === 1;
+    const adminNews = articles.filter(isPublished).map(articleToNewsItem);
+    // Когда API доступен — главная страница берёт новости только с бэка.
+    // В оффлайн-режиме оставляем статический fallback NEWS, чтобы лента не пустовала.
+    if (apiOnline) return adminNews;
+    const adminTitles = new Set(adminNews.map((news) => news.title));
+    const staticNews = NEWS
+      .filter((news) => !adminTitles.has(news.title))
+      .map(staticNewsToItem);
+    return [...adminNews, ...staticNews];
+  }, [articles, apiOnline]);
 
-  const adminTitles = new Set(adminNews.map(n => n.title));
-  const staticNews  = NEWS
-    .filter(n => !adminTitles.has(n.title))
-    .map(staticNewsToItem);
-
-  const publishedNews = [...adminNews, ...staticNews];
-
-  const handleOpenArticle = useCallback((newsItem) => {
-    setOpenedArticle(newsItem);
-    setPage("article");
+  const openArticle = useCallback((newsItem) => {
+    navigate(`/article/${encodeURIComponent(newsItem.id)}`, { state: { article: newsItem } });
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [navigate]);
 
-  const handleBackFromArticle = useCallback(() => {
-    setOpenedArticle(null);
-    setPage("home");
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  // Мост между URL-роутингом (TPMPK) и нашей state-навигацией.
-  // Если ссылка из TPMPK ведёт «На главную»/«Войти»/«Админка»/«Профиль» —
-  // переключаем URL обратно на "/" и поднимаем нужное значение page.
-  const goHomeAs = useCallback((targetPage) => {
-    setPage(targetPage);
-    if (location.pathname !== "/") navigate("/");
-  }, [location.pathname, navigate]);
-
-  const tpmpkProps = {
-    currentUser,
-    onGoAuth:    () => goHomeAs("auth"),
-    onGoAdmin:   isAdmin ? () => goHomeAs("admin") : null,
-    onGoProfile: currentUser ? () => goHomeAs("profile") : null,
-    onBack:      () => goHomeAs("home"),
-  };
-
-  // /tpmpk/* — рендерим Routes из rudak-frontend, остальное — старая state-нав.
-  if (location.pathname.startsWith("/tpmpk")) {
-    return (
-      <>
-        <Routes>
-          <Route path="/tpmpk"                 element={<TpmpkPage         {...tpmpkProps} />} />
-          <Route path="/tpmpk/zapis"           element={<TpmpkZapisPage    {...tpmpkProps} />} />
-          <Route path="/tpmpk/dokumenty/*"     element={<DokumentyPage     {...tpmpkProps} />} />
-          <Route path="/tpmpk/blanki/*"        element={<BlankiPage        {...tpmpkProps} />} />
-          <Route path="/tpmpk/grafik/*"        element={<GrafikPage        {...tpmpkProps} />} />
-          <Route path="/tpmpk/sostav/*"        element={<SostavPage        {...tpmpkProps} />} />
-          <Route path="/tpmpk/npa/*"           element={<NpaPage           {...tpmpkProps} />} />
-          <Route path="/tpmpk/faq/*"           element={<FaqPage           {...tpmpkProps} />} />
-          <Route path="/tpmpk/dlya-roditeley/*" element={<DlyaRoditeleyPage {...tpmpkProps} />} />
-          <Route path="/tpmpk/dlya-pedagogov/*" element={<DlyaPedagogovPage {...tpmpkProps} />} />
-          <Route path="/tpmpk/kontakty/*"      element={<KontaktyPage      {...tpmpkProps} />} />
-        </Routes>
-        <ChatBot />
-      </>
-    );
+  function ArticleRoute() {
+    const { id } = useParams();
+    const stateArticle = location.state?.article;
+    const article = stateArticle || publishedNews.find((item) => String(item.id) === id);
+    if (!article) return <Navigate to="/" replace />;
+    return <ArticlePage article={article} onBack={() => navigate("/")} />;
   }
+
+  function RequireAuth({ children }) {
+    if (!currentUser) {
+      return <Navigate to="/auth?tab=login" replace state={{ from: location.pathname }} />;
+    }
+    return children;
+  }
+
+  function RequireAdmin({ children }) {
+    if (!currentUser) {
+      return <Navigate to="/auth?tab=login" replace state={{ from: location.pathname }} />;
+    }
+    if (!canAccessAdmin(currentUser)) {
+      return <Navigate to="/profile?access=denied" replace />;
+    }
+    return children;
+  }
+
+  function RequireTpmpkAdmin({ children }) {
+    if (!currentUser) {
+      return <Navigate to="/auth?tab=login" replace state={{ from: location.pathname }} />;
+    }
+    if (!canAccessTpmpkAdmin(currentUser)) {
+      return <Navigate to="/profile?access=denied" replace />;
+    }
+    return children;
+  }
+
+  const handleLogin = useCallback((user) => {
+    storeUser(user);
+    setCurrentUser(user);
+    // AuthPage уже положил JWT в localStorage["access_token"].
+    // Передаём его в api-клиент, чтобы CRUD-запросы шли с Authorization.
+    const token = localStorage.getItem("access_token");
+    if (token) api.setToken(token);
+    navigate("/profile", { replace: true });
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    clearStoredUser();
+    localStorage.removeItem("access_token");
+    api.clearToken();
+    setCurrentUser(null);
+    navigate("/auth?tab=login", { replace: true });
+  }, [navigate]);
+
+  const tpmpkPublicProps = {
+    currentUser,
+    onGoAuth: (tab) => navigate(`/auth?tab=${tab || "login"}`),
+    onGoAdmin: canAccessAdmin(currentUser) ? () => navigate("/admin") : null,
+    onGoProfile: () => navigate("/profile"),
+  };
 
   return (
     <>
-      {page === "home" && (
-        <HomePage
-          onGoAuth={() => setPage("auth")}
-          onGoAdmin={isAdmin ? () => setPage("admin") : null}
-          onGoProfile={currentUser ? () => setPage("profile") : null}
-          currentUser={currentUser}
-          publishedNews={publishedNews}
-          onOpenArticle={handleOpenArticle}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <HomePage
+              onGoAuth={(tab) => navigate(`/auth?tab=${tab || "login"}`)}
+              onGoAdmin={canAccessAdmin(currentUser) ? () => navigate("/admin") : null}
+              onGoProfile={() => navigate("/profile")}
+              currentUser={currentUser}
+              publishedNews={publishedNews}
+              onOpenArticle={openArticle}
+            />
+          }
         />
-      )}
-
-      {page === "auth" && (
-        <AuthPage onBack={() => setPage("home")} onLogin={handleLogin} />
-      )}
-
-      {page === "article" && openedArticle && (
-        <ArticlePage
-          article={openedArticle}
-          onBack={handleBackFromArticle}
+        <Route
+          path="/auth"
+          element={
+            currentUser
+              ? <Navigate to="/profile" replace />
+              : <AuthPage onLogin={handleLogin} />
+          }
         />
-      )}
-
-      {page === "admin" && isAdmin && (
-        <AdminPage
-          onBack={() => setPage("home")}
-          articles={articles}
-          saveArticle={saveArticle}
-          deleteArticle={deleteArticle}
-          changeArticleStatus={changeArticleStatus}
+        <Route
+          path="/admin/tpmpk/*"
+          element={
+            <RequireTpmpkAdmin>
+              <TpmpkAdmin currentUser={currentUser} onLogout={handleLogout} />
+            </RequireTpmpkAdmin>
+          }
         />
-      )}
-
-      {page === "profile" && currentUser && (
-        <ProfilePage
-          user={currentUser}
-          onBack={() => setPage("home")}
-          onLogout={handleLogout}
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAdmin>
+              <AdminPage
+                currentUser={currentUser}
+                articles={articles}
+                categories={categories}
+                apiOnline={apiOnline}
+                saveArticle={saveArticle}
+                deleteArticle={deleteArticle}
+                changeArticleStatus={changeArticleStatus}
+              />
+            </RequireAdmin>
+          }
         />
-      )}
-
-      {page !== "admin" && <ChatBot />}
+        <Route path="/article/:id" element={<ArticleRoute />} />
+        <Route
+          path="/tpmpk"
+          element={
+            <TpmpkPage
+              currentUser={currentUser}
+              onGoAuth={(tab) => navigate(`/auth?tab=${tab || "login"}`)}
+              onGoAdmin={canAccessAdmin(currentUser) ? () => navigate("/admin") : null}
+              onGoProfile={() => navigate("/profile")}
+            />
+          }
+        />
+        <Route
+          path="/tpmpk/zapis"
+          element={
+            <TpmpkZapisPage
+              currentUser={currentUser}
+              onGoAuth={(tab) => navigate(`/auth?tab=${tab || "login"}`)}
+              onGoAdmin={canAccessAdmin(currentUser) ? () => navigate("/admin") : null}
+              onGoProfile={() => navigate("/profile")}
+            />
+          }
+        />
+        <Route path="/tpmpk/dokumenty/" element={<DokumentyPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/blanki/" element={<BlankiPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/grafik/" element={<GrafikPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/sostav/" element={<SostavPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/npa/" element={<NpaPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/faq/" element={<FaqPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/dlya-roditeley/" element={<DlyaRoditeleyPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/dlya-pedagogov/" element={<DlyaPedagogovPage {...tpmpkPublicProps} />} />
+        <Route path="/tpmpk/kontakty/" element={<KontaktyPage {...tpmpkPublicProps} />} />
+        <Route
+          path="/profile"
+          element={
+            <RequireAuth>
+              <ProfilePage
+                user={currentUser}
+                onBack={() => navigate("/")}
+                onAdmin={() => navigate("/admin")}
+                onLogout={handleLogout}
+              />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <Smart404
+              currentUser={currentUser}
+              onGoAuth={(tab) => navigate(`/auth?tab=${tab || "login"}`)}
+              onGoAdmin={canAccessAdmin(currentUser) ? () => navigate("/admin") : null}
+              onGoProfile={() => navigate("/profile")}
+            />
+          }
+        />
+      </Routes>
+      {!location.pathname.startsWith("/admin") && <ChatBot />}
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter basename="/mky">
+      <AppRoutes />
+    </BrowserRouter>
   );
 }
