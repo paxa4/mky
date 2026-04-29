@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authenticate, TEST_CREDENTIALS } from "../auth.js";
+import { API_BASE } from "../constants/index.js";
 
 export default function AuthPage({ onLogin }) {
   const navigate = useNavigate();
@@ -32,9 +33,32 @@ export default function AuthPage({ onLogin }) {
     [loginForm.email],
   );
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault();
     setError("");
+    try {
+      const formData = new URLSearchParams();
+      formData.set("username", loginForm.email);
+      formData.set("password", loginForm.password);
+      const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData,
+      });
+      if (tokenResponse.ok) {
+        const token = await tokenResponse.json();
+        const meResponse = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token.access_token}` },
+        });
+        if (meResponse.ok) {
+          const me = await meResponse.json();
+          onLogin?.({ ...me, access_token: token.access_token });
+          return;
+        }
+      }
+    } catch {
+      // If the backend has no seeded user, demo credentials still keep local work usable.
+    }
     const user = authenticate(loginForm.email, loginForm.password);
     if (!user) {
       setError("Неверный логин или пароль. Выберите тестовый аккаунт ниже или проверьте данные.");

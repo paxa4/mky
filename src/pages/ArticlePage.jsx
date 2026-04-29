@@ -3,6 +3,19 @@ import { BlockPreview } from "../features/admin/BlockEditor.jsx";
 
 // Для статичных новостей из newsData (нет блоков, только текст)
 function StaticContent({ article }) {
+  if (article.body) {
+    try {
+      const blocks = JSON.parse(article.body);
+      if (Array.isArray(blocks)) {
+        return blocks.map((block, index) => <BlockPreview key={block.id || `${block.type}-${index}`} block={block} />);
+      }
+    } catch {
+      // Legacy plain text fallback below.
+    }
+    return (
+      <p style={{ fontSize: 16, color: "#334155", lineHeight: 1.8 }}>{article.body}</p>
+    );
+  }
   return (
     <p style={{ fontSize: 16, color: "#334155", lineHeight: 1.8 }}>
       {article.excerpt || article.content || ""}
@@ -37,6 +50,13 @@ export default function ArticlePage({ article, onBack }) {
           color: #1D4ED8; font-family: inherit; transition: background 0.15s;
         }
         .article-back-btn-bottom:hover { background: #DBEAFE; }
+        .article-markdown-content { line-height: 1.8; color: #334155; overflow-wrap: anywhere; }
+        .article-markdown-content > * + * { margin-top: 14px; }
+        .article-markdown-content h1, .article-markdown-content h2, .article-markdown-content h3 { color: #0F172A; line-height: 1.25; }
+        .article-markdown-content ul, .article-markdown-content ol { padding-left: 22px; }
+        .article-markdown-content img { max-width: 100%; border-radius: 12px; }
+        .article-markdown-content table { width: 100%; display: block; overflow-x: auto; border-collapse: collapse; }
+        .article-markdown-content th, .article-markdown-content td { border: 1px solid #CBD5E1; padding: 8px; }
       `}</style>
 
       {/* ── Шапка ─────────────────────────────────────────────────────────── */}

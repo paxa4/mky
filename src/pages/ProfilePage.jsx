@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { canAccessAdmin, getRoleLabel } from "../auth.js";
+import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, getRoleLabel } from "../auth.js";
 
 export const MOCK_USER = {
   id: 1,
@@ -137,7 +137,7 @@ function EmptyState({ icon, text }) {
   );
 }
 
-export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogout, userArticles = [] }) {
+export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpkAdmin, onLogout, userArticles = [] }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -154,10 +154,12 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogou
   const isUser = roleName === "user";
   const isMethodist = roleName === "methodist";
   const isAdmin = roleName === "admin";
-  const hasAdminAccess = canAccessAdmin({ role: roleName });
+  const isDomuEditor = roleName === "domu_editor";
+  const hasAdminAccess = canAccessAdmin({ role: roleName }) || canAccessDomuAdmin({ role: roleName });
+  const hasTpmpkAccess = canAccessTpmpkAdmin({ role: roleName });
   const visibleTabs = TABS.filter((tab) => {
     if (tab.id === "articles") return isMethodist || isAdmin;
-    if (tab.id === "admin") return isAdmin;
+    if (tab.id === "admin") return isAdmin || isDomuEditor;
     return true;
   });
 
@@ -484,6 +486,16 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogou
           </div>
           <div className="topbar-spacer" />
           {saved && <span className="saved-pill">Сохранено</span>}
+          {hasTpmpkAccess && onTpmpkAdmin && (
+            <button className="profile-btn profile-btn--primary" onClick={onTpmpkAdmin}>
+              Кабинет ТПМПК
+            </button>
+          )}
+          {hasAdminAccess && onAdmin && (
+            <button className="profile-btn profile-btn--primary" onClick={onAdmin}>
+              Админ-панель
+            </button>
+          )}
           <Avatar user={user} size={34} compact />
           {onLogout && (
             <button className="profile-btn profile-btn--danger" onClick={onLogout}>
@@ -500,7 +512,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogou
             <div className="profile-hero__card">
               <Avatar user={user} size={118} />
               <div className="profile-hero__main">
-                <span className="profile-kicker">Рабочий центр методиста</span>
+                <span className="profile-kicker">{hasTpmpkAccess ? "Рабочий центр психолога ТПМПК" : "Рабочий центр методиста"}</span>
                 <h1>{user.lastName} {user.firstName} {user.middleName}</h1>
                 <div className="profile-subtitle">
                   {form.position || user.position} · @{form.username || user.username} · {user.email}
@@ -520,6 +532,16 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogou
                   <Icon name="edit" size={17} />
                   Редактировать профиль
                 </button>
+                {hasTpmpkAccess && onTpmpkAdmin && (
+                  <button className="profile-btn profile-btn--ghost" onClick={onTpmpkAdmin}>
+                    Кабинет ТПМПК
+                  </button>
+                )}
+                {hasAdminAccess && onAdmin && (
+                  <button className="profile-btn profile-btn--ghost" onClick={onAdmin}>
+                    Админ-панель
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -692,7 +714,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onLogou
               </Card>
             )}
 
-            {activeTab === "admin" && isAdmin && (
+            {activeTab === "admin" && (isAdmin || isDomuEditor) && (
               <Card
                 title="Быстрый доступ администратора"
                 icon="shield"

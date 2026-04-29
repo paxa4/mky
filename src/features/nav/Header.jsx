@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import Logo from "../../components/Logo.jsx";
 import MegaMenu from "./MegaMenu.jsx";
+import { SVEDENIYA_NAV_ITEMS } from "../../pages/svedeniya/svedeniyaData.js";
 
 const NAV_ITEMS = [
   { label: "Главная", href: "/", items: [] },
-  { label: "Сведения об ОО", items: ["Основные сведения", "Структура", "Руководство", "Документы"] },
   { label: "ТПМПК", href: "/tpmpk/", items: [] },
-  { label: "Подразделения", items: ["Оценка качества", "Профсоюз"] },
+  {
+    label: "Сведения об ОО",
+    href: "/sveden/",
+    items: SVEDENIYA_NAV_ITEMS.slice(0, 6).map((item) => item.label),
+  },
+  { label: "Дом учителя", href: "/dom-uchitelya/", items: [] },
   { label: "Мероприятия", items: ["Событийный календарь", "Олимпиады", "Конференции", "Архив"] },
-  { label: "Программы", items: ["Муниципальные проекты", "Программы развития", "Партнеры"] },
   { label: "Контакты", items: ["Адрес", "Телефоны", "Обратная связь"] },
 ];
 
 function goPath(path) {
-  window.location.href = `/mky${path === "/" ? "/" : path}`;
+  window.location.href = path === "/" ? "/" : path;
 }
 
 function scrollToCalendar() {
@@ -62,9 +66,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     ? `${currentUser.firstName?.[0] || ""}${currentUser.lastName?.[0] || ""}` || "П"
     : "П";
   const currentRole = typeof currentUser?.role === "object" ? currentUser.role?.role_name : currentUser?.role;
-  const canShowAdminButton = Boolean(currentUser && onGoAdmin && (currentRole === "admin" || currentRole === "methodist"));
+  const canShowAdminButton = Boolean(currentUser && onGoAdmin && (currentRole === "admin" || currentRole === "methodist" || currentRole === "domu_editor"));
+  const canShowTpmpkCabinetButton = currentRole === "operator";
 
-  function handleSubItem(subItem) {
+  function handleSubItem(navLabel, subItem) {
+    if (navLabel === "Сведения об ОО") {
+      const target = SVEDENIYA_NAV_ITEMS.find((item) => item.label === subItem);
+      if (target) goPath(target.path);
+      setActiveNav(null);
+      return;
+    }
     if (subItem === "Событийный календарь") scrollToCalendar();
     setActiveNav(null);
   }
@@ -171,7 +182,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           border-radius: 8px;
           background: transparent;
           color: #223044;
-          font: 800 12.5px/1 inherit;
+          font: 800 14px/1 inherit;
           white-space: nowrap;
           cursor: pointer;
           display: inline-flex;
@@ -331,6 +342,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-admin-btn,
+        .header-tpmpk-btn,
         .header-profile-btn,
         .header-auth-btn,
         .header-register-btn {
@@ -357,6 +369,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-admin-btn:hover,
+        .header-tpmpk-btn:hover,
         .header-profile-btn:hover,
         .header-auth-btn:hover {
           border-color: #9dc5f4;
@@ -384,12 +397,18 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
         .header-spacer { height: 73px; }
 
+        .mky-a11y-mode .header-nav-button {
+          font-size: 16px;
+        }
+
         @media (max-width: 1280px) {
           .header-action-label,
-          .header-admin-label {
+          .header-admin-label,
+          .header-tpmpk-label {
             display: none;
           }
           .header-admin-btn,
+          .header-tpmpk-btn,
           .header-profile-btn {
             width: 40px;
             padding: 0;
@@ -471,6 +490,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-menu-btn,
           .header-auth-btn,
           .header-register-btn,
+          .header-tpmpk-btn,
           .header-profile-btn {
             width: 38px;
             height: 38px;
@@ -520,7 +540,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
                           className="header-dropdown-item"
                           key={subItem}
                           type="button"
-                          onClick={() => handleSubItem(subItem)}
+                          onClick={() => handleSubItem(item.label, subItem)}
                         >
                           {subItem}
                         </button>
@@ -582,7 +602,18 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
                   <rect x="2" y="9" width="5" height="5" rx="1.3" />
                   <rect x="9" y="9" width="5" height="5" rx="1.3" />
                 </svg>
-                <span className="header-admin-label">Админ</span>
+                <span className="header-admin-label">Админ-панель</span>
+              </button>
+            )}
+
+            {canShowTpmpkCabinetButton && (
+              <button className="header-tpmpk-btn" type="button" onClick={() => goPath("/admin/tpmpk/")} title="Кабинет ТПМПК">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 21s7-4.4 7-10V5l-7-3-7 3v6c0 5.6 7 10 7 10Z" />
+                  <path d="M9 12h6" />
+                  <path d="M12 9v6" />
+                </svg>
+                <span className="header-tpmpk-label">Кабинет ТПМПК</span>
               </button>
             )}
 

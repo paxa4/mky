@@ -3,7 +3,8 @@ export const AUTH_STORAGE_KEY = "mky_current_user";
 export const ROLE_LABELS = {
   user: "Пользователь",
   methodist: "Методист",
-  operator: "Оператор ТПМПК",
+  operator: "Психолог",
+  domu_editor: "Редактор Дома учителя",
   admin: "Администратор",
 };
 
@@ -92,7 +93,7 @@ export const TEST_USERS = {
     email: "operator@mky.test",
     password: "operator123",
     phone: "+7 (3952) 48-12-56",
-    position: "Оператор ТПМПК",
+    position: "Психолог ТПМПК",
     organization: "ТПМПК г. Иркутска",
     qualification: "Специалист",
     workExperience: 6,
@@ -103,13 +104,34 @@ export const TEST_USERS = {
     certificates: [],
     achievements: [],
   },
+  domu_editor: {
+    id: 902,
+    firstName: "Елена",
+    lastName: "Соколова",
+    middleName: "Павловна",
+    username: "domu_editor",
+    email: "domu@mky.test",
+    password: "domu123",
+    phone: "+7 (3952) 48-12-56",
+    position: "Редактор Дома учителя",
+    organization: "Дом учителя",
+    qualification: "Контент-редактор",
+    workExperience: 8,
+    birthDate: "1987-09-12",
+    created_at: "2026-04-29T00:00:00",
+    role: "domu_editor",
+    subjects: ["Дом учителя", "Новости", "Мероприятия"],
+    certificates: [],
+    achievements: [],
+  },
 };
 
 export const TEST_CREDENTIALS = [
   { role: "user", label: "Пользователь", email: "user@mky.test", password: "user123" },
   { role: "methodist", label: "Методист", email: "methodist@mky.test", password: "methodist123" },
-  { role: "operator", label: "Оператор ТПМПК", email: "operator@mky.test", password: "operator123" },
+  { role: "operator", label: "Психолог", email: "operator@mky.test", password: "operator123" },
   { role: "admin", label: "Администратор", email: "admin@mky.test", password: "admin123" },
+  { role: "domu_editor", label: "Редактор Дома учителя", email: "domu@mky.test", password: "domu123" },
 ];
 
 function withoutPassword(user) {
@@ -130,12 +152,18 @@ export function getRoleLabel(role) {
 }
 
 export function canAccessAdmin(user) {
-  return user?.role === "methodist" || user?.role === "admin";
+  const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
+  return role === "methodist" || role === "admin";
 }
 
 export function canAccessTpmpkAdmin(user) {
   const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "operator" || role === "admin";
+  return role === "operator";
+}
+
+export function canAccessDomuAdmin(user) {
+  const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
+  return role === "domu_editor" || role === "methodist" || role === "admin";
 }
 
 export function getStoredUser() {
