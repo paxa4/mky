@@ -8,7 +8,7 @@ export function BlockPreview({ block }) {
     case "heading": {
       const Tag = `h${Math.min(Math.max(Number(block.data.level || 2), 1), 3)}`;
       return (
-        <Tag style={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.25, margin: "20px 0 10px" }}>
+        <Tag style={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.2, margin: "20px 0 10px", textAlign: block.data.align || "left" }}>
           {block.data.text || block.data.title || "Заголовок"}
         </Tag>
       );
@@ -22,12 +22,15 @@ export function BlockPreview({ block }) {
       );
     case "paragraph":
       return block.data.html
-        ? <div style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18 }} dangerouslySetInnerHTML={{ __html: block.data.html }} />
-        : <p style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18 }}>{block.data.text}</p>;
+        ? <div style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18, textAlign: block.data.align || "left" }} dangerouslySetInnerHTML={{ __html: block.data.html }} />
+        : <p style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18, textAlign: block.data.align || "left" }}>{block.data.text}</p>;
     case "quote":
       return (
         <blockquote style={{ borderLeft: "4px solid #1D4ED8", paddingLeft: 20, margin: "24px 0", background: "#EFF6FF", borderRadius: "0 12px 12px 0", padding: "16px 20px" }}>
-          <p style={{ fontSize: 16, fontStyle: "italic", color: "#1e3a8a", lineHeight: 1.6, margin: 0 }}>«{block.data.text}»</p>
+          {block.data.html
+            ? <div style={{ fontSize: 16, fontStyle: "italic", color: "#1e3a8a", lineHeight: 1.6, margin: 0 }} dangerouslySetInnerHTML={{ __html: block.data.html }} />
+            : <p style={{ fontSize: 16, fontStyle: "italic", color: "#1e3a8a", lineHeight: 1.6, margin: 0 }}>«{block.data.text || ""}»</p>
+          }
           {block.data.author && <cite style={{ fontSize: 13, color: "#64748B", marginTop: 8, display: "block" }}>— {block.data.author}</cite>}
         </blockquote>
       );
@@ -59,7 +62,7 @@ export function BlockPreview({ block }) {
     case "list":
       const Tag = block.data.ordered ? "ol" : "ul";
       return (
-        <Tag style={{ paddingLeft: 24, margin: "16px 0", color: "#334155", fontSize: 15, lineHeight: 1.8 }}>
+        <Tag style={{ paddingLeft: 24, margin: "16px 0", color: "#334155", fontSize: 15, lineHeight: 1.8, textAlign: block.data.align || "left" }}>
           {(block.data.items || []).map((item, i) => <li key={i}>{item}</li>)}
         </Tag>
       );

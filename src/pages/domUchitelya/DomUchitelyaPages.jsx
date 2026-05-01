@@ -81,9 +81,9 @@ function DomuStyles() {
   return (
     <style>{`
       .domu-page { min-height: 100vh; display: flex; flex-direction: column; color: #0f172a; background: linear-gradient(180deg, #fbfdff 0%, #f4f7fb 52%, #eef4fb 100%); }
-      .domu-main { flex: 1; padding-top: 72px; }
-      .domu-shell { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 70px; }
-      .domu-breadcrumb { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; color: #64748b; font-size: 14px; font-weight: 800; }
+      .domu-main { flex: 1; }
+      .domu-shell { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 34px 0 70px; }
+      .domu-breadcrumb { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; color: #64748b; font-size: 14px; font-weight: 800; align-items: center; }
       .domu-breadcrumb a { color: #1e3a8a; text-decoration: none; }
       .domu-hero { overflow: hidden; border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.08); }
       .domu-hero-grid { display: grid; gap: 0; }
@@ -92,7 +92,7 @@ function DomuStyles() {
       .domu-hero h1 { font-size: clamp(38px, 10vw, 78px); line-height: .95; letter-spacing: 0; margin: 0; }
       .domu-hero p, .domu-lead { color: #475569; font-size: 16px; line-height: 1.62; font-weight: 650; }
       .domu-hero img { width: 100%; min-height: 260px; height: 100%; object-fit: cover; display: block; }
-      .domu-contact-grid, .domu-grid, .domu-news-grid { display: grid; gap: 12px; }
+      .domu-contact-grid, .domu-grid, .domu-news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); justify-content: start; gap: 12px; }
       .domu-card { border: 1px solid #dbe6f5; border-radius: 8px; background: rgba(255,255,255,.94); padding: 18px; box-shadow: 0 16px 36px rgba(15,23,42,.06); }
       .domu-contact span { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 7px; }
       .domu-contact strong { font-size: 17px; line-height: 1.35; }
@@ -112,12 +112,8 @@ function DomuStyles() {
         .domu-shell { width: min(1180px, calc(100% - 44px)); padding-top: 46px; }
         .domu-hero-grid { grid-template-columns: minmax(0, 1.02fr) minmax(320px, .8fr); }
         .domu-hero-copy { padding: 54px; min-height: 520px; }
-        .domu-contact-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .domu-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .domu-news-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       }
       @media (max-width: 520px) {
-        .domu-main { padding-top: 66px; }
         .domu-shell { width: min(100% - 24px, 1180px); }
       }
     `}</style>
@@ -129,6 +125,11 @@ export function DomUchitelyaHome(props) {
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
+        <nav className="domu-breadcrumb" aria-label="Навигация">
+          <Link to="/">Главная</Link>
+          <span>→</span>
+          <span>Дом учителя</span>
+        </nav>
         <section className="domu-hero">
           <div className="domu-hero-grid">
             <div className="domu-hero-copy">
@@ -158,7 +159,7 @@ export function DomUchitelyaHome(props) {
           </div>
           <div className="domu-news-grid">
             {news.slice(0, 3).map(item => (
-              <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} />
+              <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />
             ))}
           </div>
           {!news.length && (
@@ -194,8 +195,10 @@ export function DomUchitelyaStaticPage({ section, ...props }) {
       <div className="domu-shell">
         <nav className="domu-breadcrumb" aria-label="Навигация">
           <Link to="/">Главная</Link>
-          <span>/</span>
+          <span>→</span>
           <Link to="/dom-uchitelya/">Дом учителя</Link>
+          <span>→</span>
+          <span>{section.title}</span>
         </nav>
         <section className="domu-content">
           <span className="domu-eyebrow">Дом учителя</span>
@@ -217,14 +220,16 @@ export function DomUchitelyaNewsPage(props) {
       <div className="domu-shell">
         <nav className="domu-breadcrumb" aria-label="Навигация">
           <Link to="/">Главная</Link>
-          <span>/</span>
+          <span>→</span>
           <Link to="/dom-uchitelya/">Дом учителя</Link>
+          <span>→</span>
+          <span>Новости</span>
         </nav>
         <div className="domu-section-head" style={{ marginTop: 0 }}>
           <h2>Новости Дома учителя</h2>
         </div>
         <div className="domu-news-grid">
-          {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} />)}
+          {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />)}
         </div>
         {!news.length && (
           <div className="domu-empty">В ленте Дома учителя пока нет опубликованных материалов.</div>
@@ -241,12 +246,14 @@ export function CommonNewsPage(props) {
       <div className="domu-shell">
         <nav className="domu-breadcrumb" aria-label="Навигация">
           <Link to="/">Главная</Link>
+          <span>→</span>
+          <span>Новости</span>
         </nav>
         <div className="domu-section-head" style={{ marginTop: 0 }}>
           <h2>Новости</h2>
         </div>
         <div className="domu-news-grid">
-          {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} />)}
+          {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />)}
         </div>
         {!news.length && (
           <div className="domu-empty">В общей ленте пока нет опубликованных материалов.</div>

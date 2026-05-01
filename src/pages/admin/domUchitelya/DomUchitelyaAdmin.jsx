@@ -57,6 +57,7 @@ export default function DomUchitelyaAdmin({
             defaultScope="both"
             apiPath="/api/admin/dom-uchitelya/news/"
             uploadPath="/api/admin/dom-uchitelya/news/upload-cover/"
+            uploadAttachmentPath="/api/admin/dom-uchitelya/news/upload-attachment/"
             isDomuMode
           />
         </div>

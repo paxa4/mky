@@ -120,11 +120,15 @@ export default function AdminPage({
     { key: "articles", path: "/admin/articles", label: "Статьи" },
     { key: "chat", path: "/admin/chat", label: "Настройки чата" },
   ];
-  const activeModule = adminModules.find((module) => location.pathname.startsWith(module.path))?.key || "issue";
+  const moduleOrder = ["articles", "issue", "editor", "chat"];
+  const orderedAdminModules = [...adminModules].sort(
+    (left, right) => moduleOrder.indexOf(left.key) - moduleOrder.indexOf(right.key),
+  );
+  const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || "articles";
 
   useEffect(() => {
     if (location.pathname === "/admin" || location.pathname === "/admin/") {
-      navigate("/admin/certificates", { replace: true });
+      navigate("/admin/articles", { replace: true });
     }
   }, [location.pathname, navigate]);
 
@@ -134,7 +138,7 @@ export default function AdminPage({
 
       <Header
         onGoAuth={(tab) => navigate(`/auth?tab=${tab || "login"}`)}
-        onGoAdmin={() => navigate("/admin/certificates")}
+        onGoAdmin={() => navigate("/admin")}
         onGoProfile={() => navigate("/profile")}
         currentUser={currentUser}
       />
@@ -142,7 +146,7 @@ export default function AdminPage({
       <div style={{ position: "sticky", top: 72, zIndex: 100, background: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(226, 232, 240, 0.8)" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 24px", display: "flex", alignItems: "center" }}>
           <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 4, gap: 4, flexWrap: "wrap" }}>
-            {adminModules.map(({ key, path, label }) => (
+            {orderedAdminModules.map(({ key, path, label }) => (
               <button
                 key={key}
                 type="button"
