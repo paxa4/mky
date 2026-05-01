@@ -1448,16 +1448,11 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
                 onChange={(event) => setPlacementFilter((prev) => ({ ...prev, events: event.target.checked }))}
               />
               <span>Мероприятия</span>
-            </label>
-          </div>
+          </label>
         </div>
-        <select style={{ display: "none" }} multiple value={[...(placementFilter.main ? ["main"] : []), ...(placementFilter.events ? ["events"] : [])]} onChange={(event) => { const selected = Array.from(event.target.selectedOptions).map((option) => option.value); if (selected.includes("all") || selected.length === 0) { setPlacementFilter({ main: true, events: true }); return; } setPlacementFilter({ main: selected.includes("main"), events: selected.includes("events") }); }}>
-          <option value="all">Все размещения</option>
-          <option value="main">Р“Р»Р°РІРЅР°СЏ СЃС‚СЂР°РЅРёС†Р°</option>
-          <option value="events">РњРµСЂРѕРїСЂРёСЏС‚РёСЏ</option>
-        </select>
-        <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-          <option value="updated">Сортировка: по новизне</option>
+      </div>
+      <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+        <option value="updated">Сортировка: по новизне</option>
           <option value="author">Сортировка: автор</option>
           <option value="category">Сортировка: категория</option>
           <option value="scope">Сортировка: размещение</option>
