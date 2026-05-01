@@ -1365,7 +1365,7 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
   const [status, setStatus] = useState("all");
   const [author, setAuthor] = useState("all");
   const [category, setCategory] = useState("all");
-  const [placementFilter, setPlacementFilter] = useState({ main: true, events: true });
+  const [placement, setPlacement] = useState("all");
   const [sortBy, setSortBy] = useState("updated");
   const authors = useMemo(
     () => Array.from(new Set(articles.map(getAuthorLabel))).sort((left, right) => left.localeCompare(right, "ru")),
@@ -1382,11 +1382,11 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
       if (status !== "all" && article.status !== status) return false;
       if (author !== "all" && getAuthorLabel(article) !== author) return false;
       if (category !== "all" && getCategoryLabel(article) !== category) return false;
-      if (!(placementFilter.main && placementFilter.events)) {
+      if (placement !== "all") {
         const inMain = Boolean(article.duplicate_to_main || isHomePlacement(article));
         const inEvents = Boolean(article.duplicate_to_events);
-        const isMatch = (placementFilter.main && inMain) || (placementFilter.events && inEvents);
-        if (!isMatch) return false;
+        if (placement === "main" && !inMain) return false;
+        if (placement === "events" && !inEvents) return false;
       }
       return true;
     });
@@ -1396,7 +1396,7 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
     if (sortBy === "scope") return pinnedSorted.sort((left, right) => getPlacementLabels(left).join(" / ").localeCompare(getPlacementLabels(right).join(" / "), "ru"));
     if (sortBy === "status") return pinnedSorted.sort((left, right) => (STATUS_LABELS[left.status] || "").localeCompare(STATUS_LABELS[right.status] || "", "ru"));
     return pinnedSorted;
-  }, [articles, author, category, placementFilter.events, placementFilter.main, search, sortBy, status]);
+  }, [articles, author, category, placement, search, sortBy, status]);
   return (
     <div className="article-list">
       <div className="article-list-head">
@@ -1407,57 +1407,49 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
         <button type="button" className="article-btn article-btn-primary" onClick={onNew}>Новая статья</button>
       </div>
       <div className="article-filters">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск по заголовку" />
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
+        <input
+          style={{ flex: 1, minWidth: "200px" }}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по статьям..."
+        />
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="all">Все статусы</option>
-          {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <select value={author} onChange={(event) => setAuthor(event.target.value)}>
+        <select value={author} onChange={(e) => setAuthor(e.target.value)}>
           <option value="all">Все авторы</option>
-          {authors.map((name) => <option key={name} value={name}>{name}</option>)}
+          {authors.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select value={category} onChange={(event) => setCategory(event.target.value)}>
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="all">Все категории</option>
-          {categories.map((name) => <option key={name} value={name}>{name}</option>)}
+          {categories.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <div className="article-placement-filter">
-          <label className="article-placement-title">
-            <input
-              type="checkbox"
-              checked={placementFilter.main && placementFilter.events}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                setPlacementFilter({ main: checked, events: checked });
-              }}
-            />
-            <span>Все размещения</span>
-          </label>
-          <div className="article-placement-options">
-            <label>
-              <input
-                type="checkbox"
-                checked={placementFilter.main}
-                onChange={(event) => setPlacementFilter((prev) => ({ ...prev, main: event.target.checked }))}
-              />
-              <span>Главная страница</span>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={placementFilter.events}
-                onChange={(event) => setPlacementFilter((prev) => ({ ...prev, events: event.target.checked }))}
-              />
-              <span>Мероприятия</span>
-            </label>
-          </div>
-        </div>
-        <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-          <option value="updated">Сортировка: по новизне</option>
-          <option value="author">Сортировка: автор</option>
-          <option value="category">Сортировка: категория</option>
-          <option value="scope">Сортировка: размещение</option>
-          <option value="status">Сортировка: статус</option>
+        <select value={placement} onChange={(e) => setPlacement(e.target.value)}>
+          <option value="all">Все размещения</option>
+          <option value="main">Главная страница</option>
+          <option value="events">Мероприятия</option>
         </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="updated">Сначала новые</option>
+          <option value="author">По автору</option>
+          <option value="category">По категории</option>
+          <option value="status">По статусу</option>
+        </select>
+        {(search || status !== "all" || author !== "all" || category !== "all" || placement !== "all") && (
+          <button
+            className="article-reset-btn"
+            onClick={() => {
+              setSearch("");
+              setStatus("all");
+              setAuthor("all");
+              setCategory("all");
+              setPlacement("all");
+            }}
+          >
+            Сбросить
+          </button>
+        )}
       </div>
       <div className="article-table-wrap">
         <table className="article-table">
