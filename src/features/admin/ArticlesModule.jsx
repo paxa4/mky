@@ -1448,11 +1448,11 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
                 onChange={(event) => setPlacementFilter((prev) => ({ ...prev, events: event.target.checked }))}
               />
               <span>Мероприятия</span>
-          </label>
+            </label>
+          </div>
         </div>
-      </div>
-      <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-        <option value="updated">Сортировка: по новизне</option>
+        <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+          <option value="updated">Сортировка: по новизне</option>
           <option value="author">Сортировка: автор</option>
           <option value="category">Сортировка: категория</option>
           <option value="scope">Сортировка: размещение</option>
