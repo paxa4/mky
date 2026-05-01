@@ -1435,6 +1435,7 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
           <option value="author">По автору</option>
           <option value="category">По категории</option>
           <option value="status">По статусу</option>
+          <option value="scope">По размещению</option>
         </select>
         {(search || status !== "all" || author !== "all" || category !== "all" || placement !== "all") && (
           <button
@@ -1820,10 +1821,6 @@ const ARTICLE_CSS = `
   padding: 8px;
 }
 .article-reset-btn:hover { text-decoration: underline; }
-.article-placement-filter { min-height: 42px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 7px 10px; display: grid; gap: 6px; align-content: center; }
-.article-placement-title, .article-placement-options label { display: inline-flex; align-items: center; gap: 8px; color: #334155; font-size: 13px; font-weight: 800; }
-.article-placement-options { display: flex; flex-wrap: wrap; gap: 14px; padding-left: 24px; }
-.article-placement-filter input { width: 15px; height: 15px; accent-color: #1d4ed8; }
 .article-table-wrap { overflow-x: auto; border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; }
 .article-table { width: 100%; min-width: 900px; border-collapse: collapse; }
 .article-table th { background: #f8fafc; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; text-align: left; padding: 13px 14px; }
