@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE } from "../constants/index.js";
 import Header from "../features/nav/Header.jsx";
 import Footer from "../components/Footer.jsx";
@@ -79,14 +79,12 @@ function IssueModule({ templates }) {
 export default function AdminPage({
   currentUser,
   articles = [],
-  categories,
-  apiOnline,
   saveArticle,
   deleteArticle,
   changeArticleStatus,
 }) {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState("issue");
+  const location = useLocation();
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
@@ -116,6 +114,24 @@ export default function AdminPage({
     { key: "chat", label: "Настройки чата" },
   ];
 
+  const adminModules = [
+    { key: "issue", path: "/admin/certificates", label: "Выпуск грамот" },
+    { key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" },
+    { key: "articles", path: "/admin/articles", label: "Статьи" },
+    { key: "chat", path: "/admin/chat", label: "Настройки чата" },
+  ];
+  const moduleOrder = ["articles", "issue", "editor", "chat"];
+  const orderedAdminModules = [...adminModules].sort(
+    (left, right) => moduleOrder.indexOf(left.key) - moduleOrder.indexOf(right.key),
+  );
+  const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || "articles";
+
+  useEffect(() => {
+    if (location.pathname === "/admin" || location.pathname === "/admin/") {
+      navigate("/admin/articles", { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #EFF6FF 100%)", display: "flex", flexDirection: "column" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -130,11 +146,11 @@ export default function AdminPage({
       <div style={{ position: "sticky", top: 72, zIndex: 100, background: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(226, 232, 240, 0.8)" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 24px", display: "flex", alignItems: "center" }}>
           <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 4, gap: 4, flexWrap: "wrap" }}>
-            {modules.map(({ key, label }) => (
+            {orderedAdminModules.map(({ key, path, label }) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setActiveModule(key)}
+                onClick={() => navigate(path)}
                 style={{
                   padding: "10px 20px",
                   fontWeight: 600,
@@ -168,9 +184,8 @@ export default function AdminPage({
               {activeModule === "editor" && <TemplateConstructor templates={templates} onTemplatesSaved={loadTemplates} />}
               {activeModule === "articles" && (
                 <ArticlesModule
+                  currentUser={currentUser}
                   articles={articles}
-                  categories={categories}
-                  apiOnline={apiOnline}
                   saveArticle={saveArticle}
                   deleteArticle={deleteArticle}
                   changeArticleStatus={changeArticleStatus}

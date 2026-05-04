@@ -1,10 +1,10 @@
 export default function Partners() {
   const partners = [
-    { name: "1", img: "/mky/images/partners.jpg"  },
-    { name: "Российская академия образования", img: "/mky/images/pao.jpg"  },
-    { name: "Партнёр", img: "/mky/images/spo.jpg"  },
-    { name: "ИРГУПС", img: "/mky/images/Irgups.jpg"  },
-    { name: "ИРНИТУ", img: "/mky/images/irnitu.jpg"  },
+    { name: "Партнер", img: "/images/partners.jpg" },
+    { name: "Российская академия образования", img: "/images/pao.jpg" },
+    { name: "СПО", img: "/images/spo.jpg" },
+    { name: "ИРГУПС", img: "/images/Irgups.jpg" },
+    { name: "ИРНИТУ", img: "/images/irnitu.jpg" },
   ];
 
   return (
@@ -24,10 +24,6 @@ export default function Partners() {
           flex-shrink: 0;
         }
         .partner-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #BFDBFE; }
-        .partner-abbr {
-          font-size: 15px; font-weight: 800; color: #334155;
-          text-align: center; line-height: 1.2;
-        }
         .partner-nav {
           position: absolute; top: 50%; transform: translateY(-50%);
           width: 32px; height: 32px; border-radius: 50%;
@@ -42,29 +38,25 @@ export default function Partners() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", textTransform: "uppercase", textAlign: "center", marginBottom: 32 }}>
-          Наши партнёры
+          Наши партнеры
         </h2>
 
         <div style={{ position: "relative", padding: "0 48px" }}>
-          <button className="partner-nav left">
+          <button className="partner-nav left" type="button" aria-label="Предыдущие партнеры">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M9 3L5 7l4 4" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
 
           <div className="partners-row">
-            {partners.map((p, i) => (
-              <div key={i} className="partner-item">
-                {p.img ? (
-                  <img src={p.img} alt={p.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-                ) : (
-                  <div className="partner-abbr">{p.abbr}</div>
-                )}
+            {partners.map((partner) => (
+              <div key={partner.name} className="partner-item">
+                <img src={partner.img} alt={partner.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
               </div>
             ))}
           </div>
 
-          <button className="partner-nav right">
+          <button className="partner-nav right" type="button" aria-label="Следующие партнеры">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M5 3l4 4-4 4" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>

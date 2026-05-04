@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { cardStyle } from "../certificates/shared/styles.js";
 import AlertBanner from "../certificates/shared/AlertBanner.jsx";
+import { getLinkHref, linkifyText, shortenUrlLabel } from "../../utils/chatLinks.jsx";
 
 function makeSessionId() {
   return `admin-test-${crypto.randomUUID()}`;
@@ -61,7 +62,9 @@ export default function TestChatPanel() {
   const clearSession = async () => {
     try {
       await fetch(`${API_BASE}/assistant/clear/${sessionId}`, { method: "POST" });
-    } catch {}
+    } catch (e) {
+      void e;
+    }
     setSessionId(makeSessionId());
     setMessages([]);
     setError(null);
@@ -193,7 +196,7 @@ function TestMessage({ msg }) {
         border: isBot ? "1px solid #E2E8F0" : "none",
         boxShadow: isBot ? "0 1px 3px rgba(0,0,0,0.04)" : "none",
       }}>
-        {msg.text}
+        {linkifyText(msg.text, { isBot })}
 
         {isBot && msg.rewritten && msg.rewritten !== msg.text && (
           <div style={{
@@ -216,7 +219,7 @@ function TestMessage({ msg }) {
             {msg.sources.map((src, i) => (
               <a
                 key={i}
-                href={src.source}
+                href={getLinkHref(src.source)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -229,9 +232,9 @@ function TestMessage({ msg }) {
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
                 }}
-                title={src.title || src.source}
+                title={getLinkHref(src.source)}
               >
-                🔗 {src.title || src.source}
+                🔗 {src.title || shortenUrlLabel(src.source)}
               </a>
             ))}
           </div>

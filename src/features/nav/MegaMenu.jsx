@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { SVEDENIYA_QUICK_LINKS } from "../../pages/svedeniya/svedeniyaData.js";
 
 const COLUMNS = [
   {
@@ -66,6 +67,10 @@ function handleLinkClick(label, onClose) {
   }
 }
 
+function goPath(path) {
+  window.location.href = path;
+}
+
 export default function MegaMenu({ open, onClose }) {
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -112,6 +117,65 @@ export default function MegaMenu({ open, onClose }) {
           padding: 12px 16px;
           margin-bottom: 24px;
           box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        .mega-sveden-band {
+          display: grid;
+          grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+          gap: 16px;
+          margin-bottom: 18px;
+        }
+
+        .mega-sveden-card {
+          background: #fff;
+          border: 1px solid #dbe5f1;
+          border-radius: 12px;
+          padding: 18px;
+          display: grid;
+          gap: 10px;
+          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        .mega-sveden-card p {
+          color: #475569;
+          font-size: 13px;
+          line-height: 1.5;
+          font-weight: 650;
+        }
+
+        .mega-sveden-open {
+          min-height: 40px;
+          width: fit-content;
+          border: 1px solid #dbe5f1;
+          border-radius: 10px;
+          background: #1e3a8a;
+          color: #fff;
+          padding: 0 14px;
+          font: 900 13px/1 inherit;
+          cursor: pointer;
+        }
+
+        .mega-sveden-links {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .mega-sveden-link {
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          background: #f8fbff;
+          padding: 11px 12px;
+          color: #334155;
+          text-align: left;
+          font: 850 12.5px/1.35 inherit;
+          cursor: pointer;
+        }
+
+        .mega-sveden-link:hover,
+        .mega-sveden-open:hover {
+          background: #0f2f78;
+          color: #fff;
         }
 
         .mega-search-input {
@@ -232,6 +296,12 @@ export default function MegaMenu({ open, onClose }) {
             top: 65px;
             padding: 18px 14px;
           }
+          .mega-sveden-band {
+            grid-template-columns: 1fr;
+          }
+          .mega-sveden-links {
+            grid-template-columns: 1fr;
+          }
           .mega-grid { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -249,6 +319,29 @@ export default function MegaMenu({ open, onClose }) {
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
+          </div>
+
+          <div className="mega-sveden-band">
+            <div className="mega-sveden-card">
+              <div className="m-title">Сведения об ОО &gt;</div>
+              <p>Официальный раздел с 13 обязательными подразделами, встроенный в общий сайт и доступный по маршруту /sveden/.</p>
+              <button className="mega-sveden-open" type="button" onClick={() => goPath("/sveden/")}>
+                Открыть раздел
+              </button>
+            </div>
+
+            <div className="mega-sveden-links">
+              {SVEDENIYA_QUICK_LINKS.map((item) => (
+                <button
+                  className="mega-sveden-link"
+                  type="button"
+                  key={item.path}
+                  onClick={() => goPath(item.path)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mega-grid">

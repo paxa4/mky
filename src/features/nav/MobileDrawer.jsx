@@ -51,7 +51,7 @@ export default function MobileDrawer({ open, onClose }) {
 
         {/* Contacts */}
         <div style={{ padding: "20px", borderTop: "1px solid #F1F5F9", background: "#F8FAFC" }}>
-          <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Контакты</div>
+          <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>РљРѕРЅС‚Р°РєС‚С‹</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>+7 (3952) 201 985, 343 705</div>
           <div style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>123</div>
         </div>

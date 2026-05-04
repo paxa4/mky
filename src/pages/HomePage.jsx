@@ -13,7 +13,9 @@ export default function HomePage({
   onGoProfile,
   currentUser,
   publishedNews,
+  eventsNews,
   onOpenArticle,
+  onOpenAuthor,
 }) {
   const navigate = useNavigate();
 
@@ -31,8 +33,8 @@ export default function HomePage({
       />
 
       <main style={{ flex: 1 }}>
-        <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} />
-        <EventsSection />
+        <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} onOpenAuthor={onOpenAuthor} />
+        <EventsSection eventsNews={eventsNews} onOpenArticle={onOpenArticle} onOpenAuthor={onOpenAuthor} />
         <DepartmentsSection />
         <MapSection />
       </main>

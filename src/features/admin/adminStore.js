@@ -28,6 +28,7 @@ export const INITIAL_ARTICLES = [
     title: "Городской «Семейный университет»",
     slug: "gorodskoy-semeynyy-universitet",
     status: "published",
+    publishing_scope: "imcro_only",
     categories: [1],
     tags: [1],
     author: "Администратор",
@@ -43,6 +44,7 @@ export const INITIAL_ARTICLES = [
     title: "Курсы ПК «Школьный театр как ресурс воспитания»",
     slug: "kursy-pk-shkolnyy-teatr",
     status: "draft",
+    publishing_scope: "imcro_only",
     categories: [2],
     tags: [1, 5],
     author: "Администратор",
@@ -50,6 +52,22 @@ export const INITIAL_ARTICLES = [
     updatedAt: "2025-11-14",
     blocks: [
       { id: "b1", type: "hero", data: { title: "Курсы ПК «Школьный театр как ресурс воспитания»", intro: "Педагогические работники города прошли обучение под руководством ведущего режиссёра областного центра." } },
+    ],
+  },
+  {
+    id: 3,
+    title: "Открытая встреча в Доме учителя",
+    slug: "otkrytaya-vstrecha-v-dome-uchitelya",
+    status: "published",
+    publishing_scope: "both",
+    categories: [1, 4],
+    tags: [1],
+    author: "Редактор Дома учителя",
+    createdAt: "2026-04-29",
+    updatedAt: "2026-04-29",
+    blocks: [
+      { id: "b1", type: "hero", data: { title: "Открытая встреча в Доме учителя", intro: "Педагоги города обсудили программу встреч, мастер-классов и наставнических проектов на площадке Дома учителя." } },
+      { id: "b2", type: "paragraph", data: { text: "Встреча прошла по адресу ул. Литвинова, 14. Участники договорились о регулярных тематических гостиных и обмене практиками между молодыми педагогами и наставниками." } },
     ],
   },
 ];

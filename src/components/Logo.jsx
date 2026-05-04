@@ -7,7 +7,7 @@ export default function Logo() {
     <div 
       style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, transition: "transform 0.2s" }} 
       onClick={() => {
-        if (window.location.pathname === "/mky" || window.location.pathname === "/mky/") {
+        if (window.location.pathname === "/") {
           window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           navigate("/");

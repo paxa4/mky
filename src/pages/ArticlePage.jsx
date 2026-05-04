@@ -1,146 +1,145 @@
+import { Link } from "react-router-dom";
+import Header from "../features/nav/Header.jsx";
+import Footer from "../components/Footer.jsx";
 import Badge from "../components/Badge.jsx";
 import { BlockPreview } from "../features/admin/BlockEditor.jsx";
 
-// Для статичных новостей из newsData (нет блоков, только текст)
+function getDate(article) {
+  const raw = article?.dateSortValue || article?.date || "";
+  const parsed = Date.parse(raw);
+  if (Number.isNaN(parsed)) return article?.date || "";
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(parsed));
+}
+
 function StaticContent({ article }) {
+  if (article.body) {
+    try {
+      const blocks = JSON.parse(article.body);
+      if (Array.isArray(blocks)) {
+        return blocks.map((block, index) => <BlockPreview key={block.id || `${block.type}-${index}`} block={block} />);
+      }
+    } catch {
+      return <p style={{ fontSize: 16, color: "#334155", lineHeight: 1.8 }}>{article.body}</p>;
+    }
+  }
+  return <p style={{ fontSize: 16, color: "#334155", lineHeight: 1.8 }}>{article.excerpt || article.content || ""}</p>;
+}
+
+function PinnedBadge() {
   return (
-    <p style={{ fontSize: 16, color: "#334155", lineHeight: 1.8 }}>
-      {article.excerpt || article.content || ""}
-    </p>
+    <span className="article-pin" aria-label="Закреплённая статья" title="Закреплённая статья">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14.8 3.2 20.8 9.2 18.7 11.3 17.3 9.9 13.4 13.8 13.8 18.6 12.4 20 8.8 16.4 4.7 20.5 3.5 19.3 7.6 15.2 4 11.6 5.4 10.2 10.2 10.6 14.1 6.7 12.7 5.3 14.8 3.2Z" />
+      </svg>
+    </span>
   );
 }
 
-export default function ArticlePage({ article, onBack }) {
+export default function ArticlePage({
+  article,
+  currentUser,
+  onGoAuth,
+  onGoAdmin,
+  onGoProfile,
+  onOpenAuthor,
+}) {
   const hasBlocks = article.blocks && article.blocks.length > 0;
+  const heroImage = article.cover_image_url || article.image;
+  const breadcrumbs = [
+    { label: "Главная", path: "/" },
+    article.parentLabel && article.parentPath ? { label: article.parentLabel, path: article.parentPath } : null,
+    article.sectionLabel && article.sectionPath ? { label: article.sectionLabel, path: article.sectionPath } : null,
+    { label: article.title },
+  ].filter(Boolean);
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F8FAFC",
-      fontFamily: "'PT Sans', system-ui, sans-serif",
-    }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#F8FAFC", fontFamily: "'PT Sans', system-ui, sans-serif" }}>
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        .article-back-btn {
-          display: inline-flex; align-items: center; gap: 6px;
-          padding: 7px 14px; border-radius: 10px;
-          border: 1.5px solid #E2E8F0; background: #fff;
-          cursor: pointer; font-size: 13px; font-weight: 600;
-          color: #475569; font-family: inherit; transition: border-color 0.15s, color 0.15s;
+        .article-md { line-height: 1.8; color: #334155; overflow-wrap: anywhere; }
+        .article-md > * + * { margin-top: 14px; }
+        .article-md h1, .article-md h2, .article-md h3 { color: #0F172A; line-height: 1.25; }
+        .article-md ul, .article-md ol { padding-left: 22px; }
+        .article-md img { max-width: 100%; border-radius: 12px; }
+        .article-md [data-font-size-span="true"] { line-height: 1.2; }
+        .article-pin {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 42px;
+          height: 42px;
+          display: inline-grid;
+          place-items: center;
+          border-radius: 999px;
+          color: #fff;
+          background: rgba(15, 23, 42, .78);
+          border: 1px solid rgba(255,255,255,.5);
+          box-shadow: 0 12px 30px rgba(15,23,42,.28);
+          backdrop-filter: blur(10px);
         }
-        .article-back-btn:hover { border-color: #93C5FD; color: #1D4ED8; }
-        .article-back-btn-bottom {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 10px 22px; border-radius: 12px;
-          border: 1.5px solid #BFDBFE; background: #EFF6FF;
-          cursor: pointer; font-size: 14px; font-weight: 600;
-          color: #1D4ED8; font-family: inherit; transition: background 0.15s;
-        }
-        .article-back-btn-bottom:hover { background: #DBEAFE; }
+        .article-pin svg { width: 22px; height: 22px; fill: currentColor; }
       `}</style>
+      <Header currentUser={currentUser} onGoAuth={onGoAuth} onGoAdmin={onGoAdmin} onGoProfile={onGoProfile} />
 
-      {/* ── Шапка ─────────────────────────────────────────────────────────── */}
-      <header style={{
-        position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(255,255,255,0.97)",
-        backdropFilter: "blur(12px)",
-        borderBottom: "1px solid #F1F5F9",
-        boxShadow: "0 1px 12px rgba(0,0,0,0.06)",
-      }}>
-        <div style={{
-          maxWidth: 860, margin: "0 auto", padding: "0 24px",
-          height: 60, display: "flex", alignItems: "center", gap: 16,
-        }}>
-          <button className="article-back-btn" onClick={onBack}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            На главную
-          </button>
-          <span style={{
-            flex: 1, fontSize: 13, color: "#94A3B8",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {article.title}
-          </span>
-        </div>
-      </header>
+      <main style={{ flex: 1 }}>
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "34px 20px 64px" }}>
+          <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, color: "#64748b", fontSize: 14, fontWeight: 800 }} aria-label="Навигация">
+            {breadcrumbs.map((crumb, index) => (
+              <span key={`${crumb.label}-${index}`} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                {index > 0 && <span style={{ color: "#CBD5E1" }}>→</span>}
+                {crumb.path
+                  ? <Link to={crumb.path} style={{ color: "#1e3a8a", textDecoration: "none" }}>{crumb.label}</Link>
+                  : <span>{crumb.label}</span>
+                }
+              </span>
+            ))}
+          </nav>
 
-      {/* ── Основной контент ───────────────────────────────────────────────── */}
-      <main style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px 80px" }}>
-
-        {/* Hero-изображение — показываем ТОЛЬКО для статичных новостей (без блоков) */}
-        {!hasBlocks && article.image && (
-          <div style={{
-            width: "100%",
-            borderRadius: 16,
-            overflow: "hidden",
-            marginBottom: 32,
-            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-            maxHeight: 420,
-          }}>
-            <img
-              src={article.image}
-              alt={article.title}
-              style={{
-                width: "100%",
-                height: "420px",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          </div>
-        )}
-
-        {/* Мета: категория, дата, автор */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          {article.category && (
-            <Badge
-              label={article.category}
-              color={article.categoryColor || "#1D4ED8"}
-              bg={article.categoryBg || "#EFF6FF"}
-            />
+          {heroImage && (
+            <div style={{ width: "100%", borderRadius: 14, overflow: "hidden", marginBottom: 18, border: "1px solid #E2E8F0", boxShadow: "0 16px 44px rgba(15,23,42,.12)", position: "relative", background: "#E2E8F0" }}>
+              <img src={heroImage} alt={article.title} style={{ width: "100%", maxHeight: 460, objectFit: "cover", display: "block" }} />
+              {article.is_pinned && <PinnedBadge />}
+            </div>
           )}
-          {article.date && (
-            <span style={{ fontSize: 13, color: "#94A3B8" }}>{article.date}</span>
-          )}
-          {article.author && (
-            <span style={{ fontSize: 13, color: "#94A3B8" }}>· {article.author}</span>
-          )}
-        </div>
 
-        {/* Заголовок — только если нет блоков (блоки сами могут рисовать заголовок) */}
-        {!hasBlocks && (
-          <h1 style={{
-            fontSize: 30, fontWeight: 800, color: "#0F172A",
-            lineHeight: 1.25, letterSpacing: "-0.02em", marginBottom: 24,
-          }}>
-            {article.title}
-          </h1>
-        )}
+          <section style={{ border: "1px solid #E2E8F0", borderRadius: 8, background: "#fff", padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              {article.category && <Badge label={article.category} color={article.categoryColor} bg={article.categoryBg} />}
+              <span style={{ fontSize: 13, color: "#94A3B8" }}>{getDate(article)}</span>
+              {article.author && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAuthor?.(article)}
+                  style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 13px/1.4 inherit", padding: 0, cursor: "pointer" }}
+                >
+                  {article.author}
+                </button>
+              )}
+            </div>
 
-        <div style={{ height: 1, background: "#F1F5F9", marginBottom: 32 }} />
+            <h1 style={{ fontSize: "clamp(28px, 7vw, 44px)", fontWeight: 800, color: "#0F172A", lineHeight: 1.2, margin: "0 0 14px" }}>
+              {article.title}
+            </h1>
+            {article.lead && <p style={{ margin: "0 0 18px", fontSize: 18, color: "#475569", lineHeight: 1.65, fontWeight: 650 }}>{article.lead}</p>}
 
-        {/* Содержимое статьи */}
-        <div style={{ fontSize: 15, lineHeight: 1.8, color: "#334155" }}>
-          {hasBlocks
-            ? article.blocks.map(block => (
-                <BlockPreview key={block.id} block={block} />
-              ))
-            : <StaticContent article={article} />
-          }
-        </div>
+            <div className="article-md" style={{ fontSize: 15 }}>
+              {hasBlocks ? article.blocks.map((block) => <BlockPreview key={block.id} block={block} />) : <StaticContent article={article} />}
+            </div>
 
-        {/* Кнопка «Назад» внизу */}
-        <div style={{ marginTop: 56, paddingTop: 32, borderTop: "1px solid #F1F5F9" }}>
-          <button className="article-back-btn-bottom" onClick={onBack}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Вернуться к новостям
-          </button>
+            {Boolean(article.attachments?.length) && (
+              <section style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid #E2E8F0", display: "grid", gap: 10 }}>
+                <strong style={{ color: "#0F172A" }}>Файлы к статье</strong>
+                {article.attachments.map((file, index) => (
+                  <a key={`${file.url || file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 700, overflowWrap: "anywhere" }}>
+                    {file.name || "Документ"}{file.type ? ` · ${file.type}` : ""}
+                  </a>
+                ))}
+              </section>
+            )}
+          </section>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }

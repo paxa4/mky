@@ -1,34 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
 
 const API_BASE   = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const SESSION_ID = crypto.randomUUID();
-
-function linkify(text, isBot) {
-  if (!text) return text;
-  const urlRegex = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/g;
-  const parts = [];
-  let lastIndex = 0;
-  let match;
-  while ((match = urlRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
-    const url  = match[0];
-    const href = url.startsWith("www.") ? `https://${url}` : url;
-    parts.push(
-      <a
-        key={`${match.index}-${url}`}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={isBot ? "chat-link-bot" : "chat-link-user"}
-      >
-        {url}
-      </a>
-    );
-    lastIndex = match.index + url.length;
-  }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
-  return parts;
-}
 
 function Message({ msg }) {
   const isBot = msg.from === "bot";
@@ -54,7 +28,7 @@ function Message({ msg }) {
         wordBreak: "break-word",
         overflowWrap: "anywhere",
       }}>
-        {linkify(msg.text, isBot)}
+        {linkifyText(msg.text, { isBot })}
 
         {isBot && msg.sources?.length > 0 && (
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #CBD5E1" }}>
@@ -62,13 +36,13 @@ function Message({ msg }) {
             {msg.sources.map((src, i) => (
               <a
                 key={i}
-                href={src.source}
+                href={getLinkHref(src.source)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="chat-source-link"
-                title={src.title || src.source}
+                title={getLinkHref(src.source)}
               >
-                🔗 {src.title || src.source}
+                🔗 {src.title || shortenUrlLabel(src.source)}
               </a>
             ))}
           </div>
@@ -144,7 +118,9 @@ export default function ChatBot() {
         try {
           const err = await res.json();
           detail = err.detail || detail;
-        } catch {}
+        } catch (e) {
+          void e;
+        }
         throw new Error(detail);
       }
 
@@ -176,7 +152,9 @@ export default function ChatBot() {
   const clearHistory = async () => {
     try {
       await fetch(`${API_BASE}/assistant/clear/${SESSION_ID}`, { method: "POST" });
-    } catch {}
+    } catch (e) {
+      void e;
+    }
     setMessages([{
       id: Date.now(), from: "bot",
       text: "История очищена. Задайте новый вопрос.",

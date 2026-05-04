@@ -6,6 +6,7 @@ import { API_BASE } from "../constants/index.js";
 
 const SITE_PAGES = [
   { title: "Главная", href: "/", description: "Новости, мероприятия и основные разделы сайта." },
+  { title: "Сведения об ОО", href: "/sveden/", description: "Официальный раздел с 13 обязательными подразделами." },
   { title: "ТПМПК", href: "/tpmpk/", description: "Раздел территориальной психолого-медико-педагогической комиссии." },
   { title: "Запись на обследование ПМПК", href: "/tpmpk/zapis", description: "Онлайн-заявка на обследование ребенка." },
   { title: "Документы ТПМПК", href: "/tpmpk/dokumenty/", description: "Перечень документов для прохождения комиссии." },
@@ -21,14 +22,15 @@ const SITE_PAGES = [
 
 const POPULAR_SECTIONS = [
   { title: "Главная", href: "/", text: "Новости и события" },
+  { title: "Сведения об ОО", href: "/sveden/", text: "Основная информация" },
   { title: "ТПМПК", href: "/tpmpk/", text: "Комиссия и запись" },
-  { title: "Сведения об ОО", href: "/", text: "Основная информация" },
   { title: "Дом учителя", href: "/", text: "Городские мероприятия" },
   { title: "Методическое пространство", href: "/", text: "Материалы для педагогов" },
   { title: "Контакты", href: "/tpmpk/kontakty/", text: "Адрес и телефон" },
 ];
 
 const LEGACY_HINTS = {
+  sveden: "/sveden/",
   pmpk: "/tpmpk/",
   pmk: "/tpmpk/",
   docs: "/tpmpk/dokumenty/",

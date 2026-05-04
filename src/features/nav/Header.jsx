@@ -1,40 +1,60 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Logo from "../../components/Logo.jsx";
 import MegaMenu from "./MegaMenu.jsx";
 
-const NAV_ITEMS = [
-  { label: "Главная", href: "/", items: [] },
-  { label: "Сведения об ОО", items: ["Основные сведения", "Структура", "Руководство", "Документы"] },
-  { label: "ТПМПК", href: "/tpmpk/", items: [] },
-  { label: "Подразделения", items: ["Оценка качества", "Профсоюз"] },
-  { label: "Мероприятия", items: ["Событийный календарь", "Олимпиады", "Конференции", "Архив"] },
-  { label: "Программы", items: ["Муниципальные проекты", "Программы развития", "Партнеры"] },
-  { label: "Контакты", items: ["Адрес", "Телефоны", "Обратная связь"] },
+const MAIN_NAV_ITEMS = [
+  { label: "Главная", href: "/" },
+  { label: "Об организации", href: "/sveden/" },
+  { label: "ТПМПК", href: "/tpmpk/" },
+  { label: "Дом учителя", href: "/dom-uchitelya/" },
+  { label: "Методика", href: "/metodika/" },
+  { label: "НОКО", href: "/noko/" },
+  { label: "Олимпиады и конкурсы", href: "/konkursy/" },
+  { label: "Новости и события", href: "/novosti/" },
 ];
 
-function goPath(path) {
-  window.location.href = `/mky${path === "/" ? "/" : path}`;
+function normalizePath(pathname) {
+  if (!pathname) return "/";
+  return pathname.endsWith("/") ? pathname : `${pathname}/`;
 }
 
-function scrollToCalendar() {
-  document.getElementById("calendar")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function ChevronDownIcon() {
+function SearchIcon() {
   return (
-    <svg className="header-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.8-3.8" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
 
 export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+
   const [scrolled, setScrolled] = useState(false);
-  const [activeNav, setActiveNav] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [a11yMode, setA11yMode] = useState(() => localStorage.getItem("mky-a11y-mode") === "on");
-  const searchInputRef = useRef(null);
+
+  const currentPath = normalizePath(location.pathname);
+  const userInitials = currentUser
+    ? `${currentUser.firstName?.[0] || ""}${currentUser.lastName?.[0] || ""}` || "П"
+    : "П";
+  const currentRole = typeof currentUser?.role === "object" ? currentUser.role?.role_name : currentUser?.role;
+  const canShowAdminButton = Boolean(currentUser && onGoAdmin && (currentRole === "admin" || currentRole === "methodist" || currentRole === "domu_editor"));
+  const canShowTpmpkCabinetButton = currentRole === "operator";
 
   useEffect(() => {
     const update = () => setScrolled(window.scrollY > 8);
@@ -58,31 +78,48 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     localStorage.setItem("mky-a11y-mode", a11yMode ? "on" : "off");
   }, [a11yMode]);
 
-  const userInitials = currentUser
-    ? `${currentUser.firstName?.[0] || ""}${currentUser.lastName?.[0] || ""}` || "П"
-    : "П";
-  const currentRole = typeof currentUser?.role === "object" ? currentUser.role?.role_name : currentUser?.role;
-  const canShowAdminButton = Boolean(currentUser && onGoAdmin && (currentRole === "admin" || currentRole === "methodist"));
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
-  function handleSubItem(subItem) {
-    if (subItem === "Событийный календарь") scrollToCalendar();
-    setActiveNav(null);
+  const navSearchIndex = useMemo(
+    () => MAIN_NAV_ITEMS.map((item) => ({ ...item, search: item.label.toLowerCase() })),
+    [],
+  );
+
+  function goPath(path) {
+    if (!path) return;
+    const target = normalizePath(path);
+    if (target === currentPath) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    navigate(path);
+  }
+
+  function onSearchSubmit(event) {
+    event.preventDefault();
+    const normalized = searchQuery.trim().toLowerCase();
+    if (!normalized) return;
+
+    if (normalized.startsWith("/")) {
+      navigate(normalized);
+      setSearchOpen(false);
+      return;
+    }
+
+    const byPrefix = navSearchIndex.find((item) => item.search.startsWith(normalized));
+    const byContains = navSearchIndex.find((item) => item.search.includes(normalized));
+    const target = byPrefix || byContains;
+    if (target) {
+      goPath(target.href);
+      setSearchOpen(false);
+    }
   }
 
   return (
     <>
       <style>{`
-        .site-header-shell {
-          position: fixed;
-          inset: 0 0 auto;
-          z-index: 220;
-          background: rgba(255, 255, 255, 0.97);
-          border-bottom: 1px solid #dbe5f1;
-          backdrop-filter: blur(16px);
-          box-shadow: var(--header-shadow);
-          transition: box-shadow 0.2s ease;
-        }
-
         .mky-a11y-mode {
           background: #ffffff !important;
           color: #0f172a !important;
@@ -98,27 +135,32 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           font-size: 1rem;
         }
 
-        .mky-a11y-mode *:focus-visible,
-        .site-header-shell *:focus-visible {
-          outline: 3px solid #1e3a8a;
-          outline-offset: 3px;
+        .site-header-shell {
+          position: fixed;
+          inset: 0 0 auto;
+          z-index: 240;
+          border-bottom: 1px solid #dbe5f1;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(14px);
+          box-shadow: var(--header-shadow);
+          transition: box-shadow 0.2s ease;
         }
 
-        .mky-a11y-mode .site-header-shell {
-          border-bottom-color: #0f172a;
-          box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+        .site-header-shell *:focus-visible {
+          outline: 3px solid #1e3a8a;
+          outline-offset: 2px;
         }
 
         .site-header-inner {
-          max-width: 1360px;
-          min-width: 0;
-          height: 72px;
+          max-width: 1500px;
           margin: 0 auto;
-          padding: 0 20px;
+          height: 74px;
+          min-width: 0;
+          padding: 0 12px;
           display: grid;
           grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
-          column-gap: 14px;
+          column-gap: 12px;
         }
 
         .header-logo-slot {
@@ -129,113 +171,63 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
         .header-main-area {
           min-width: 0;
-          height: 72px;
           position: relative;
+          height: 74px;
           display: flex;
           align-items: center;
         }
 
         .header-nav {
-          min-width: 0;
           width: 100%;
-          height: 72px;
+          height: 74px;
+          min-width: 0;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 4px;
-          overflow: visible;
-          transition: opacity 0.18s ease, transform 0.2s ease, visibility 0.18s ease;
+          justify-content: flex-start;
+          gap: 10px;
+          overflow: hidden;
+          transition: opacity 0.16s ease, transform 0.2s ease, visibility 0.16s ease;
         }
 
         .header-main-area.search-mode .header-nav {
           opacity: 0;
           visibility: hidden;
-          transform: translateX(-18px);
           pointer-events: none;
+          transform: translateX(-18px);
         }
 
-        .header-nav-item {
-          position: relative;
-          height: 72px;
-          display: flex;
-          align-items: center;
-          flex: 1 1 auto;
-          min-width: 0;
-        }
-
-        .header-nav-button {
-          width: 100%;
-          height: 40px;
-          padding: 0 8px;
-          border: 0;
-          border-radius: 8px;
+        .header-nav-link {
+          flex: 0 0 auto;
+          height: 38px;
+          border: 1px solid transparent;
+          border-radius: 10px;
           background: transparent;
-          color: #223044;
-          font: 800 12.5px/1 inherit;
+          color: #1f3043;
+          padding: 0 9px;
+          font: 760 11.8px/1 inherit;
           white-space: nowrap;
           cursor: pointer;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 5px;
-          transition: background 0.15s ease, color 0.15s ease;
+          transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
         }
 
-        .header-nav-button:hover,
-        .header-nav-button.open {
-          background: #edf5ff;
+        .header-nav-link:hover {
           color: #0b63ce;
+          background: #f3f8ff;
+          border-color: #d7e8ff;
         }
 
-        .header-caret {
-          flex: 0 0 14px;
-          transition: transform 0.15s ease;
-        }
-
-        .header-nav-button.open .header-caret {
-          transform: rotate(180deg);
-        }
-
-        .header-dropdown {
-          position: absolute;
-          top: 62px;
-          left: 50%;
-          width: 238px;
-          padding: 8px;
-          border: 1px solid #dbe5f1;
-          border-radius: 8px;
-          background: #fff;
-          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
-          transform: translateX(-50%);
-          animation: headerDrop 0.14s ease-out;
-        }
-
-        @keyframes headerDrop {
-          from { opacity: 0; transform: translate(-50%, -5px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
-        }
-
-        .header-dropdown-item {
-          width: 100%;
-          min-height: 36px;
-          padding: 9px 10px;
-          border: 0;
-          border-radius: 6px;
-          background: transparent;
-          color: #405166;
-          font: 700 13px/1.25 inherit;
-          text-align: left;
-          cursor: pointer;
-        }
-
-        .header-dropdown-item:hover {
-          background: #f3f7fb;
+        .header-nav-link.is-active {
           color: #0b63ce;
+          background: #eef5ff;
+          border-color: #c9defb;
         }
 
         .header-search-panel {
           position: absolute;
-          inset: 16px 0;
+          inset: 14px 0;
           min-width: 0;
           display: flex;
           align-items: center;
@@ -244,13 +236,13 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           border: 1px solid #9dc5f4;
           border-radius: 12px;
           background: #fff;
-          box-shadow: 0 12px 28px rgba(11, 99, 206, 0.11);
+          box-shadow: 0 10px 24px rgba(11, 99, 206, 0.12);
           opacity: 0;
           visibility: hidden;
           pointer-events: none;
-          transform: translateX(34px) scaleX(0.94);
+          transform: translateX(24px) scaleX(0.95);
           transform-origin: right center;
-          transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.22s ease;
+          transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.2s ease;
         }
 
         .header-main-area.search-mode .header-search-panel {
@@ -261,24 +253,23 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-search-panel svg {
-          flex: 0 0 auto;
           color: #0b63ce;
+          flex: 0 0 auto;
         }
 
         .header-search-input {
-          min-width: 0;
           width: 100%;
+          min-width: 0;
           height: 100%;
           border: 0;
           outline: 0;
-          color: #223044;
-          font: 700 14px/1 inherit;
           background: transparent;
+          color: #1f3043;
+          font: 700 14px/1 inherit;
         }
 
         .header-search-input::placeholder {
-          color: #738295;
-          font-weight: 600;
+          color: #7b8ca0;
         }
 
         .header-search-close,
@@ -323,7 +314,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
         .header-actions {
           min-width: 0;
-          height: 72px;
+          height: 74px;
           display: flex;
           align-items: center;
           justify-content: flex-end;
@@ -331,6 +322,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-admin-btn,
+        .header-tpmpk-btn,
         .header-profile-btn,
         .header-auth-btn,
         .header-register-btn {
@@ -357,6 +349,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-admin-btn:hover,
+        .header-tpmpk-btn:hover,
         .header-profile-btn:hover,
         .header-auth-btn:hover {
           border-color: #9dc5f4;
@@ -382,43 +375,75 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           font-weight: 900;
         }
 
-        .header-spacer { height: 73px; }
+        .header-spacer {
+          height: 75px;
+        }
 
-        @media (max-width: 1280px) {
-          .header-action-label,
-          .header-admin-label {
+        @media (max-width: 1620px) {
+          .header-auth-text,
+          .header-register-text,
+          .header-admin-label,
+          .header-tpmpk-label,
+          .header-action-label {
             display: none;
           }
+
+          .header-auth-btn,
+          .header-register-btn,
           .header-admin-btn,
+          .header-tpmpk-btn,
           .header-profile-btn {
             width: 40px;
             padding: 0;
           }
+
+          .header-nav-link {
+            font-size: 11.2px;
+            padding: 0 8px;
+          }
         }
 
-        @media (max-width: 1080px) {
-          .site-header-inner {
-            grid-template-columns: auto 1fr auto;
+        @media (max-width: 1480px) {
+          .header-nav {
+            gap: 8px;
+          }
+
+          .header-nav-link {
+            font-size: 10.9px;
+            padding: 0 6px;
+          }
+        }
+
+        @media (max-width: 1320px) {
+          .header-nav {
+            gap: 6px;
+          }
+
+          .header-nav-link {
+            font-size: 10.5px;
+            padding: 0 5px;
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .header-nav {
+            display: none;
           }
 
           .header-main-area {
             height: 0;
             position: absolute;
-            left: 14px;
-            right: 14px;
-            top: 72px;
+            left: 12px;
+            right: 12px;
+            top: 74px;
             z-index: 1;
             display: block;
           }
 
-          .header-nav {
-            display: none;
-          }
-
           .header-search-panel {
             inset: 0;
-            height: 46px;
-            transform: translateY(-10px);
+            height: 48px;
+            transform: translateY(-8px);
             transform-origin: top center;
           }
 
@@ -427,48 +452,37 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
 
           .site-header-shell:has(.header-main-area.search-mode) {
-            padding-bottom: 58px;
+            padding-bottom: 60px;
           }
         }
 
         @media (max-width: 720px) {
           .site-header-inner,
           .header-actions {
-            height: 64px;
+            height: 66px;
           }
-          .site-header-inner {
-            padding: 0 14px;
-            column-gap: 10px;
-          }
-          .header-main-area {
-            top: 64px;
-          }
-          .header-spacer { height: 65px; }
-          .header-auth-text,
-          .header-register-text {
-            display: none;
-          }
-          .header-auth-btn,
-          .header-register-btn {
-            width: 40px;
-            padding: 0;
-          }
-          .header-avatar {
-            width: 26px;
-            height: 26px;
-          }
-        }
 
-        @media (max-width: 520px) {
-          .header-admin-btn {
+          .site-header-inner {
+            padding: 0 10px;
+            column-gap: 8px;
+          }
+
+          .header-main-area {
+            top: 66px;
+          }
+
+          .header-spacer {
+            height: 67px;
+          }
+
+          .header-admin-btn,
+          .header-tpmpk-btn {
             display: none;
           }
-          .header-actions {
-            gap: 6px;
-          }
+
           .header-icon-btn,
-          .header-search-btn,
           .header-menu-btn,
+          .header-search-btn,
           .header-auth-btn,
           .header-register-btn,
           .header-profile-btn {
@@ -478,7 +492,32 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
         }
 
-        @media (max-width: 390px) {
+        @media (max-width: 420px) {
+          .site-header-inner {
+            padding: 0 8px;
+            column-gap: 6px;
+          }
+
+          .header-actions {
+            gap: 4px;
+          }
+
+          .header-avatar {
+            width: 24px;
+            height: 24px;
+            font-size: 10px;
+          }
+
+          .header-icon-btn,
+          .header-menu-btn,
+          .header-search-btn,
+          .header-auth-btn,
+          .header-register-btn,
+          .header-profile-btn {
+            width: 34px;
+            height: 34px;
+          }
+
           .header-icon-btn {
             display: none;
           }
@@ -489,7 +528,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
       <header
         className="site-header-shell"
-        style={{ "--header-shadow": scrolled ? "0 10px 30px rgba(15, 23, 42, 0.12)" : "0 3px 14px rgba(15, 23, 42, 0.06)" }}
+        style={{ "--header-shadow": scrolled ? "0 10px 28px rgba(15, 23, 42, 0.12)" : "0 2px 12px rgba(15, 23, 42, 0.06)" }}
       >
         <div className="site-header-inner">
           <div className="header-logo-slot">
@@ -497,48 +536,40 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           </div>
 
           <div className={`header-main-area${searchOpen ? " search-mode" : ""}`}>
-            <nav className="header-nav" aria-label="Основная навигация">
-              {NAV_ITEMS.map((item) => (
-                <div
-                  className="header-nav-item"
-                  key={item.label}
-                  onMouseEnter={() => item.items.length && setActiveNav(item.label)}
-                  onMouseLeave={() => item.items.length && setActiveNav(null)}
-                >
+            <nav className="header-nav" aria-label="Главная навигация">
+              {MAIN_NAV_ITEMS.map((item) => {
+                const isActive = item.href === "/" ? currentPath === "/" : currentPath.startsWith(item.href);
+                return (
                   <button
-                    className={`header-nav-button${activeNav === item.label ? " open" : ""}`}
+                    key={item.href}
                     type="button"
-                    onClick={() => item.href && goPath(item.href)}
+                    className={`header-nav-link${isActive ? " is-active" : ""}`}
+                    onClick={() => goPath(item.href)}
                   >
                     {item.label}
-                    {item.items.length > 0 && <ChevronDownIcon />}
                   </button>
-                  {activeNav === item.label && item.items.length > 0 && (
-                    <div className="header-dropdown">
-                      {item.items.map((subItem) => (
-                        <button
-                          className="header-dropdown-item"
-                          key={subItem}
-                          type="button"
-                          onClick={() => handleSubItem(subItem)}
-                        >
-                          {subItem}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </nav>
 
-            <form className="header-search-panel" role="search" onSubmit={(event) => event.preventDefault()}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.8-3.8" />
-              </svg>
-              <input ref={searchInputRef} className="header-search-input" type="search" placeholder="Поиск по сайту" aria-label="Поиск по сайту" />
-              <button className="header-search-close" type="button" onClick={() => setSearchOpen(false)} aria-label="Закрыть поиск">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
+            <form className="header-search-panel" role="search" onSubmit={onSearchSubmit}>
+              <SearchIcon />
+              <input
+                ref={searchInputRef}
+                className="header-search-input"
+                type="search"
+                value={searchQuery}
+                placeholder="Поиск по сайту"
+                aria-label="Поиск по сайту"
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+              <button
+                className="header-search-close"
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                aria-label="Закрыть поиск"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
@@ -554,10 +585,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
               aria-expanded={searchOpen}
               onClick={() => setSearchOpen((value) => !value)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.8-3.8" />
-              </svg>
+              <SearchIcon />
             </button>
 
             <button
@@ -568,21 +596,29 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
               aria-pressed={a11yMode}
               onClick={() => setA11yMode((value) => !value)}
             >
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
+              <EyeIcon />
             </button>
 
             {canShowAdminButton && (
               <button className="header-admin-btn" type="button" onClick={onGoAdmin} title="Админ-панель">
-                <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                   <rect x="2" y="2" width="5" height="5" rx="1.3" />
                   <rect x="9" y="2" width="5" height="5" rx="1.3" />
                   <rect x="2" y="9" width="5" height="5" rx="1.3" />
                   <rect x="9" y="9" width="5" height="5" rx="1.3" />
                 </svg>
-                <span className="header-admin-label">Админ</span>
+                <span className="header-admin-label">Админ-панель</span>
+              </button>
+            )}
+
+            {canShowTpmpkCabinetButton && (
+              <button className="header-tpmpk-btn" type="button" onClick={() => goPath("/admin/tpmpk/")} title="Кабинет ТПМПК">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 21s7-4.4 7-10V5l-7-3-7 3v6c0 5.6 7 10 7 10Z" />
+                  <path d="M9 12h6" />
+                  <path d="M12 9v6" />
+                </svg>
+                <span className="header-tpmpk-label">Кабинет ТПМПК</span>
               </button>
             )}
 
@@ -621,7 +657,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
               aria-label="Открыть меню"
               aria-expanded={menuOpen}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 {menuOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
               </svg>
             </button>

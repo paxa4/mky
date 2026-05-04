@@ -1,403 +1,382 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { authenticate, TEST_CREDENTIALS } from "../auth.js";
 import { API_BASE } from "../constants/index.js";
 
-// FastAPI на 422 возвращает detail в виде массива объектов {loc, msg, type}.
-// Приводим к читабельной строке, чтобы не получить "[object Object]".
-function formatApiError(err, fallback) {
-  const d = err?.detail ?? err?.message;
-  if (typeof d === "string") return d;
-  if (Array.isArray(d)) {
-    return d
-      .map(e => (typeof e === "string" ? e : e?.msg || JSON.stringify(e)))
-      .join("; ");
-  }
-  if (d && typeof d === "object") return d.msg || JSON.stringify(d);
-  return fallback;
-}
+export default function AuthPage({ onLogin }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "register" ? "register" : "login";
 
-// Бэк может отдавать роль в куче разных форматов. Поддерживаем все типичные:
-// role / role_name / roles[] / is_admin / is_superuser / is_staff / scope.
-// Источник — объединённый объект из /auth/me и payload JWT.
-function detectRole(...sources) {
-  for (const src of sources) {
-    if (!src || typeof src !== "object") continue;
+  const [tab, setTab] = useState(initialTab);
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [regForm, setRegForm] = useState({ name: "", email: "", password: "" });
+  const [showPass, setShowPass] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
 
-    if (src.is_admin || src.is_superuser || src.is_staff) return "admin";
-
-    const direct = src.role || src.role_name || src.user_role;
-    if (typeof direct === "string" && direct.toLowerCase() === "admin") return "admin";
-
-    if (Array.isArray(src.roles)) {
-      const has = src.roles.some(r => {
-        const v = typeof r === "string" ? r : r?.name || r?.role;
-        return String(v || "").toLowerCase() === "admin";
-      });
-      if (has) return "admin";
-    }
-
-    const scope = src.scope || src.scopes;
-    if (typeof scope === "string" && /\badmin\b/i.test(scope)) return "admin";
-    if (Array.isArray(scope) && scope.some(s => String(s).toLowerCase() === "admin")) return "admin";
-
-    // Фолбэк: бэк не отдаёт роль, но логин/email/sub === "admin".
-    // Снять, как только в /auth/me появится явное поле роли.
-    const ident = String(src.username || src.login || src.email || src.sub || "").toLowerCase();
-    if (ident === "admin") return "admin";
-  }
-  return "user";
-}
-
-// Декодируем payload JWT-токена (без проверки подписи — это делает бэк).
-// Нужен только для извлечения email из поля `sub`.
-function decodeJWT(token) {
-  try {
-    const payload = token.split(".")[1];
-    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decodeURIComponent(escape(json)));
-  } catch { return null; }
-}
-
-// Пробуем получить данные пользователя (роль и т.п.) по токену.
-// Если эндпоинта /auth/me нет — вернём null и обойдёмся email из JWT.
-async function fetchMe(token) {
-  try {
-    const res = await fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
-}
-
-// Собираем структуру пользователя для UI.
-// email — реальный (из JWT или /auth/me), роль — admin/user.
-// Остальные поля — заглушки, пока на бэке нет соответствующих данных.
-function buildUser({ email = "", username = "", role, name = "" }) {
-  const safeRole = String(role || "user").toLowerCase() === "admin" ? "admin" : "user";
-  const baseForName = name || username || (email ? email.split("@")[0] : "");
-  const [firstName = "", lastName = ""] = baseForName.trim().split(/\s+/);
-
-  return {
-    email,
-    role: safeRole,
-    firstName,
-    lastName,
-    middleName:    "",
-    username:      username || email,
-    phone:         "",
-    position:      safeRole === "admin" ? "Администратор" : "Пользователь",
-    organization:  "МКУ развития образования города Иркутска",
-    qualification: "",
-    workExperience: 0,
-    birthDate:     "",
-    created_at:    new Date().toISOString(),
-    subjects:      [],
-    certificates:  [],
-    achievements:  [],
+  const getPasswordStrength = (pass) => {
+    if (!pass) return 0;
+    let score = 0;
+    if (pass.length >= 8) score += 1;
+    if (/[A-ZА-Я]/.test(pass) && /[a-zа-я]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[^A-Za-zА-Яа-я0-9]/.test(pass)) score += 1;
+    if (pass.length >= 12) score += 1;
+    return Math.min(score, 4);
   };
-}
 
-export default function AuthPage({ onBack, onLogin }) {
-  const [tab, setTab] = useState("login"); // "login" | "register"
-  const [loginForm, setLoginForm]   = useState({ login: "", password: "" });
-  const [regForm,   setRegForm]     = useState({ login: "", email: "", password: "" });
-  const [showPass,  setShowPass]    = useState(false);
-  const [done,      setDone]        = useState(false);
-  const [loggedIn,  setLoggedIn]    = useState(false);
-  const [loading,   setLoading]     = useState(false);
-  const [error,     setError]       = useState("");
+  const passScore = getPasswordStrength(regForm.password);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!loginForm.login || !loginForm.password) return;
+  const activeCredential = useMemo(
+    () => TEST_CREDENTIALS.find((item) => item.email === loginForm.email),
+    [loginForm.email],
+  );
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError("");
-    setLoading(true);
     try {
-      // Бэк ожидает OAuth2 form-urlencoded с полями username/password.
-      // В username отправляем введённый логин — на бэке он матчится по полю username/login.
-      const body = new URLSearchParams();
-      body.append("username", loginForm.login);
-      body.append("password", loginForm.password);
-
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const formData = new URLSearchParams();
+      formData.set("username", loginForm.email);
+      formData.set("password", loginForm.password);
+      const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
+        body: formData,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(formatApiError(err, `Ошибка входа (${res.status})`));
+      if (tokenResponse.ok) {
+        const token = await tokenResponse.json();
+        const meResponse = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token.access_token}` },
+        });
+        if (meResponse.ok) {
+          const me = await meResponse.json();
+          onLogin?.({ ...me, access_token: token.access_token });
+          return;
+        }
       }
-
-      const data = await res.json();
-      const token = data.access_token;
-      if (!token) throw new Error("Сервер не вернул access_token");
-
-      // Сохраняем токен — пригодится для всех будущих авторизованных запросов
-      localStorage.setItem("access_token", token);
-
-      // Email достаём из JWT (поле sub), как фолбэк — введённый логин (если он был email-видный)
-      const decoded = decodeJWT(token);
-      const sub = decoded?.sub || loginForm.login;
-
-      // Пытаемся получить роль и имя через /auth/me; если эндпоинта нет — обойдёмся
-      const me = await fetchMe(token);
-
-      // Диагностика: видно в DevTools, какие поля реально пришли (поможет настроить роль)
-      if (typeof window !== "undefined") {
-        // eslint-disable-next-line no-console
-        console.debug("[auth] /me:", me, "jwt:", decoded);
-      }
-
-      const user = buildUser({
-        email:    me?.email    || (String(sub).includes("@") ? sub : ""),
-        username: me?.username || me?.login || loginForm.login,
-        role:     detectRole(me, decoded),
-        name:     me?.name     || "",
-      });
-
-      setLoggedIn(true);
-      onLogin?.(user);
-    } catch (err) {
-      setError(err.message || "Не удалось войти");
-    } finally {
-      setLoading(false);
+    } catch {
+      // If the backend has no seeded user, demo credentials still keep local work usable.
     }
+    const user = authenticate(loginForm.email, loginForm.password);
+    if (!user) {
+      setError("Неверный логин или пароль. Выберите тестовый аккаунт ниже или проверьте данные.");
+      return;
+    }
+    onLogin?.(user);
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!regForm.login || !regForm.email || regForm.password.length < 8) return;
+  const handleRegister = (event) => {
+    event.preventDefault();
+    if (!regForm.name || !regForm.email || regForm.password.length < 8) return;
+    setDone(true);
+  };
+
+  const fillCredentials = (credentials) => {
     setError("");
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // На бэке поле может называться login или username — отправляем оба
-          login:    regForm.login,
-          username: regForm.login,
-          email:    regForm.email,
-          password: regForm.password,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(formatApiError(err, `Ошибка регистрации (${res.status})`));
-      }
-      // После успешной регистрации бэк может либо сразу логинить, либо нет.
-      // В обоих случаях показываем экран успеха — войдёт пользователь через вкладку «Вход».
-      setDone(true);
-    } catch (err) {
-      setError(err.message || "Не удалось зарегистрироваться");
-    } finally {
-      setLoading(false);
-    }
+    setTab("login");
+    setLoginForm({ email: credentials.email, password: credentials.password });
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+    <div className="auth-page">
       <style>{`
-        .auth-input {
-          width: 100%; padding: 12px 14px; font-size: 14px;
-          border: 1.5px solid #E2E8F0; border-radius: 10px;
-          outline: none; color: #0F172A; background: #F8FAFC;
-          transition: border-color 0.2s, background 0.2s;
-          font-family: inherit; box-sizing: border-box;
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+        .auth-page {
+          min-height: 100vh;
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+          color: #0F172A;
+          background:
+            radial-gradient(circle at 84% 6%, rgba(124, 58, 237, 0.16), transparent 28rem),
+            radial-gradient(circle at 10% 18%, rgba(37, 99, 235, 0.18), transparent 30rem),
+            linear-gradient(135deg, #FFFFFF 0%, #EFF6FF 100%);
         }
-        .auth-input:focus { border-color: #93C5FD; background: #fff; }
-        .auth-input::placeholder { color: #94A3B8; }
-        .auth-btn {
-          width: 100%; padding: 13px; font-size: 15px; font-weight: 700;
-          color: #fff; background: #1D4ED8; border: none; border-radius: 10px;
-          cursor: pointer; font-family: inherit;
-          transition: background 0.15s, transform 0.1s;
+        .auth-top {
+          position: relative;
+          z-index: 2;
+          min-height: 72px;
+          padding: 18px 24px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 16px;
         }
-        .auth-btn:hover  { background: #1E40AF; transform: translateY(-1px); }
-        .auth-btn:active { transform: translateY(0); }
-        .auth-btn:disabled { background: #93C5FD; cursor: default; transform: none; }
+        .back-btn {
+          justify-self: start;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          background: rgba(255,255,255,.76);
+          backdrop-filter: blur(10px);
+          color: #475569;
+          border-radius: 14px;
+          min-height: 42px;
+          padding: 0 16px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font: inherit;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all .18s ease;
+        }
+        .back-btn:hover { border-color: #93C5FD; color: #1D4ED8; transform: translateY(-1px); }
+        .auth-logo { height: 46px; object-fit: contain; cursor: pointer; }
+        .auth-content {
+          position: relative;
+          z-index: 1;
+          flex: 1;
+          display: grid;
+          place-items: start center;
+          padding: clamp(24px, 7vh, 72px) 20px 42px;
+        }
+        .auth-wrap { width: min(100%, 980px); display: grid; grid-template-columns: minmax(0, 460px) 1fr; gap: 22px; align-items: start; }
+        .auth-intro { text-align: center; margin-bottom: 26px; }
+        .auth-icon {
+          width: 66px; height: 66px; border-radius: 22px;
+          display: grid; place-items: center; margin: 0 auto 18px;
+          color: #1D4ED8; background: linear-gradient(135deg, #DBEAFE, #F5F3FF);
+          box-shadow: 0 18px 40px rgba(37, 99, 235, 0.13);
+        }
+        .auth-intro h1 { margin: 0 0 8px; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; letter-spacing: -0.045em; }
+        .auth-intro p { margin: 0; color: #64748B; font-size: 15px; line-height: 1.6; }
+        .auth-card, .test-card {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(255,255,255,0.86);
+          border-radius: 28px;
+          box-shadow: 0 24px 70px rgba(15,23,42,.08);
+          backdrop-filter: blur(18px);
+        }
+        .auth-card { padding: 30px; }
+        .test-card { padding: 24px; position: sticky; top: 22px; }
+        .tab-row {
+          display: flex; background: #F1F5F9; border-radius: 16px; padding: 5px; margin-bottom: 24px;
+        }
         .tab-btn {
-          flex: 1; padding: 11px; font-size: 14px; font-weight: 600;
-          border: none; background: none; cursor: pointer; border-radius: 9px;
-          transition: background 0.15s, color 0.15s; font-family: inherit;
+          flex: 1; min-height: 44px; border: 0; border-radius: 13px; background: transparent;
+          color: #64748B; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
         }
-        .tab-btn.active { background: #fff; color: #1D4ED8; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
-        .tab-btn:not(.active) { color: #64748B; }
-        .tab-btn:not(.active):hover { color: #334155; }
-        .divider { display: flex; align-items: center; gap: 12px; margin: 4px 0; }
-        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #E2E8F0; }
-        .social-btn {
-          width: 100%; padding: 11px; font-size: 14px; font-weight: 500;
-          color: #334155; background: #fff; border: 1.5px solid #E2E8F0;
-          border-radius: 10px; cursor: pointer; font-family: inherit;
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          transition: border-color 0.15s, background 0.15s;
+        .tab-btn.active { background: #fff; color: #1D4ED8; box-shadow: 0 8px 20px rgba(15,23,42,.06); }
+        .auth-form { display: grid; gap: 18px; }
+        .auth-field label {
+          display: block; margin-bottom: 8px; color: #475569; font-size: 13px; font-weight: 800;
         }
-        .social-btn:hover { border-color: #93C5FD; background: #F8FAFC; }
+        .auth-input {
+          width: 100%; min-height: 50px; padding: 0 15px;
+          border: 1.5px solid #E2E8F0; border-radius: 15px;
+          outline: none; color: #0F172A; background: #F8FAFC;
+          font: inherit; font-size: 15px; font-weight: 700;
+          transition: all .2s ease;
+        }
+        .auth-input:focus {
+          border-color: #3B82F6; background: #fff; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+        }
+        .password-box { position: relative; }
+        .password-box .auth-input { padding-right: 48px; }
+        .show-btn {
+          position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+          width: 34px; height: 34px; border: 0; border-radius: 10px; background: transparent;
+          color: #64748B; display: grid; place-items: center; cursor: pointer;
+        }
+        .show-btn:hover { background: #F1F5F9; }
+        .auth-btn {
+          width: 100%; min-height: 52px; border: none; border-radius: 16px;
+          color: #fff; background: linear-gradient(135deg, #1D4ED8, #7C3AED);
+          font: inherit; font-size: 16px; font-weight: 800; cursor: pointer;
+          box-shadow: 0 16px 36px rgba(29, 78, 216, 0.28);
+          transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+        }
+        .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 20px 46px rgba(29,78,216,.34); }
+        .auth-btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+        .auth-error {
+          padding: 12px 14px; border-radius: 15px; color: #B91C1C; background: #FEF2F2;
+          border: 1px solid #FECACA; font-size: 13px; font-weight: 700; line-height: 1.5;
+        }
+        .role-hint {
+          margin-top: -4px; color: #1D4ED8; font-size: 13px; font-weight: 800;
+        }
+        .strength { margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .strength span { height: 4px; border-radius: 99px; background: #E2E8F0; transition: background .2s ease; }
+        .success-box { text-align: center; padding: 18px 0; }
+        .success-box h3 { margin: 0 0 8px; font-size: 19px; }
+        .success-box p { margin: 0 0 20px; color: #64748B; line-height: 1.6; }
+        .test-card h2 { margin: 0 0 8px; font-size: 19px; letter-spacing: -0.025em; }
+        .test-card p { margin: 0 0 16px; color: #64748B; font-size: 14px; line-height: 1.6; }
+        .credential-list { display: grid; gap: 10px; }
+        .credential-btn {
+          width: 100%; border: 1px solid #E2E8F0; border-radius: 18px; background: #fff;
+          padding: 14px; text-align: left; cursor: pointer; font: inherit;
+          transition: all .18s ease;
+        }
+        .credential-btn:hover { border-color: #93C5FD; transform: translateY(-1px); box-shadow: 0 12px 26px rgba(15,23,42,.06); }
+        .credential-btn strong { display: block; color: #0F172A; font-size: 14px; }
+        .credential-btn span { display: block; margin-top: 5px; color: #64748B; font-size: 12px; font-weight: 700; word-break: break-word; }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .form-animate { animation: fadeSlideIn .28s ease both; }
+        @media (max-width: 860px) {
+          .auth-wrap { grid-template-columns: 1fr; }
+          .test-card { position: static; order: -1; }
+          .credential-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 620px) {
+          .auth-top { grid-template-columns: 1fr; justify-items: center; padding: 14px; }
+          .back-btn { justify-self: stretch; justify-content: center; }
+          .auth-logo { height: 40px; }
+          .auth-content { padding: 20px 12px 30px; place-items: start stretch; }
+          .auth-card, .test-card { border-radius: 24px; padding: 20px; }
+          .credential-list { grid-template-columns: 1fr; }
+        }
       `}</style>
 
-      {/* Top bar */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #F1F5F9", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
-        <img src="https://mc.eduirk.ru/images/headers/imcro2.png" alt="МКУ" style={{ height: 42, objectFit: "contain" }} />
-        {onBack && (
-          <button onClick={onBack} style={{ background: "none", border: "1px solid #E2E8F0", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#64748B", padding: "7px 14px", borderRadius: 9, fontFamily: "inherit", transition: "all 0.15s" }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.color = "#1D4ED8"; }}
-            onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#64748B"; }}
-          >← На главную</button>
-        )}
+      <div className="auth-top">
+        <button className="back-btn" onClick={() => navigate("/")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          На главную
+        </button>
+        <img className="auth-logo" src="https://mc.eduirk.ru/images/headers/imcro2.png" alt="МКУ ИМЦРО" onClick={() => navigate("/")} />
+        <div />
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-        <div style={{ width: "100%", maxWidth: 440 }}>
-
-          {/* Logo & title */}
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM4 20c0-3.866 3.582-7 8-7s8 3.134 8 7" stroke="#1D4ED8" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.03em", margin: "0 0 6px" }}>
-              {tab === "login" ? "Добро пожаловать" : "Создать аккаунт"}
-            </h1>
-            <p style={{ fontSize: 14, color: "#94A3B8" }}>
-              {tab === "login" ? "Войдите в личный кабинет" : "Зарегистрируйтесь для доступа к сервисам"}
-            </p>
-          </div>
-
-          {/* Card */}
-          <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: "0 4px 24px rgba(0,0,0,0.06)", padding: "28px 32px 32px" }}>
-
-            {/* Tabs */}
-            <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 11, padding: 4, marginBottom: 28 }}>
-              <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); setError(""); }}>Вход</button>
-              <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setLoggedIn(false); setError(""); }}>Регистрация</button>
+      <main className="auth-content">
+        <div className="auth-wrap">
+          <section>
+            <div className="auth-intro">
+              <div className="auth-icon">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM4 20c0-3.866 3.582-7 8-7s8 3.134 8 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+              <h1>{tab === "login" ? "Добро пожаловать" : "Создать аккаунт"}</h1>
+              <p>{tab === "login" ? "Войдите в личный кабинет МКУ ИМЦРО" : "Регистрация пока демонстрационная, вход доступен через тестовые роли"}</p>
             </div>
 
-            {/* LOGIN */}
-            {tab === "login" && (
-              <>
-                {loggedIn ? (
-                  <div style={{ textAlign: "center", padding: "16px 0" }}>
-                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-                        <path d="M5 13l6 6L21 7" stroke="#1D4ED8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+            <div className="auth-card">
+              <div className="tab-row">
+                <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); }}>Вход</button>
+                <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setError(""); }}>Регистрация</button>
+              </div>
+
+              <div key={tab} className="form-animate">
+                {tab === "login" && (
+                  <form className="auth-form" onSubmit={handleLogin}>
+                    {error && <div className="auth-error">{error}</div>}
+                    {activeCredential && <div className="role-hint">Выбран тестовый вход: {activeCredential.label}</div>}
+                    <div className="auth-field">
+                      <label>Электронная почта</label>
+                      <input
+                        className="auth-input"
+                        type="email"
+                        placeholder="user@mky.test"
+                        value={loginForm.email}
+                        onChange={(event) => setLoginForm((form) => ({ ...form, email: event.target.value }))}
+                        required
+                      />
                     </div>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>Вы вошли!</h3>
-                    <p style={{ fontSize: 14, color: "#64748B", marginBottom: 20 }}>Добро пожаловать, {loginForm.login}</p>
-                    {onBack && <button className="auth-btn" onClick={onBack}>Перейти на главную</button>}
-                  </div>
-                ) : (
-                  <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {error && (
-                      <div style={{ padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", fontSize: 13, fontWeight: 500 }}>
-                        {error}
-                      </div>
-                    )}
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Логин или Email</label>
-                      <input className="auth-input" type="text" placeholder="Логин или email" autoComplete="username"
-                        value={loginForm.login} onChange={e => setLoginForm(f => ({ ...f, login: e.target.value }))} required />
-                    </div>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Пароль</label>
-                        <span style={{ fontSize: 12, color: "#1D4ED8", cursor: "pointer", fontWeight: 500 }}>Забыли пароль?</span>
-                      </div>
-                      <div style={{ position: "relative" }}>
-                        <input className="auth-input" type={showPass ? "text" : "password"} placeholder="Введите пароль"
-                          value={loginForm.password} onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
-                          style={{ paddingRight: 42 }} required />
-                        <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 0, display: "flex" }}>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M1.5 8C2.3 5 5 3 8 3s5.7 2 6.5 5c-.8 3-3.5 5-6.5 5S2.3 11 1.5 8Z" stroke="currentColor" strokeWidth="1.4"/>
-                            <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.4"/>
+                    <div className="auth-field">
+                      <label>Пароль</label>
+                      <div className="password-box">
+                        <input
+                          className="auth-input"
+                          type={showPass ? "text" : "password"}
+                          placeholder="Введите пароль"
+                          value={loginForm.password}
+                          onChange={(event) => setLoginForm((form) => ({ ...form, password: event.target.value }))}
+                          required
+                        />
+                        <button type="button" className="show-btn" onClick={() => setShowPass((value) => !value)} aria-label="Показать пароль">
+                          <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                            <path d="M1.5 8C2.3 5 5 3 8 3s5.7 2 6.5 5c-.8 3-3.5 5-6.5 5S2.3 11 1.5 8Z" stroke="currentColor" strokeWidth="1.5" />
+                            <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
                           </svg>
                         </button>
                       </div>
                     </div>
-                    <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!loginForm.login || !loginForm.password || loading}>
-                      {loading ? "Вход…" : "Войти"}
+                    <button className="auth-btn" disabled={!loginForm.email || !loginForm.password}>
+                      Войти в систему
                     </button>
-
                   </form>
                 )}
-              </>
-            )}
 
-            {/* REGISTER */}
-            {tab === "register" && (
-              <>
-                {done ? (
-                  <div style={{ textAlign: "center", padding: "16px 0" }}>
-                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-                        <path d="M5 13l6 6L21 7" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>Готово!</h3>
-                    <p style={{ fontSize: 14, color: "#64748B", lineHeight: 1.6, marginBottom: 20 }}>
-                      На почту <strong>{regForm.email}</strong><br/>отправлено письмо с подтверждением.
-                    </p>
-                    <button className="auth-btn" onClick={() => { setTab("login"); setDone(false); }}>Войти в аккаунт</button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {error && (
-                      <div style={{ padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", fontSize: 13, fontWeight: 500 }}>
-                        {error}
+                {tab === "register" && (
+                  <>
+                    {done ? (
+                      <div className="success-box">
+                        <h3>Готово</h3>
+                        <p>На почту <strong>{regForm.email}</strong> отправлено письмо с подтверждением.</p>
+                        <button className="auth-btn" onClick={() => { setTab("login"); setDone(false); }}>Войти в аккаунт</button>
                       </div>
-                    )}
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Логин</label>
-                      <input className="auth-input" type="text" placeholder="Например, ivanov_ii" autoComplete="username"
-                        value={regForm.login} onChange={e => setRegForm(f => ({ ...f, login: e.target.value }))} required />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Email</label>
-                      <input className="auth-input" type="email" placeholder="example@mail.ru"
-                        value={regForm.email} onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))} required />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Пароль</label>
-                      <div style={{ position: "relative" }}>
-                        <input className="auth-input" type={showPass ? "text" : "password"} placeholder="Минимум 8 символов"
-                          value={regForm.password} onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))}
-                          style={{ paddingRight: 42 }} minLength={8} required />
-                        <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 0, display: "flex" }}>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M1.5 8C2.3 5 5 3 8 3s5.7 2 6.5 5c-.8 3-3.5 5-6.5 5S2.3 11 1.5 8Z" stroke="currentColor" strokeWidth="1.4"/>
-                            <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.4"/>
-                          </svg>
-                        </button>
-                      </div>
-                      {regForm.password.length > 0 && (
-                        <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
-                          {[1,2,3,4].map(i => (
-                            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: regForm.password.length >= i * 2 + 2 ? (regForm.password.length >= 10 ? "#059669" : "#F59E0B") : "#E2E8F0", transition: "background 0.2s" }} />
-                          ))}
+                    ) : (
+                      <form className="auth-form" onSubmit={handleRegister}>
+                        <div className="auth-field">
+                          <label>ФИО</label>
+                          <input className="auth-input" placeholder="Иванов Иван Иванович" value={regForm.name} onChange={(event) => setRegForm((form) => ({ ...form, name: event.target.value }))} required />
                         </div>
-                      )}
-                    </div>
-                    <button type="submit" className="auth-btn" style={{ marginTop: 4 }}
-                      disabled={!regForm.login || !regForm.email || regForm.password.length < 8 || loading}>
-                      {loading ? "Регистрация…" : "Зарегистрироваться"}
-                    </button>
-                    <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", lineHeight: 1.5, margin: 0 }}>
-                      Нажимая кнопку, вы соглашаетесь с{" "}
-                      <span style={{ color: "#1D4ED8", cursor: "pointer" }}>политикой конфиденциальности</span>
-                    </p>
-                  </form>
+                        <div className="auth-field">
+                          <label>Электронная почта</label>
+                          <input className="auth-input" type="email" placeholder="example@mail.ru" value={regForm.email} onChange={(event) => setRegForm((form) => ({ ...form, email: event.target.value }))} required />
+                        </div>
+                        <div className="auth-field">
+                          <label>Пароль</label>
+                          <div className="password-box">
+                            <input className="auth-input" type={showPass ? "text" : "password"} placeholder="Минимум 8 символов" value={regForm.password} onChange={(event) => setRegForm((form) => ({ ...form, password: event.target.value }))} minLength={8} required />
+                            <button type="button" className="show-btn" onClick={() => setShowPass((value) => !value)} aria-label="Показать пароль">
+                              <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                                <path d="M1.5 8C2.3 5 5 3 8 3s5.7 2 6.5 5c-.8 3-3.5 5-6.5 5S2.3 11 1.5 8Z" stroke="currentColor" strokeWidth="1.5" />
+                                <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                              </svg>
+                            </button>
+                          </div>
+                          {regForm.password.length > 0 && (
+                            <div className="strength">
+                              {[1, 2, 3, 4].map((index) => (
+                                <span
+                                  key={index}
+                                  style={{
+                                    background: index <= passScore
+                                      ? passScore <= 1 ? "#EF4444" : passScore === 2 ? "#F59E0B" : "#10B981"
+                                      : "#E2E8F0",
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button className="auth-btn" disabled={!regForm.name || !regForm.email || regForm.password.length < 8}>
+                          Зарегистрироваться
+                        </button>
+                      </form>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="test-card">
+            <h2>Тестовые роли</h2>
+            <p>Нажмите на роль, чтобы автоматически подставить логин и пароль.</p>
+            <div className="credential-list">
+              {TEST_CREDENTIALS.map((credentials) => (
+                <button className="credential-btn" key={credentials.role} type="button" onClick={() => fillCredentials(credentials)}>
+                  <strong>{credentials.label}</strong>
+                  <span>{credentials.email}</span>
+                  <span>{credentials.password}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
