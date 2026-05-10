@@ -298,6 +298,18 @@ function ChipInput({ value, onChange }) {
   );
 }
 
+function InfoNote({ title, children }) {
+  return (
+    <div className="article-info-note">
+      <span className="article-info-icon" aria-hidden="true">i</span>
+      <div>
+        <strong>{title}</strong>
+        <p>{children}</p>
+      </div>
+    </div>
+  );
+}
+
 function RichText({ value, onChange, placeholder }) {
   const ref = useRef(null);
   const savedRangeRef = useRef(null);
@@ -638,7 +650,10 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
     setPickerOpen(false);
   };
   const updateBlock = (block) => onChange(blocks.map((item) => item.id === block.id ? block : item));
-  const removeBlock = (id) => onChange(blocks.filter((item) => item.id !== id));
+  const removeBlock = (id) => {
+    if (!window.confirm("Удалить этот блок из статьи?")) return;
+    onChange(blocks.filter((item) => item.id !== id));
+  };
   const moveBlock = (draggedId, targetId = null, direction = 0, placement = "before") => {
     const currentIndex = blocks.findIndex((item) => item.id === draggedId);
     if (currentIndex < 0) return;
@@ -699,6 +714,9 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
         </div>
         <button type="button" onClick={() => setPickerOpen((value) => !value)}>Добавить блок</button>
       </div>
+      <InfoNote title="Работа с блоками">
+        Добавьте нужный тип блока, заполните поля и меняйте порядок стрелками или перетаскиванием за значок «::». Удаление блока нужно подтвердить.
+      </InfoNote>
       {pickerOpen && (
         <div className="block-picker">
           {BLOCK_TYPES.map((blockType) => (
@@ -1110,7 +1128,7 @@ function ArticleForm({
           <span>Редактор статьи</span>
           <h2>{isNew ? "Новая статья" : "Редактирование статьи"}</h2>
         </div>
-        <button type="button" className="article-btn article-btn-muted" onClick={() => setPreviewOpen(true)}>Предпросмотр</button>
+        <button type="button" className="article-btn article-btn-muted" onClick={() => setPreviewOpen(true)} title="Открыть крупный предпросмотр статьи перед публикацией">Предпросмотр</button>
         <button type="button" className="article-btn article-btn-primary" onClick={() => handleSave("published")} disabled={saving || errors.length > 0}>
           {saving ? "Сохраняю..." : publishLabel}
         </button>
@@ -1152,9 +1170,15 @@ function ArticleForm({
         <aside className="article-editor-side">
           <section className="article-panel article-panel-compact">
             <ValidationPanel errors={errors} modeLabel={isDomuMode ? "Дома учителя" : "общей админки"} />
+            <InfoNote title="Перед публикацией">
+              Если есть ошибки, кнопка публикации будет недоступна. Исправьте поля из списка и проверьте статью в предпросмотре.
+            </InfoNote>
           </section>
           <section className="article-panel article-panel-compact">
             <div className="article-label">Публикация</div>
+            <InfoNote title="Статус и дата">
+              Черновик виден только в редакторе. Для публикации сразу оставьте дату выключенной, для отложенной публикации включите планирование.
+            </InfoNote>
             <div className="article-status-text">{STATUS_LABELS[form.status] || STATUS_LABELS.draft}</div>
             <label className="article-check">
               <input type="checkbox" checked={form.is_pinned} onChange={(event) => set("is_pinned", event.target.checked)} />
@@ -1199,6 +1223,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Область и разделы</div>
+            <InfoNote title="Где появится статья">
+              Выберите основной раздел публикации. Дополнительные подразделы уточняют место материала на сайте.
+            </InfoNote>
             <label className="article-stack-label">
               <span>Раздел</span>
               <select value={rootSection} onChange={(event) => updateRootSection(event.target.value)}>
@@ -1272,6 +1299,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Главное изображение</div>
+            <InfoNote title="Обложка">
+              Обложка показывается в карточках и в начале статьи. Можно перетащить изображение или вставить готовую ссылку.
+            </InfoNote>
             <label
               className={`article-cover-drop${coverDragActive ? " is-active" : ""}${form.cover_image_url ? " has-image" : ""}`}
               onDragEnter={(event) => {
@@ -1311,6 +1341,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Файлы</div>
+            <InfoNote title="Прикрепление файлов">
+              Добавьте документы, которые читатель должен скачать вместе со статьей. Поддерживаются PDF, Word, PowerPoint и Excel.
+            </InfoNote>
             <label
               className={`article-file-drop${attachmentDragActive ? " is-active" : ""}`}
               onDragEnter={(event) => {
@@ -1349,6 +1382,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Теги</div>
+            <InfoNote title="Теги">
+              Введите слово или короткую фразу и нажмите Enter. Теги помогают быстро находить материалы по теме.
+            </InfoNote>
             <ChipInput value={form.tags} onChange={(value) => set("tags", value)} />
           </section>
         </aside>
@@ -1663,6 +1699,10 @@ const ARTICLE_CSS = `
 .article-editor-main, .article-editor-side { display: grid; gap: 14px; min-width: 0; }
 .article-panel, .block-workspace { border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; padding: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .05); }
 .article-panel-compact { padding: 16px; }
+.article-info-note { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; margin: 0 0 12px; padding: 11px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #f8fbff; color: #334155; }
+.article-info-note strong { display: block; color: #1d4ed8; font-size: 13px; line-height: 1.25; }
+.article-info-note p { margin: 3px 0 0; color: #475569; font-size: 12px; line-height: 1.45; font-weight: 760; }
+.article-info-icon { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: #dbeafe; color: #1d4ed8; font-size: 13px; font-weight: 950; }
 .article-label { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 9px; }
 .article-title-input { width: 100%; border: 0; outline: 0; background: transparent; color: #0f172a; font: inherit; font-size: clamp(24px, 5vw, 38px); font-weight: 900; line-height: 1.05; }
 .article-slug-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 13px; font-weight: 800; flex-wrap: wrap; }
