@@ -82,15 +82,13 @@ export default function AuthPage({ onLogin }) {
   return (
     <div className="auth-page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-
         .auth-page {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           color: #0F172A;
           background:
             radial-gradient(circle at 84% 6%, rgba(124, 58, 237, 0.16), transparent 28rem),
