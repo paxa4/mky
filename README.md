@@ -2,6 +2,17 @@
 
 React/Vite frontend проекта MKY / EduIrk: публичные страницы, административные интерфейсы, редактор статей, генератор грамот и demo-чат.
 
+## Docker
+Запустите Docker
+Из корня frontend-репозитория:
+
+```bash
+docker build --build-arg VITE_API_URL=http://localhost:8000 -t mky-frontend .
+docker run --rm -p 5173:80 mky-frontend
+```
+
+После запуска frontend доступен на http://localhost:5173.
+
 ## Локальный Запуск
 
 ```bash
@@ -16,17 +27,6 @@ Frontend будет доступен на http://localhost:5173.
 ```bash
 VITE_API_URL=http://localhost:8000 npm run dev
 ```
-
-## Docker
-
-Из корня frontend-репозитория:
-
-```bash
-docker build --build-arg VITE_API_URL=http://localhost:8000 -t mky-frontend .
-docker run --rm -p 5173:80 mky-frontend
-```
-
-После запуска frontend доступен на http://localhost:5173.
 
 ## Проверки
 
