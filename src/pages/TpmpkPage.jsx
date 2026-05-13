@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 
 const phone = "+73952481256";
 const phoneLabel = "+7 (3952) 48-12-56";
@@ -24,8 +25,6 @@ const quickLinks = [
 ];
 
 export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfile }) {
-  const navigate = useNavigate();
-
   return (
     <div className="tpmpk-page">
       <style>{`
@@ -47,26 +46,6 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
           width: min(1180px, calc(100% - 28px));
           margin: 0 auto;
           padding: 34px 0 72px;
-        }
-
-        .tpmpk-breadcrumb {
-          margin-bottom: 18px;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          flex-wrap: wrap;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 850;
-        }
-
-        .tpmpk-breadcrumb a {
-          color: #1e3a8a;
-          text-decoration: none;
-        }
-
-        .tpmpk-breadcrumb a:hover {
-          color: #6d28d9;
         }
 
         .tpmpk-hero {
@@ -330,11 +309,7 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
 
       <main className="tpmpk-main">
         <div className="tpmpk-shell">
-          <nav className="tpmpk-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <span>ТПМПК</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "ТПМПК" }]} />
           <section className="tpmpk-hero">
             <div className="tpmpk-hero-inner">
               <div className="tpmpk-hero-copy">

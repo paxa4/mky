@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { getApiErrorMessage } from "../../utils/apiError.js";
+import { authHeaders } from "../../utils/authHeaders.js";
 import AlertBanner from "./shared/AlertBanner.jsx";
 import PdfPreviewPanel from "./shared/PdfPreviewPanel.jsx";
 import { inputStyle, labelStyle, primaryBtn, cardStyle } from "./shared/styles.js";
@@ -79,7 +80,9 @@ export default function GenerateSingle({ templates }) {
     let cancelled = false;
     if (!templateId) { setExtraVariables({}); setAllVariables([]); return; }
 
-    fetch(`${API_BASE}/certificates/templates/${templateId}/variables`)
+    fetch(`${API_BASE}/certificates/templates/${templateId}/variables`, {
+      headers: authHeaders(),
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось загрузить переменные"));
         return res.json();
@@ -121,7 +124,7 @@ export default function GenerateSingle({ templates }) {
     try {
       const res = await fetch(`${API_BASE}/certificates/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ template_id: templateId, variables }),
         signal: controller.signal,
       });
@@ -154,7 +157,7 @@ export default function GenerateSingle({ templates }) {
       a.href = blobUrl;
       a.download = `Грамота_${fio.replace(/[^а-яёА-ЯЁa-zA-Z0-9 ]/g, "_").slice(0, 60)}.pdf`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
     } catch (e) { setMsg(e.message || "Ошибка скачивания PDF"); setMsgType("error"); }
   };
 

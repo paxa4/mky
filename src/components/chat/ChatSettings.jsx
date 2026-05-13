@@ -17,6 +17,7 @@ import { API_BASE } from "../../constants/index.js";
 import StatusPanel from "./StatusPanel.jsx";
 import UpdatePanel from "./UpdatePanel.jsx";
 import TestChatPanel from "./TestChatPanel.jsx";
+import { authHeaders } from "../../utils/authHeaders.js";
 
 const POLL_INTERVAL = 3000;   // 3 сек между опросами статуса
 
@@ -28,7 +29,9 @@ export default function ChatSettings() {
   // ── Опрос статуса (раз в 3 сек, пока открыта страница) ─────────────────────
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/update/status`);
+      const res = await fetch(`${API_BASE}/admin/update/status`, {
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setStatus(data);
@@ -48,7 +51,10 @@ export default function ChatSettings() {
 
   // ── Запуск задачи обновления ────────────────────────────────────────────────
   const runTask = useCallback(async (endpoint) => {
-    const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST" });
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${res.status}`);

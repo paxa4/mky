@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants/index.js";
-import { AUTH_STORAGE_KEY } from "../../auth.js";
+import { getStoredAccessToken } from "../../utils/authHeaders.js";
+import { isObjectUrl, revokeObjectUrl, revokeObjectUrls, stripObjectUrls } from "../../utils/objectUrls.js";
 import { buildPendingAttachments } from "./articleAttachments.js";
 import { generateSlug, genId } from "./adminStore.js";
 import {
@@ -54,15 +55,6 @@ const EMPTY_ARTICLE = {
   hub_kind: "",
   hub_path: "",
 };
-
-function getStoredToken() {
-  try {
-    const user = JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || "null");
-    return user?.access_token || window.localStorage.getItem("mky_access_token") || "";
-  } catch {
-    return window.localStorage.getItem("mky_access_token") || "";
-  }
-}
 
 function toDateInputValue(value) {
   if (!value) return "";
@@ -521,11 +513,11 @@ function BlockPreview({ block }) {
   return null;
 }
 
-function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadImage, moving, dragging, dragOver, onDragStartBlock, onDragOverBlock, onDragEndBlock }) {
+function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadImage, createObjectUrl, moving, dragging, dragOver, onDragStartBlock, onDragOverBlock, onDragEndBlock }) {
   const updateData = (data) => onChange({ ...block, data: { ...block.data, ...data } });
   const handleImageFile = async (file) => {
     if (!file) return;
-    updateData({ url: URL.createObjectURL(file) });
+    updateData({ url: createObjectUrl(file) });
     const uploaded = await uploadImage(file);
     if (uploaded) updateData({ url: uploaded });
   };
@@ -639,7 +631,7 @@ function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadIm
   );
 }
 
-function BlockWorkspace({ blocks, onChange, uploadImage }) {
+function BlockWorkspace({ blocks, onChange, uploadImage, createObjectUrl }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [movingId, setMovingId] = useState("");
   const [draggingId, setDraggingId] = useState("");
@@ -691,7 +683,7 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
   const addDroppedImage = async (file) => {
     if (!file?.type?.startsWith("image/")) return;
     const block = defaultBlock("image");
-    block.data.url = URL.createObjectURL(file);
+    block.data.url = createObjectUrl(file);
     onChange([...blocks, block]);
     const url = await uploadImage(file);
     if (url) onChange([...blocks, { ...block, data: { ...block.data, url } }]);
@@ -748,6 +740,7 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
           onRemove={removeBlock}
           onMove={moveBlock}
           uploadImage={uploadImage}
+          createObjectUrl={createObjectUrl}
           moving={movingId === block.id}
           dragging={draggingId === block.id}
           dragOver={dragOverId === block.id}
@@ -884,6 +877,24 @@ function ArticlePreviewV2({ article, expanded = false }) {
   );
 }
 
+function isArticleOwner(article, currentUser) {
+  if (!currentUser?.id) return false;
+  return String(article.author_id || "") === String(currentUser.id);
+}
+
+function filterArticlesForRole(items, currentUser, isDomuMode) {
+  const role = currentUser?.role?.role_name || currentUser?.role || "user";
+  return items.filter((article) => {
+    if (isDomuMode) {
+      const isDomuArticle = ["both", "dom_uchitelya_only"].includes(article.publishing_scope || "imcro_only") && Boolean(article.dom_uchitelya_section);
+      if (!isDomuArticle) return false;
+    }
+    if (role === "admin") return true;
+    if (role === "methodist" || role === "domu_editor") return isArticleOwner(article, currentUser);
+    return false;
+  });
+}
+
 function ValidationPanel({ errors, modeLabel }) {
   if (!errors.length) {
     return <div className="article-ok">Готово к сохранению: обязательные поля заполнены для раздела {modeLabel}.</div>;
@@ -918,6 +929,8 @@ function ArticleForm({
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [rootSection, setRootSection] = useState(() => isDomuMode ? "domu" : getRootSection(normalizeArticle(article || { publishing_scope: defaultScope }, defaultScope)));
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const formRef = useRef(form);
+  const objectUrlsRef = useRef([]);
   const draftKey = `mky_article_block_draft_${article?.id || "new"}_${isDomuMode ? "domu" : "common"}`;
   const role = currentUser?.role?.role_name || currentUser?.role || "user";
   const currentAuthorName = getUserFullName(currentUser);
@@ -926,6 +939,22 @@ function ArticleForm({
     const authorName = form.author || form.author_name || form.full_name || currentAuthorName;
     return { ...form, author: authorName, author_name: authorName, full_name: authorName, author_id: form.author_id || currentUser?.id || null };
   }, [currentAuthorName, currentUser?.id, form]);
+
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
+  useEffect(() => () => {
+    revokeObjectUrls(formRef.current);
+    objectUrlsRef.current.forEach(revokeObjectUrl);
+    objectUrlsRef.current = [];
+  }, []);
+
+  const createLocalObjectUrl = useCallback((file) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.push(url);
+    return url;
+  }, []);
   const allowedSubjects = role === "methodist" && Array.isArray(currentUser?.allowed_methodika_subjects) && currentUser.allowed_methodika_subjects.length
     ? METHODIKA_SUBJECTS.filter((subject) => currentUser.allowed_methodika_subjects.includes(subject))
     : METHODIKA_SUBJECTS;
@@ -950,7 +979,7 @@ function ArticleForm({
     const timer = window.setTimeout(() => {
       try {
         if (!form.title.trim() && !form.lead.trim() && !(form.blocks || []).length && !(form.attachments || []).length) return;
-        window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: new Date().toISOString(), form }));
+        window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: new Date().toISOString(), form: stripObjectUrls(form) }));
       } catch {
         // Autosave is best-effort; explicit save remains primary.
       }
@@ -984,7 +1013,7 @@ function ArticleForm({
     try {
       const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}");
       if (draft.form) {
-        setForm(draft.form);
+        setForm(stripObjectUrls(draft.form));
         setDraftNotice("");
       }
     } catch {
@@ -996,7 +1025,8 @@ function ArticleForm({
     if (!file) return;
     if (!file.type?.startsWith("image/")) return;
     if (!apiMode) {
-      set("cover_image_url", URL.createObjectURL(file));
+      if (isObjectUrl(form.cover_image_url)) revokeObjectUrl(form.cover_image_url);
+      set("cover_image_url", createLocalObjectUrl(file));
       return;
     }
     const url = await uploadCover(file);
@@ -1015,7 +1045,7 @@ function ArticleForm({
   const addAttachmentFiles = async (filesInput) => {
     const files = Array.from(filesInput || []);
     if (!files.length) return;
-    const pending = buildPendingAttachments(files, apiMode);
+    const pending = buildPendingAttachments(files, apiMode, createLocalObjectUrl);
     setForm((current) => ({ ...current, attachments: [...(current.attachments || []), ...pending] }));
     if (!apiMode) {
       return;
@@ -1164,7 +1194,7 @@ function ArticleForm({
             <textarea id="article-lead" className="article-lead-input" rows={3} value={form.lead} onChange={(event) => set("lead", event.target.value)} placeholder="Короткий анонс для карточки и SEO-превью" />
           </section>
 
-          <BlockWorkspace blocks={form.blocks || []} onChange={(blocks) => set("blocks", blocks)} uploadImage={uploadCover} />
+          <BlockWorkspace blocks={form.blocks || []} onChange={(blocks) => set("blocks", blocks)} uploadImage={uploadCover} createObjectUrl={createLocalObjectUrl} />
         </main>
 
         <aside className="article-editor-side">
@@ -1534,44 +1564,48 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
 
 export default function ArticlesModule({
   currentUser,
-  articles: localArticles = [],
-  saveArticle: saveLocalArticle,
-  deleteArticle: deleteLocalArticle,
   allowedScopes = ["imcro_only", "dom_uchitelya_only", "both"],
   defaultScope = "imcro_only",
   apiPath = "/api/admin/news/",
   uploadPath = "/api/admin/news/upload-cover/",
   uploadAttachmentPath = "/api/admin/news/upload-attachment/",
   isDomuMode = false,
+  onArticlesChanged,
 }) {
   const [articles, setArticles] = useState([]);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const token = getStoredToken();
+  const lastLoadKeyRef = useRef("");
+  const token = getStoredAccessToken();
   const apiMode = Boolean(token);
-  const authHeaders = useMemo(() => token ? { Authorization: `Bearer ${token}` } : {}, [token]);
+  const requestAuthHeaders = useMemo(() => token ? { Authorization: `Bearer ${token}` } : {}, [token]);
 
-  const loadArticles = useCallback(async () => {
+  const loadArticles = useCallback(async (force = false) => {
     if (!apiMode) {
-      setArticles(localArticles.map((article) => normalizeArticle(article, defaultScope)));
+      setArticles([]);
+      setError("Для работы со статьями нужно войти в аккаунт с правами редактора.");
       setLoading(false);
       return;
     }
+    const role = typeof currentUser?.role === "object" ? currentUser.role?.role_name : currentUser?.role;
+    const loadKey = `${apiPath}:${token}:${currentUser?.id || ""}:${role || ""}:${isDomuMode ? "domu" : "common"}`;
+    if (!force && lastLoadKeyRef.current === loadKey) return;
+    lastLoadKeyRef.current = loadKey;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE}${apiPath}`, { headers: authHeaders });
+      const response = await fetch(`${API_BASE}${apiPath}`, { headers: requestAuthHeaders });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      setArticles((data.items || []).map((article) => normalizeArticle(article, defaultScope)));
+      setArticles(filterArticlesForRole((data.items || []).map((article) => normalizeArticle(article, defaultScope)), currentUser, isDomuMode));
     } catch {
       setError("Не удалось загрузить статьи.");
-      setArticles(localArticles.map((article) => normalizeArticle(article, defaultScope)));
+      setArticles([]);
     } finally {
       setLoading(false);
     }
-  }, [apiMode, apiPath, authHeaders, defaultScope, localArticles]);
+  }, [apiMode, apiPath, requestAuthHeaders, currentUser, defaultScope, isDomuMode, token]);
 
   useEffect(() => {
     loadArticles();
@@ -1580,12 +1614,12 @@ export default function ArticlesModule({
   const saveArticle = async (payload, id) => {
     const nextPayload = { ...payload, publishing_scope: payload.publishing_scope || defaultScope };
     if (!apiMode) {
-      saveLocalArticle?.({ ...nextPayload, id, updatedAt: new Date().toISOString(), createdAt: new Date().toISOString() });
+      setError("Для сохранения статьи нужно войти в аккаунт с правами редактора.");
       return;
     }
     const response = await fetch(`${API_BASE}${apiPath}${id ? `${id}/` : ""}`, {
       method: id ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json", ...requestAuthHeaders },
       body: JSON.stringify(nextPayload),
     });
     if (!response.ok) {
@@ -1593,44 +1627,47 @@ export default function ArticlesModule({
       setError(detail.detail || "Не удалось сохранить статью.");
       throw new Error("Article save failed");
     }
-    await loadArticles();
+    await loadArticles(true);
+    await onArticlesChanged?.();
   };
 
   const deleteArticle = async (article) => {
     if (!apiMode) {
-      deleteLocalArticle?.(article.id);
+      setError("Для удаления статьи нужно войти в аккаунт с правами редактора.");
       return;
     }
-    const response = await fetch(`${API_BASE}${apiPath}${article.id}/`, { method: "DELETE", headers: authHeaders });
+    const response = await fetch(`${API_BASE}${apiPath}${article.id}/`, { method: "DELETE", headers: requestAuthHeaders });
     if (!response.ok) {
       setError("Не удалось удалить статью.");
       return;
     }
-    await loadArticles();
+    await loadArticles(true);
+    await onArticlesChanged?.();
   };
 
   const archiveArticle = async (article) => {
     if (!apiMode) {
-      saveLocalArticle?.({ ...article, status: "archive", updatedAt: new Date().toISOString() });
+      setError("Для изменения статьи нужно войти в аккаунт с правами редактора.");
       return;
     }
     const response = await fetch(`${API_BASE}${apiPath}${article.id}/`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json", ...requestAuthHeaders },
       body: JSON.stringify({ status: "archive" }),
     });
     if (!response.ok) {
       setError("Не удалось перенести статью в архив.");
       return;
     }
-    await loadArticles();
+    await loadArticles(true);
+    await onArticlesChanged?.();
   };
 
   const uploadCover = async (file) => {
     if (!apiMode) return "";
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_BASE}${uploadPath}`, { method: "POST", headers: authHeaders, body: formData });
+    const response = await fetch(`${API_BASE}${uploadPath}`, { method: "POST", headers: requestAuthHeaders, body: formData });
     if (!response.ok) {
       setError("Не удалось загрузить изображение.");
       return "";
@@ -1643,7 +1680,7 @@ export default function ArticlesModule({
     if (!apiMode) return null;
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_BASE}${uploadAttachmentPath}`, { method: "POST", headers: authHeaders, body: formData });
+    const response = await fetch(`${API_BASE}${uploadAttachmentPath}`, { method: "POST", headers: requestAuthHeaders, body: formData });
     if (!response.ok) {
       setError("Не удалось загрузить файл.");
       return null;
@@ -1878,5 +1915,5 @@ const ARTICLE_CSS = `
 .preview-modal-head button { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; padding: 0 12px; cursor: pointer; font: inherit; font-weight: 800; }
 .article-preview.expanded { position: static; max-width: 820px; margin: 0 auto; }
 @media (min-width: 1180px) { .article-editor-grid { grid-template-columns: minmax(0, 1.15fr) 310px minmax(330px, .85fr); } .article-preview { position: sticky; top: 148px; } }
-@media (max-width: 640px) { .article-panel, .block-workspace { padding: 14px; } .article-editor-topbar, .article-list-head, .article-draft-banner, .block-toolbar { align-items: stretch; flex-direction: column; } .article-btn { width: 100%; } .block-grid-compact, .block-handle { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .article-panel, .block-workspace { padding: 14px; } .article-editor-topbar, .article-list-head, .article-draft-banner, .block-toolbar { align-items: stretch; flex-direction: column; } .article-btn { width: 100%; } .block-grid-compact, .block-handle { grid-template-columns: 1fr; } .article-empty-row { text-align: left; } }
 `;

@@ -9,6 +9,7 @@ export default function DomUchitelyaAdmin({
   saveArticle,
   deleteArticle,
   changeArticleStatus,
+  onArticlesChanged,
   onLogout,
 }) {
   const navigate = useNavigate();
@@ -59,6 +60,7 @@ export default function DomUchitelyaAdmin({
             uploadPath="/api/admin/dom-uchitelya/news/upload-cover/"
             uploadAttachmentPath="/api/admin/dom-uchitelya/news/upload-attachment/"
             isDomuMode
+            onArticlesChanged={onArticlesChanged}
           />
         </div>
       </main>

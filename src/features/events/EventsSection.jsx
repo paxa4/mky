@@ -1,44 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { EVENTS } from "./eventsData.js";
 
 const EVENTS_PER_PAGE = 8;
-
-function fallbackEvents(onOpenArticle) {
-  return EVENTS.map((event) => ({
-    ...event,
-    onClick: () => onOpenArticle?.({ ...event, id: `event-${event.id}`, excerpt: "", author: "Редакция ИМЦРО" }),
-  }));
-}
 
 export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAuthor }) {
   const sectionRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const allItems = useMemo(() => {
-    if (eventsNews.length) {
-      return eventsNews.map((news) => ({
-        id: news.id,
-        title: news.title,
-        date: news.date,
-        category: news.category,
-        image: news.image,
-        author: news.author,
-        is_pinned: news.is_pinned,
-        onClick: () => onOpenArticle?.(news),
-        onAuthorClick: () => onOpenAuthor?.(news),
-      }));
-    }
-    return fallbackEvents(onOpenArticle);
+    return eventsNews.map((news) => ({
+      id: news.id,
+      title: news.title,
+      date: news.date,
+      category: news.category,
+      image: news.image,
+      author: news.author,
+      is_pinned: news.is_pinned,
+      onClick: () => onOpenArticle?.(news),
+      onAuthorClick: () => onOpenAuthor?.(news),
+    }));
   }, [eventsNews, onOpenArticle, onOpenAuthor]);
 
   const pageCount = Math.max(1, Math.ceil(allItems.length / EVENTS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
 
-  useEffect(() => {
-    setCurrentPage((prev) => Math.min(prev, pageCount));
-  }, [pageCount]);
-
-  const pageStart = (currentPage - 1) * EVENTS_PER_PAGE;
+  const pageStart = (safeCurrentPage - 1) * EVENTS_PER_PAGE;
   const items = allItems.slice(pageStart, pageStart + EVENTS_PER_PAGE);
 
   function switchPage(nextPage) {
@@ -48,6 +34,7 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
 
   return (
     <section
+      id="calendar"
       ref={sectionRef}
       style={{ position: "relative", overflow: "hidden", background: "linear-gradient(145deg, #1E40AF 0%, #0284C7 100%)", padding: "72px 24px" }}
     >
@@ -115,6 +102,19 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
           border-color: #fff;
           color: #1E40AF;
         }
+        .events-empty {
+          background: rgba(255, 255, 255, 0.96);
+          border: 1px solid rgba(255, 255, 255, 0.56);
+          border-radius: 12px;
+          color: #1e3a8a;
+          font-size: 16px;
+          font-weight: 850;
+          padding: 22px 24px;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+        }
+        @media (max-width: 560px) {
+          .events-empty { padding: 18px; font-size: 15px; }
+        }
       `}</style>
       <div className="events-container">
         <div className="events-head">
@@ -128,43 +128,47 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
           </Link>
         </div>
 
-        <div className="events-grid">
-          {items.map((event) => (
-            <article key={event.id} className="event-card" onClick={event.onClick}>
-              <div className="event-card-top" style={{ backgroundImage: `url(${event.image})` }} />
-              <div className="event-card-bottom">
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#EFF6FF", padding: "4px 10px", borderRadius: 12 }}>{event.category || "Событие"}</span>
-                  <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{event.date}</span>
+        {items.length ? (
+          <div className="events-grid">
+            {items.map((event) => (
+              <article key={event.id} className="event-card" onClick={event.onClick}>
+                <div className="event-card-top" style={{ backgroundImage: `url(${event.image})` }} />
+                <div className="event-card-bottom">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#EFF6FF", padding: "4px 10px", borderRadius: 12 }}>{event.category || "Событие"}</span>
+                    <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{event.date}</span>
+                  </div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", lineHeight: 1.35, margin: 0 }}>
+                    {event.is_pinned ? "📌 " : ""}
+                    {event.title}
+                  </h3>
+                  {event.author && (
+                    <button
+                      type="button"
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        event.onAuthorClick?.();
+                      }}
+                      style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer", textAlign: "left" }}
+                    >
+                      {event.author}
+                    </button>
+                  )}
                 </div>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", lineHeight: 1.35, margin: 0 }}>
-                  {event.is_pinned ? "📌 " : ""}
-                  {event.title}
-                </h3>
-                {event.author && (
-                  <button
-                    type="button"
-                    onClick={(clickEvent) => {
-                      clickEvent.stopPropagation();
-                      event.onAuthorClick?.();
-                    }}
-                    style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer", textAlign: "left" }}
-                  >
-                    {event.author}
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="events-empty">События пока не опубликованы.</div>
+        )}
 
-        {pageCount > 1 && (
+        {items.length > 0 && pageCount > 1 && (
           <div className="events-pagination" aria-label="Пагинация мероприятий">
             <button
               type="button"
               className="events-page-btn"
-              onClick={() => switchPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
+              onClick={() => switchPage(Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage === 1}
               aria-label="Предыдущая страница"
             >
               ←
@@ -174,9 +178,9 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
               <button
                 key={page}
                 type="button"
-                className={`events-page-btn${page === currentPage ? " active" : ""}`}
+                className={`events-page-btn${page === safeCurrentPage ? " active" : ""}`}
                 onClick={() => switchPage(page)}
-                aria-current={page === currentPage ? "page" : undefined}
+                aria-current={page === safeCurrentPage ? "page" : undefined}
               >
                 {page}
               </button>
@@ -185,8 +189,8 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
             <button
               type="button"
               className="events-page-btn"
-              onClick={() => switchPage(Math.min(pageCount, currentPage + 1))}
-              disabled={currentPage === pageCount}
+              onClick={() => switchPage(Math.min(pageCount, safeCurrentPage + 1))}
+              disabled={safeCurrentPage === pageCount}
               aria-label="Следующая страница"
             >
               →

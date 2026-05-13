@@ -13,9 +13,12 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { getApiErrorMessage } from "../../utils/apiError.js";
+import { authHeaders } from "../../utils/authHeaders.js";
+import { isObjectUrl, revokeObjectUrl, stripObjectUrls } from "../../utils/objectUrls.js";
 import AlertBanner from "./shared/AlertBanner.jsx";
 import { cardStyle, inputStyle, labelStyle, sectionBox, dangerBtn } from "./shared/styles.js";
-import AccuratePreview, { smartAlign, clamp } from "./shared/AccuratePreview.jsx";
+import AccuratePreview from "./shared/AccuratePreview.jsx";
+import { smartAlign, clamp } from "./shared/previewMath.js";
 import useHotkeys from "./shared/useHotkeys.js";
 import ContextMenu from "./shared/ContextMenu.jsx";
 
@@ -307,6 +310,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1,
   }]);
 
+  const objectUrlsRef = useRef([]);
   const [saving, setSaving] = useState(false);
   const [uploadingFont, setUploadingFont] = useState(false);
   const [availableFonts, setAvailableFonts] = useState(BUILTIN_FONTS);
@@ -320,8 +324,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   const [ctxMenu, setCtxMenu] = useState(null); // { x, y, elementId }
   const [autoSaveStatus, setAutoSaveStatus] = useState(""); // "", "saving", "saved"
   const autoSaveTimerRef = useRef(null);
-  const [undoStack, setUndoStack] = useState([]);
-  const [redoStack, setRedoStack] = useState([]);
+  const [, setUndoStack] = useState([]);
+  const [, setRedoStack] = useState([]);
   const MAX_UNDO = 40;
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !window.localStorage.getItem("constructor-onboarding-v1-dismissed"); } catch { return true; }
@@ -333,6 +337,18 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   const bgInputRef = useRef(null);
   const bgDragCounter = useRef(0);
   const [bgDrag, setBgDrag] = useState(false);
+
+  const createTrackedObjectUrl = useCallback((file) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.push(url);
+    return url;
+  }, []);
+
+  useEffect(() => () => {
+    objectUrlsRef.current.forEach(revokeObjectUrl);
+    objectUrlsRef.current = [];
+  }, []);
+
   // Вычисляем безопасную зону в %
   const safePct = useMemo(() => ({
     xMin: (margins.left / PAGE_W) * 100,
@@ -381,7 +397,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/certificates/fonts`)
+    fetch(`${API_BASE}/certificates/fonts`, { headers: authHeaders() })
       .then((res) => res.ok ? res.json() : Promise.reject(new Error("fonts")))
       .then((data) => {
         if (!cancelled) setAvailableFonts(mergeFontOptions(BUILTIN_FONTS, data.fonts));
@@ -409,7 +425,9 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!id) { resetToNew(); return; }
     setLoadingTemplate(true);
     try {
-      const res = await fetch(`${API_BASE}/certificates/templates/${id}/full`);
+      const res = await fetch(`${API_BASE}/certificates/templates/${id}/full`, {
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось загрузить шаблон"));
       const data = await res.json();
       const t = data.template;
@@ -496,7 +514,10 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setLoadingTemplate(true);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/certificates/templates/${editingId}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/certificates/templates/${editingId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось удалить шаблон"));
 
       if (typeof window !== "undefined") {
@@ -691,7 +712,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       try {
-        const snapshot = JSON.stringify({ name, elements, signers, margins, signersLayout, bgUrl });
+        const snapshot = JSON.stringify(stripObjectUrls({ name, elements, signers, margins, signersLayout, bgUrl }));
         window.localStorage.setItem(key, snapshot);
         setAutoSaveStatus("saved");
         setTimeout(() => setAutoSaveStatus(""), 2000);
@@ -714,8 +735,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!file || !file.type.startsWith("image/")) return;
     setSigners((prev) => prev.map((s) => {
       if (s.id !== id) return s;
-      if (s.facPreview && s.facFile) URL.revokeObjectURL(s.facPreview);
-      return { ...s, facFile: file, facPreview: URL.createObjectURL(file), facUrl: null };
+      if (s.facPreview && s.facFile) revokeObjectUrl(s.facPreview);
+      return { ...s, facFile: file, facPreview: createTrackedObjectUrl(file), facUrl: null };
     }));
     // Сбрасываем значение input, чтобы можно было загрузить тот же файл ещё раз
     e.target.value = "";
@@ -726,7 +747,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!window.confirm("Удалить факсимиле этого подписанта?")) return;
     setSigners((prev) => prev.map((s) => {
       if (s.id !== id) return s;
-      if (s.facPreview && s.facFile) URL.revokeObjectURL(s.facPreview);
+      if (s.facPreview && s.facFile) revokeObjectUrl(s.facPreview);
       return { ...s, facFile: null, facPreview: null, facUrl: null };
     }));
   };
@@ -747,7 +768,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API_BASE}/certificates/upload-font`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/certificates/upload-font`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Ошибка загрузки шрифта"));
       const uploaded = await res.json();
       setAvailableFonts((prev) => mergeFontOptions(prev, [uploaded]));
@@ -770,7 +795,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       let finalBgUrl = bgUrl?.startsWith("blob:") || bgFile ? null : (bgUrl?.replace(API_BASE, "") || null);
       if (bgFile) {
         const fd = new FormData(); fd.append("file", bgFile);
-        const r = await fetch(`${API_BASE}/certificates/upload-background`, { method: "POST", body: fd });
+        const r = await fetch(`${API_BASE}/certificates/upload-background`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: fd,
+        });
         if (!r.ok) throw new Error(await getApiErrorMessage(r, "Ошибка загрузки фона"));
         finalBgUrl = (await r.json()).background_url;
       }
@@ -782,7 +811,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         let facUrl = s.facUrl || null;
         if (s.facFile) {
           const fd = new FormData(); fd.append("file", s.facFile);
-          const r = await fetch(`${API_BASE}/certificates/upload-facsimile`, { method: "POST", body: fd });
+          const r = await fetch(`${API_BASE}/certificates/upload-facsimile`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: fd,
+          });
           if (!r.ok) throw new Error(await getApiErrorMessage(r, "Ошибка загрузки факсимиле"));
           facUrl = (await r.json()).facsimile_url;
         }
@@ -833,12 +866,12 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       if (mode === "edit" && editingId) {
         // Атомарное обновление
         res = await fetch(`${API_BASE}/certificates/templates/${editingId}/full`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+          method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(payload),
         });
       } else {
         // Атомарное создание нового шаблона
         res = await fetch(`${API_BASE}/certificates/templates/full`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -972,7 +1005,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
             }}
             style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1 }}
             title="Закрыть подсказку"
-          >×</button>
+          >Г—</button>
           <div style={{ fontWeight: 800, fontSize: 14, color: "#1D4ED8", marginBottom: 10 }}>
             Быстрый старт
           </div>
@@ -1136,8 +1169,9 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 setBgDrag(false);
                 const f = e.dataTransfer.files?.[0];
                 if (f && f.type.startsWith("image/")) {
+                  if (isObjectUrl(bgUrl)) revokeObjectUrl(bgUrl);
                   setBgFile(f);
-                  setBgUrl(URL.createObjectURL(f));
+                  setBgUrl(createTrackedObjectUrl(f));
                 }
               }}
               style={{
@@ -1160,7 +1194,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) { setBgFile(f); setBgUrl(URL.createObjectURL(f)); }
+                  if (f) {
+                    if (isObjectUrl(bgUrl)) revokeObjectUrl(bgUrl);
+                    setBgFile(f);
+                    setBgUrl(createTrackedObjectUrl(f));
+                  }
                 }}
               />
               {bgDrag ? (
@@ -1323,7 +1361,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                   {signersLayout.position_color && (
                     <button type="button" onClick={() => setSignersLayout((p) => ({ ...p, position_color: "" }))}
                       title="Сбросить на общий цвет"
-                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>Г—</button>
                   )}
                 </div>
               </div>
@@ -1337,7 +1375,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                   {signersLayout.name_color && (
                     <button type="button" onClick={() => setSignersLayout((p) => ({ ...p, name_color: "" }))}
                       title="Сбросить на общий цвет"
-                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>Г—</button>
                   )}
                 </div>
               </div>
@@ -1674,7 +1712,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); removeEl(el.id); }}
                   title="Удалить блок (Del)"
                   style={{ position: "absolute", top: 10, right: 10, background: "#FEE2E2", color: "#EF4444", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 16 }}>
-                  ×
+                  Г—
                 </button>
                 <div style={{ marginBottom: 12, paddingRight: 36, position: "relative" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -1721,7 +1759,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8" }}>Вставить переменную в текст</span>
                         <button type="button" onClick={() => setPickerOpenId(null)}
                           style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1, padding: "0 2px" }}
-                        >×</button>
+                        >Г—</button>
                       </div>
 
                       <div style={{ padding: "10px 14px 12px" }}>
@@ -1950,7 +1988,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           <div style={{ marginTop: 12, padding: "8px 12px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
             <div style={{ fontSize: 10.5, color: "#94A3B8", lineHeight: 1.5, fontWeight: 500, letterSpacing: "0.01em" }}>
               <span style={{ fontWeight: 600, color: "#64748B" }}>Легенда:</span>{" "}
-              <span style={{ color: "#EF4444" }}>■</span> рабочая зона{" · "}
+              <span style={{ color: "#EF4444" }}>■ </span> рабочая зона{" · "}
               пунктир = переменная{" · "}
               сетка = мм{" · "}
               1pt ≈ 1.33px

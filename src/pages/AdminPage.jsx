@@ -8,6 +8,7 @@ import GenerateBatch from "../components/certificates/GenerateBatch.jsx";
 import TemplateConstructor from "../components/certificates/TemplateConstructor.jsx";
 import ChatSettings from "../components/chat/ChatSettings.jsx";
 import ArticlesModule from "../features/admin/ArticlesModule.jsx";
+import { authHeaders, getStoredAccessToken } from "../utils/authHeaders.js";
 
 function IssueModule({ templates }) {
   const [subTab, setSubTab] = useState("single");
@@ -82,38 +83,12 @@ export default function AdminPage({
   saveArticle,
   deleteArticle,
   changeArticleStatus,
+  onArticlesChanged,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [templates, setTemplates] = useState([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(true);
-
-  const loadTemplates = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/certificates/templates`);
-      if (res.ok) setTemplates(await res.json());
-    } catch (e) {
-      console.error("Ошибка загрузки шаблонов:", e);
-    } finally {
-      setLoadingTemplates(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    document.title = "Генератор грамот - ИМЦРО";
-    loadTemplates();
-    return () => {
-      document.title = "МКУ развития образования города Иркутска";
-    };
-  }, [loadTemplates]);
-
-  const modules = [
-    { key: "issue", label: "Выпуск грамот" },
-    { key: "editor", label: "Конструктор шаблонов" },
-    { key: "articles", label: "Статьи" },
-    { key: "chat", label: "Настройки чата" },
-  ];
-
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const adminModules = [
     { key: "issue", path: "/admin/certificates", label: "Выпуск грамот" },
     { key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" },
@@ -125,6 +100,33 @@ export default function AdminPage({
     (left, right) => moduleOrder.indexOf(left.key) - moduleOrder.indexOf(right.key),
   );
   const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || "articles";
+  const needsTemplates = activeModule === "issue" || activeModule === "editor";
+
+  const loadTemplates = useCallback(async () => {
+    if (!needsTemplates || !getStoredAccessToken()) {
+      setLoadingTemplates(false);
+      return;
+    }
+    setLoadingTemplates(true);
+    try {
+      const res = await fetch(`${API_BASE}/certificates/templates`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) setTemplates(await res.json());
+    } catch (e) {
+      console.error("Ошибка загрузки шаблонов:", e);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [needsTemplates]);
+
+  useEffect(() => {
+    document.title = "Генератор грамот - ИМЦРО";
+    loadTemplates();
+    return () => {
+      document.title = "МКУ развития образования города Иркутска";
+    };
+  }, [loadTemplates]);
 
   useEffect(() => {
     if (location.pathname === "/admin" || location.pathname === "/admin/") {
@@ -173,7 +175,7 @@ export default function AdminPage({
 
       <main style={{ flex: 1 }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "40px 24px 64px" }}>
-          {loadingTemplates ? (
+          {needsTemplates && loadingTemplates ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 16 }}>
               <div style={{ width: 44, height: 44, border: "3px solid #E2E8F0", borderTop: "3px solid #1D4ED8", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               <div style={{ color: "#94A3B8", fontSize: 15, fontWeight: 500 }}>Загрузка данных...</div>
@@ -189,6 +191,7 @@ export default function AdminPage({
                   saveArticle={saveArticle}
                   deleteArticle={deleteArticle}
                   changeArticleStatus={changeArticleStatus}
+                  onArticlesChanged={onArticlesChanged}
                 />
               )}
               {activeModule === "chat" && <ChatSettings />}

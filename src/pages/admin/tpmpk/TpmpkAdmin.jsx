@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Footer from "../../../components/Footer.jsx";
 import { API_BASE } from "../../../constants/index.js";
 import Header from "../../../features/nav/Header.jsx";
+import { authHeaders, getStoredAccessToken } from "../../../utils/authHeaders.js";
 
 const statusLabels = {
   new: "Новая",
@@ -204,6 +205,10 @@ function formatAuditDetails(payload) {
     .join(" · ");
 }
 
+function auditUserLabel(item) {
+  return item.user_display_name || item.user_email || item.username || "Неизвестный пользователь";
+}
+
 function buildApiError(data) {
   if (typeof data?.detail === "string") return data.detail;
   if (Array.isArray(data?.detail)) {
@@ -219,10 +224,13 @@ function buildApiError(data) {
 }
 
 async function fetchJson(path, options = {}) {
+  if (path.startsWith("/api/tpmpk/admin/") && !getStoredAccessToken()) {
+    throw new Error("Сессия истекла. Войдите в личный кабинет ТПМПК заново.");
+  }
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...authHeaders({ "Content-Type": "application/json" }),
       ...(options.headers || {}),
     },
   });
@@ -1029,6 +1037,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           {audit.map((item) => (
             <article className="tp-audit-row" key={item.id}>
               <strong>{auditActionLabels[item.action] || item.action}</strong>
+              <span>{auditUserLabel(item)}</span>
               <span>{auditObjectLabels[item.object_type] || item.object_type} #{item.object_id}</span>
               <em>{formatAuditDetails(item.payload)}</em>
               <small>{new Date(item.created_at).toLocaleString("ru-RU")}</small>
@@ -2122,7 +2131,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           border-radius: 8px;
           background: #fff;
           display: grid;
-          grid-template-columns: minmax(200px, .9fr) minmax(140px, .55fr) minmax(220px, 1fr) auto;
+          grid-template-columns: minmax(180px, .85fr) minmax(160px, .65fr) minmax(140px, .55fr) minmax(220px, 1fr) auto;
           gap: 12px;
           align-items: center;
         }

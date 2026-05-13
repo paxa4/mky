@@ -65,7 +65,7 @@ function applyPreviewVariables(text, userVars) {
 // ── Утилиты ──────────────────────────────────────────────────────────────────
 
 /** Умное выравнивание: определяем align по позиции X внутри рабочей зоны */
-export function smartAlign(xPct, xMinPct, xMaxPct) {
+function smartAlign(xPct, xMinPct, xMaxPct) {
   const rel = (xPct - xMinPct) / Math.max(xMaxPct - xMinPct, 1);
   if (rel < 0.28) return "left";
   if (rel > 0.72) return "right";
@@ -83,10 +83,6 @@ function previewTransform(align) {
  * Clamp: ограничиваем координату рабочей зоной.
  * Возвращает значение, зажатое между min и max.
  */
-export function clamp(val, min, max) {
-  return Math.min(max, Math.max(min, val));
-}
-
 /**
  * Auto-shrink шрифта для превью — точная имитация бэкендного auto_fit_text.
  * Учитывает перенос слов: измеряем каждую строку отдельно, проверяем высоту блока.
@@ -215,6 +211,7 @@ export default function AccuratePreview({
 }) {
   const previewFrameRef = useRef(null);
   const [previewWidthPx, setPreviewWidthPx] = useState(0);
+  const [draggingElementId, setDraggingElementId] = useState(null);
 
   // ── Drag & Drop state ───────────────────────────────────────────────────────
   const dragRef = useRef({ active: false, elId: null, startX: 0, startY: 0, origX: 0, origY: 0 });
@@ -225,6 +222,7 @@ export default function AccuratePreview({
     e.preventDefault();
     onElementSelect?.(elId);
     dragRef.current = { active: true, elId, startX: e.clientX, startY: e.clientY, origX: elX, origY: elY };
+    setDraggingElementId(elId);
     e.currentTarget.setPointerCapture(e.pointerId);
   }, [onElementSelect]);
 
@@ -241,6 +239,7 @@ export default function AccuratePreview({
 
   const handlePointerUp = useCallback(() => {
     dragRef.current.active = false;
+    setDraggingElementId(null);
   }, []);
 
   const handleContextMenu = useCallback((e, elId) => {
@@ -441,7 +440,7 @@ export default function AccuratePreview({
                   width: `${maxWPx}px`,
                   textAlign: align,
                   pointerEvents: onElementMove ? "auto" : "none",
-                  cursor: onElementMove ? (dragRef.current.active && dragRef.current.elId === el.id ? "grabbing" : "grab") : "default",
+                  cursor: onElementMove ? (draggingElementId === el.id ? "grabbing" : "grab") : "default",
                   lineHeight: 1.25,
                   padding: "0 1px",
                   whiteSpace: "pre-wrap",

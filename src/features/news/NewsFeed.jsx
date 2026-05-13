@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import FeaturedCard from "./FeaturedCard.jsx";
 import NewsCard from "./NewsCard.jsx";
-import { NEWS } from "./newsData.js";
 
 const NEWS_PER_PAGE = 8;
 
@@ -10,14 +9,11 @@ export default function NewsFeed({ publishedNews, onOpenArticle, onOpenAuthor })
   const sectionRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [animKey, setAnimKey] = useState(0);
-  const allNewsItems = useMemo(() => (publishedNews?.length ? publishedNews : NEWS), [publishedNews]);
+  const allNewsItems = useMemo(() => publishedNews || [], [publishedNews]);
   const pageCount = Math.max(1, Math.ceil(allNewsItems.length / NEWS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
 
-  useEffect(() => {
-    setCurrentPage((prev) => Math.min(prev, pageCount));
-  }, [pageCount]);
-
-  const startIndex = (currentPage - 1) * NEWS_PER_PAGE;
+  const startIndex = (safeCurrentPage - 1) * NEWS_PER_PAGE;
   const newsItems = allNewsItems.slice(startIndex, startIndex + NEWS_PER_PAGE);
   const featured = newsItems[0];
   const cards = newsItems.slice(1);
@@ -78,7 +74,13 @@ export default function NewsFeed({ publishedNews, onOpenArticle, onOpenAuthor })
           <Link to="/novosti/" style={{ fontSize: 14, fontWeight: 700, color: "#1D4ED8", textDecoration: "none" }}>Все новости</Link>
         </div>
 
-        <div className="news-layout" key={animKey}>
+        {!featured && (
+          <div className="unified-empty-state">
+            Материалы пока не опубликованы
+          </div>
+        )}
+
+        {featured && <div className="news-layout" key={animKey}>
           {featured && (
             <div className="news-feature-cell">
               <FeaturedCard news={featured} onClick={() => onOpenArticle?.(featured)} onAuthorClick={onOpenAuthor} />
@@ -89,15 +91,15 @@ export default function NewsFeed({ publishedNews, onOpenArticle, onOpenAuthor })
               <NewsCard news={news} onClick={() => onOpenArticle?.(news)} onAuthorClick={onOpenAuthor} />
             </div>
           ))}
-        </div>
+        </div>}
 
         {pageCount > 1 && (
           <div className="news-pagination" aria-label="Пагинация новостей">
             <button
               type="button"
               className="news-page-btn"
-              onClick={() => switchPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
+              onClick={() => switchPage(Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage === 1}
               aria-label="Предыдущая страница"
             >
               ←
@@ -107,9 +109,9 @@ export default function NewsFeed({ publishedNews, onOpenArticle, onOpenAuthor })
               <button
                 key={page}
                 type="button"
-                className={`news-page-btn${page === currentPage ? " active" : ""}`}
+                className={`news-page-btn${page === safeCurrentPage ? " active" : ""}`}
                 onClick={() => switchPage(page)}
-                aria-current={page === currentPage ? "page" : undefined}
+                aria-current={page === safeCurrentPage ? "page" : undefined}
               >
                 {page}
               </button>
@@ -118,8 +120,8 @@ export default function NewsFeed({ publishedNews, onOpenArticle, onOpenAuthor })
             <button
               type="button"
               className="news-page-btn"
-              onClick={() => switchPage(Math.min(pageCount, currentPage + 1))}
-              disabled={currentPage === pageCount}
+              onClick={() => switchPage(Math.min(pageCount, safeCurrentPage + 1))}
+              disabled={safeCurrentPage === pageCount}
               aria-label="Следующая страница"
             >
               →

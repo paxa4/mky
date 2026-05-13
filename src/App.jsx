@@ -13,17 +13,16 @@ import TpmpkAdmin from "./pages/admin/tpmpk/TpmpkAdmin.jsx";
 import DomUchitelyaAdmin from "./pages/admin/domUchitelya/DomUchitelyaAdmin.jsx";
 import {
   CommonNewsPage,
-  DOMU_SECTIONS,
   DomUchitelyaHome,
   DomUchitelyaNewsPage,
   DomUchitelyaStaticPage,
 } from "./pages/domUchitelya/DomUchitelyaPages.jsx";
+import { DOMU_SECTIONS } from "./pages/domUchitelya/domuSections.js";
 import {
   ArchivHomePage,
   ArchivSectionPage,
   DeyatelnostHomePage,
   DeyatelnostSectionPage,
-  getMethodikaArticleBackPath,
   KonkursyHomePage,
   KonkursySectionPage,
   MethodikaHomePage,
@@ -32,6 +31,7 @@ import {
   NokoHomePage,
   NokoSectionPage,
 } from "./pages/hubs/HubPages.jsx";
+import { getMethodikaArticleBackPath } from "./pages/hubs/hubUtils.js";
 import SvedeniyaPage from "./pages/SvedeniyaPage.jsx";
 import BlankiPage from "./pages/tpmpk/BlankiPage.jsx";
 import DlyaPedagogovPage from "./pages/tpmpk/DlyaPedagogovPage.jsx";
@@ -44,7 +44,6 @@ import NpaPage from "./pages/tpmpk/NpaPage.jsx";
 import SostavPage from "./pages/tpmpk/SostavPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import { API_BASE } from "./constants/index.js";
-import { INITIAL_ARTICLES } from "./features/admin/adminStore.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -55,7 +54,6 @@ import {
   resolveArticleLocation,
   resolveArticleSectionLabel,
 } from "./features/admin/articleTaxonomy.js";
-import { NEWS } from "./features/news/newsData.js";
 import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, clearStoredUser, getStoredUser, storeUser } from "./auth.js";
 
 function ScrollToTop() {
@@ -86,7 +84,7 @@ const CATEGORY_STYLE = {
   "События": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
 };
 
-CATEGORY_STYLE["Новости"] = CATEGORY_STYLE["РќРѕРІРѕСЃС‚Рё"] || { categoryColor: "#D97706", categoryBg: "#FFFBEB" };
+CATEGORY_STYLE["Новости"] = CATEGORY_STYLE["Новости"] || { categoryColor: "#D97706", categoryBg: "#FFFBEB" };
 CATEGORY_STYLE["Дом учителя"] = { categoryColor: "#047857", categoryBg: "#ECFDF5" };
 CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#1D4ED8", categoryBg: "#EFF6FF" };
 CATEGORY_STYLE["НОКО"] = { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" };
@@ -110,8 +108,27 @@ const FALLBACK_IMAGES = [
   "/images/news4.jpg",
 ];
 const ARTICLES_STORAGE_KEY = "mky_articles";
-const COMMON_NEWS_SCOPES = new Set(["imcro_only", "both"]);
-const DOMU_NEWS_SCOPES = new Set(["dom_uchitelya_only", "both"]);
+const LEGACY_ARTICLE_STORAGE_KEYS = [
+  ARTICLES_STORAGE_KEY,
+  "mky_news",
+  "mky_admin_articles",
+  "mky_admin_news",
+  "admin_articles",
+  "admin_news",
+  "articles",
+  "news",
+  "mky_events",
+  "mky_calendar_events",
+  "mky_admin_events",
+  "admin_events",
+  "events",
+  "calendar_events",
+];
+const LEGACY_DEMO_ARTICLE_SLUGS = new Set([
+  "gorodskoy-semeynyy-universitet",
+  "kursy-pk-shkolnyy-teatr",
+  "otkrytaya-vstrecha-v-dome-uchitelya",
+]);
 
 function simpleSlug(value) {
   return String(value || "")
@@ -131,37 +148,37 @@ function getAuthorKey(item) {
   return `name-${simpleSlug(getAuthorLabel(item) || "author")}`;
 }
 
-function isHomeArticle(article) {
-  return !article.methodika_subject && !article.dom_uchitelya_section && !article.noko_section && !article.hub_kind;
-}
-
-function isInMainFeed(article) {
-  return Boolean(article.duplicate_to_main) || isHomeArticle(article);
-}
-
-function isInEventsFeed(article) {
-  return Boolean(article.duplicate_to_events);
-}
-
 function stripMkyPrefix(path) {
   return typeof path === "string" ? path.replace(new RegExp("^/" + "mky" + "(?=/)"), "") : path;
 }
 
-function getStoredArticles() {
+function isLegacyDemoArticle(article) {
+  const slug = String(article?.slug || article?.id || "").trim();
+  return LEGACY_DEMO_ARTICLE_SLUGS.has(slug);
+}
+
+function removeLegacyDemoArticles(items) {
+  return Array.isArray(items) ? items.filter((article) => !isLegacyDemoArticle(article)) : [];
+}
+
+function clearLegacyArticleStorage() {
   try {
-    const raw = window.localStorage.getItem(ARTICLES_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : INITIAL_ARTICLES;
+    for (const key of LEGACY_ARTICLE_STORAGE_KEYS) {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    }
   } catch {
-    return INITIAL_ARTICLES;
+    // Storage can be unavailable in private mode.
   }
 }
 
-function persistArticles(articles) {
-  try {
-    window.localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(articles));
-  } catch {
-    // Local demo storage can fail in private mode; the current session still keeps state.
-  }
+function getStoredArticles() {
+  clearLegacyArticleStorage();
+  return [];
+}
+
+function persistArticles() {
+  clearLegacyArticleStorage();
 }
 
 function getNewsSortValue(item) {
@@ -176,25 +193,6 @@ function sortNewsByDateDesc(items) {
     if (Boolean(left.is_pinned) !== Boolean(right.is_pinned)) return left.is_pinned ? -1 : 1;
     return getNewsSortValue(right) - getNewsSortValue(left);
   });
-}
-
-function isVisiblePublishedArticle(article) {
-  if (article.status !== "published") return false;
-  const rawDate = article.published_at || article.publishedAt;
-  if (!rawDate) return true;
-  const date = Date.parse(rawDate);
-  return Number.isNaN(date) || date <= Date.now();
-}
-
-function normalizeMojibake(value) {
-  return String(value || "")
-    .replaceAll("РњРµСЂРѕРїСЂРёСЏС‚РёСЏ", "Мероприятия")
-    .replaceAll("РљСѓСЂСЃС‹", "Курсы")
-    .replaceAll("Р”РѕСЃС‚РёР¶РµРЅРёСЏ", "Достижения")
-    .replaceAll("РќРѕРІРѕСЃС‚Рё", "Новости")
-    .replaceAll("РџСЂРѕРµРєС‚С‹", "Проекты")
-    .replaceAll("РЎРµРјРёРЅР°СЂС‹", "Семинары")
-    .replaceAll("РЎРѕР±С‹С‚РёСЏ", "События");
 }
 
 function articleToNewsItem(article) {
@@ -260,33 +258,6 @@ function apiArticleToNewsItem(article) {
   });
 }
 
-function staticNewsToItem(news) {
-  const category = normalizeMojibake(news.category);
-  const style = CATEGORY_STYLE[category] || {};
-  return {
-    ...news,
-    id: `static-${news.id}`,
-    articleId: news.id,
-    category,
-    categoryColor: style.categoryColor || news.categoryColor,
-    categoryBg: style.categoryBg || news.categoryBg,
-    image: stripMkyPrefix(news.image),
-    dateSortValue: news.dateSortValue || `2025-11-${String(30 - Number(news.id || 0)).padStart(2, "0")}`,
-    blocks: [],
-    author: "Редакция ИМЦРО",
-    authorKey: "name-redakciya-imcro",
-    publishing_scope: news.publishing_scope || "imcro_only",
-    duplicate_to_main: true,
-    duplicate_to_events: false,
-    methodika_subject: news.methodika_subject || "",
-    dom_uchitelya_section: news.dom_uchitelya_section || "",
-    noko_section: news.noko_section || "",
-    hub_kind: news.hub_kind || "",
-    hub_path: news.hub_path || "",
-    _isAdmin: false,
-  };
-}
-
 function AppRoutes() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -345,70 +316,49 @@ function AppRoutes() {
     ));
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadNews() {
-      try {
-        const [commonRes, domuRes, eventsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/news/`),
-          fetch(`${API_BASE}/api/dom-uchitelya/news/`),
-          fetch(`${API_BASE}/api/events/`),
-        ]);
-        if (cancelled) return;
-        if (commonRes.ok) {
-          const data = await commonRes.json();
-          setApiCommonNews((data.items || []).map(apiArticleToNewsItem));
-        }
-        if (domuRes.ok) {
-          const data = await domuRes.json();
-          setApiDomuNews((data.items || []).map(apiArticleToNewsItem));
-        }
-        if (eventsRes.ok) {
-          const data = await eventsRes.json();
-          setApiEventsNews((data.items || []).map(apiArticleToNewsItem));
-        }
-      } catch {
-        if (!cancelled) {
-          setApiCommonNews([]);
-          setApiDomuNews([]);
-          setApiEventsNews([]);
-        }
+  const loadPublicNews = useCallback(async () => {
+    try {
+      const [commonRes, domuRes, eventsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/news/`),
+        fetch(`${API_BASE}/api/dom-uchitelya/news/`),
+        fetch(`${API_BASE}/api/events/`),
+      ]);
+      if (commonRes.ok) {
+        const data = await commonRes.json();
+        setApiCommonNews(removeLegacyDemoArticles(data.items || []).map(apiArticleToNewsItem));
+      } else {
+        setApiCommonNews([]);
       }
+      if (domuRes.ok) {
+        const data = await domuRes.json();
+        setApiDomuNews(removeLegacyDemoArticles(data.items || []).map(apiArticleToNewsItem));
+      } else {
+        setApiDomuNews([]);
+      }
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
+        setApiEventsNews(removeLegacyDemoArticles(data.items || []).map(apiArticleToNewsItem));
+      } else {
+        setApiEventsNews([]);
+      }
+    } catch {
+      setApiCommonNews([]);
+      setApiDomuNews([]);
+      setApiEventsNews([]);
     }
-    loadNews();
-    return () => { cancelled = true; };
   }, []);
 
-  const localCommonNews = useMemo(() => {
-    const adminNews = articles
-      .filter((article) =>
-        isVisiblePublishedArticle(article)
-        && COMMON_NEWS_SCOPES.has(article.publishing_scope || "imcro_only")
-        && isInMainFeed(article)
-      )
-      .map(articleToNewsItem);
-    const adminTitles = new Set(adminNews.map((news) => news.title));
-    const staticNews = NEWS
-      .filter((news) => !adminTitles.has(news.title))
-      .map(staticNewsToItem);
-    return sortNewsByDateDesc([...adminNews, ...staticNews]);
-  }, [articles]);
+  useEffect(() => {
+    let cancelled = false;
+    loadPublicNews().finally(() => {
+      if (cancelled) return;
+    });
+    return () => { cancelled = true; };
+  }, [loadPublicNews]);
 
-  const localEventsNews = useMemo(() => articles
-    .filter((article) =>
-      isVisiblePublishedArticle(article)
-      && COMMON_NEWS_SCOPES.has(article.publishing_scope || "imcro_only")
-      && isInEventsFeed(article)
-    )
-    .map(articleToNewsItem), [articles]);
-
-  const localDomuNews = useMemo(() => articles
-    .filter((article) => isVisiblePublishedArticle(article) && DOMU_NEWS_SCOPES.has(article.publishing_scope || "imcro_only"))
-    .map(articleToNewsItem), [articles]);
-
-  const publishedNews = sortNewsByDateDesc(apiCommonNews.length ? apiCommonNews : localCommonNews);
-  const eventsNews = sortNewsByDateDesc(apiEventsNews.length ? apiEventsNews : localEventsNews);
-  const domuNews = sortNewsByDateDesc(apiDomuNews.length ? apiDomuNews : localDomuNews);
+  const publishedNews = sortNewsByDateDesc(apiCommonNews);
+  const eventsNews = sortNewsByDateDesc(apiEventsNews);
+  const domuNews = sortNewsByDateDesc(apiDomuNews);
   const allPublicNews = useMemo(() => {
     const map = new Map();
     [...publishedNews, ...eventsNews, ...domuNews].forEach((item) => {
@@ -592,6 +542,7 @@ function AppRoutes() {
                 saveArticle={saveArticle}
                 deleteArticle={deleteArticle}
                 changeArticleStatus={changeArticleStatus}
+                onArticlesChanged={loadPublicNews}
                 onLogout={handleLogout}
               />
             </RequireDomuAdmin>
@@ -607,6 +558,7 @@ function AppRoutes() {
                 saveArticle={saveArticle}
                 deleteArticle={deleteArticle}
                 changeArticleStatus={changeArticleStatus}
+                onArticlesChanged={loadPublicNews}
               />
             </RequireAdmin>
           }

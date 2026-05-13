@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, getRoleLabel } from "../auth.js";
 
-export const MOCK_USER = {
+const MOCK_USER = {
   id: 1,
   firstName: "Ирина",
   lastName: "Абрамова",
@@ -138,6 +139,7 @@ function EmptyState({ icon, text }) {
 }
 
 export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpkAdmin, onLogout, userArticles = [] }) {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -157,6 +159,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
   const isDomuEditor = roleName === "domu_editor";
   const hasAdminAccess = canAccessAdmin({ role: roleName }) || canAccessDomuAdmin({ role: roleName });
   const hasTpmpkAccess = canAccessTpmpkAdmin({ role: roleName });
+  const accessDenied = new URLSearchParams(location.search).get("access") === "denied";
   const visibleTabs = TABS.filter((tab) => {
     if (tab.id === "articles") return isMethodist || isAdmin;
     if (tab.id === "admin") return isAdmin || isDomuEditor;
@@ -328,6 +331,17 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           padding: 22px; box-shadow: 0 20px 60px rgba(15,23,42,0.07);
           backdrop-filter: blur(16px);
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .profile-access-alert {
+          margin-top: 16px;
+          padding: 14px 16px;
+          border: 1px solid #fecaca;
+          border-radius: 8px;
+          background: #fff7f7;
+          color: #991b1b;
+          font-size: 14px;
+          font-weight: 800;
+          line-height: 1.45;
         }
         .profile-card:hover { transform: translateY(-2px); box-shadow: 0 26px 70px rgba(15,23,42,0.1); border-color: rgba(37,99,235,0.16); }
         .profile-card__head {
@@ -542,6 +556,11 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
                 )}
               </div>
             </div>
+            {accessDenied && (
+              <div className="profile-access-alert" role="alert">
+                Доступ к закрытому разделу запрещен для текущей роли.
+              </div>
+            )}
           </div>
         </section>
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CALENDAR_EVENTS } from "../../constants/index.js";
 
 const DAYS = [
@@ -17,11 +16,7 @@ const TAG_COLORS = {
 };
 
 export default function EventCalendar() {
-  const [activeDay, setActiveDay] = useState(null);
-
-  const filtered = activeDay
-    ? CALENDAR_EVENTS.filter(e => e.day === activeDay)
-    : CALENDAR_EVENTS;
+  const filtered = CALENDAR_EVENTS;
 
   const grouped = DAYS.reduce((acc, d) => {
     acc[d.day] = filtered.filter(e => e.day === d.day);

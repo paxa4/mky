@@ -43,7 +43,10 @@ function eventToCombo(e) {
 
 export default function useHotkeys(keyMap, enabled = true) {
   const keyMapRef = useRef(keyMap);
-  keyMapRef.current = keyMap;
+
+  useEffect(() => {
+    keyMapRef.current = keyMap;
+  }, [keyMap]);
 
   const handler = useCallback(
     (e) => {

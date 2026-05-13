@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { authenticate, TEST_CREDENTIALS } from "../auth.js";
+import { authenticate, canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, mergeTestUserProfile, TEST_CREDENTIALS } from "../auth.js";
 import { API_BASE } from "../constants/index.js";
 
 export default function AuthPage({ onLogin }) {
@@ -19,9 +19,9 @@ export default function AuthPage({ onLogin }) {
     if (!pass) return 0;
     let score = 0;
     if (pass.length >= 8) score += 1;
-    if (/[A-ZА-Я]/.test(pass) && /[a-zа-я]/.test(pass)) score += 1;
+    if (/[A-Z\u0410-\u042F\u0401]/.test(pass) && /[a-z\u0430-\u044F\u0451]/.test(pass)) score += 1;
     if (/\d/.test(pass)) score += 1;
-    if (/[^A-Za-zА-Яа-я0-9]/.test(pass)) score += 1;
+    if (/[^A-Za-z\u0410-\u044F\u0401\u04510-9]/.test(pass)) score += 1;
     if (pass.length >= 12) score += 1;
     return Math.min(score, 4);
   };
@@ -36,6 +36,7 @@ export default function AuthPage({ onLogin }) {
   const handleLogin = async (event) => {
     event.preventDefault();
     setError("");
+    let backendError = "";
     try {
       const formData = new URLSearchParams();
       formData.set("username", loginForm.email);
@@ -52,16 +53,24 @@ export default function AuthPage({ onLogin }) {
         });
         if (meResponse.ok) {
           const me = await meResponse.json();
-          onLogin?.({ ...me, access_token: token.access_token });
+          onLogin?.(mergeTestUserProfile({ ...me, access_token: token.access_token }));
           return;
         }
+        backendError = "Не удалось получить профиль пользователя после входа.";
+      } else {
+        const data = await tokenResponse.json().catch(() => null);
+        backendError = typeof data?.detail === "string" ? data.detail : "Неверный логин или пароль.";
       }
-    } catch {
-      // If the backend has no seeded user, demo credentials still keep local work usable.
+    } catch (err) {
+      backendError = err?.message || "Backend авторизации недоступен.";
     }
     const user = authenticate(loginForm.email, loginForm.password);
     if (!user) {
-      setError("Неверный логин или пароль. Выберите тестовый аккаунт ниже или проверьте данные.");
+      setError(backendError || "Неверный логин или пароль.");
+      return;
+    }
+    if (canAccessAdmin(user) || canAccessTpmpkAdmin(user) || canAccessDomuAdmin(user)) {
+      setError(`${backendError || "Backend не выдал access token."} Для административных разделов нужен реальный серверный вход.`);
       return;
     }
     onLogin?.(user);

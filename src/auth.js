@@ -136,8 +136,27 @@ export const TEST_CREDENTIALS = [
 
 function withoutPassword(user) {
   if (!user) return null;
-  const { password, ...safeUser } = user;
+  const { password: _password, ...safeUser } = user;
   return safeUser;
+}
+
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== "string") return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(window.atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+export function isAccessTokenExpired(token) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return false;
+  return Date.now() >= Number(payload.exp) * 1000;
 }
 
 export function authenticate(email, password) {
@@ -145,6 +164,18 @@ export function authenticate(email, password) {
   const user = Object.values(TEST_USERS).find((item) => item.email.toLowerCase() === normalizedEmail);
   if (!user || user.password !== password) return null;
   return withoutPassword(user);
+}
+
+export function mergeTestUserProfile(user) {
+  if (!user?.email) return user;
+  const normalizedEmail = String(user.email).trim().toLowerCase();
+  const demoProfile = Object.values(TEST_USERS).find((item) => item.email.toLowerCase() === normalizedEmail);
+  if (!demoProfile) return user;
+  return {
+    ...withoutPassword(demoProfile),
+    ...user,
+    role: user.role || demoProfile.role,
+  };
 }
 
 export function getRoleLabel(role) {
@@ -158,7 +189,7 @@ export function canAccessAdmin(user) {
 
 export function canAccessTpmpkAdmin(user) {
   const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "operator";
+  return role === "operator" || role === "tpmpk_operator" || role === "tpmpk_admin" || role === "admin";
 }
 
 export function canAccessDomuAdmin(user) {
@@ -169,16 +200,29 @@ export function canAccessDomuAdmin(user) {
 export function getStoredUser() {
   try {
     const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const user = raw ? JSON.parse(raw) : null;
+    const token = user?.access_token || window.localStorage.getItem("mky_access_token") || window.localStorage.getItem("access_token");
+    if (token && isAccessTokenExpired(token)) {
+      clearStoredUser();
+      return null;
+    }
+    return user;
   } catch {
     return null;
   }
 }
 
 export function storeUser(user) {
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(withoutPassword(user)));
+  const safeUser = withoutPassword(user);
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(safeUser));
+  if (safeUser?.access_token) {
+    window.localStorage.setItem("mky_access_token", safeUser.access_token);
+    window.localStorage.setItem("access_token", safeUser.access_token);
+  }
 }
 
 export function clearStoredUser() {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.localStorage.removeItem("mky_access_token");
+  window.localStorage.removeItem("access_token");
 }

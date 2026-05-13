@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import {
+  A11Y_EVENT,
+  DEFAULT_A11Y_SETTINGS,
+  readAccessibilitySettings,
+  saveAccessibilitySettings,
+} from "../../accessibility.js";
 import Logo from "../../components/Logo.jsx";
 import MegaMenu from "./MegaMenu.jsx";
 
@@ -46,7 +52,9 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [a11yMode, setA11yMode] = useState(() => localStorage.getItem("mky-a11y-mode") === "on");
+  const [a11yPanelOpen, setA11yPanelOpen] = useState(false);
+  const [a11ySettings, setA11ySettings] = useState(() => readAccessibilitySettings());
+  const a11yMode = a11ySettings.enabled;
 
   const currentPath = normalizePath(location.pathname);
   const userInitials = currentUser
@@ -74,13 +82,18 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
   }, [searchOpen]);
 
   useEffect(() => {
-    document.body.classList.toggle("mky-a11y-mode", a11yMode);
-    localStorage.setItem("mky-a11y-mode", a11yMode ? "on" : "off");
-  }, [a11yMode]);
+    const sync = (event) => setA11ySettings(event.detail || readAccessibilitySettings());
+    window.addEventListener(A11Y_EVENT, sync);
+    return () => window.removeEventListener(A11Y_EVENT, sync);
+  }, []);
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
+  function updateA11ySettings(patch) {
+    setA11ySettings(saveAccessibilitySettings({ ...a11ySettings, ...patch }));
+  }
+
+  function resetA11ySettings() {
+    setA11ySettings(saveAccessibilitySettings(DEFAULT_A11Y_SETTINGS));
+  }
 
   const navSearchIndex = useMemo(
     () => MAIN_NAV_ITEMS.map((item) => ({ ...item, search: item.label.toLowerCase() })),
@@ -89,6 +102,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
   function goPath(path) {
     if (!path) return;
+    setMenuOpen(false);
     const target = normalizePath(path);
     if (target === currentPath) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -120,21 +134,6 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
   return (
     <>
       <style>{`
-        .mky-a11y-mode {
-          background: #ffffff !important;
-          color: #0f172a !important;
-          font-size: 18px;
-          line-height: 1.55;
-        }
-
-        .mky-a11y-mode a,
-        .mky-a11y-mode button,
-        .mky-a11y-mode input,
-        .mky-a11y-mode select,
-        .mky-a11y-mode textarea {
-          font-size: 1rem;
-        }
-
         .site-header-shell {
           position: fixed;
           inset: 0 0 auto;
@@ -319,6 +318,110 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           align-items: center;
           justify-content: flex-end;
           gap: 8px;
+        }
+
+        .header-a11y-wrap {
+          position: relative;
+          display: inline-flex;
+        }
+
+        .header-a11y-panel {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          z-index: 260;
+          width: min(360px, calc(100vw - 24px));
+          display: grid;
+          gap: 14px;
+          padding: 16px;
+          border: 1px solid #c9defb;
+          border-radius: 12px;
+          background: #ffffff;
+          box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+        }
+
+        .header-a11y-panel h2 {
+          margin: 0;
+          color: #0f172a;
+          font-size: 18px;
+          line-height: 1.2;
+        }
+
+        .header-a11y-panel p {
+          margin: 0;
+          color: #475569;
+          font-size: 13px;
+          line-height: 1.45;
+          font-weight: 650;
+        }
+
+        .a11y-row {
+          display: grid;
+          gap: 7px;
+        }
+
+        .a11y-row label,
+        .a11y-toggle-label {
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .a11y-row select {
+          width: 100%;
+          min-height: 40px;
+          border: 1px solid #dbe5f1;
+          border-radius: 8px;
+          background: #f8fbff;
+          color: #0f172a;
+          padding: 0 10px;
+          font: 750 13px/1 inherit;
+        }
+
+        .a11y-toggle-line {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .a11y-switch {
+          width: 54px;
+          height: 32px;
+          border: 1px solid #cbd5e1;
+          border-radius: 999px;
+          background: #e2e8f0;
+          padding: 3px;
+          cursor: pointer;
+        }
+
+        .a11y-switch span {
+          display: block;
+          width: 24px;
+          height: 24px;
+          border-radius: 999px;
+          background: #ffffff;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+          transform: translateX(0);
+        }
+
+        .a11y-switch.is-on {
+          background: #0b63ce;
+          border-color: #0b63ce;
+        }
+
+        .a11y-switch.is-on span {
+          transform: translateX(20px);
+        }
+
+        .a11y-reset {
+          min-height: 38px;
+          border: 1px solid #dbe5f1;
+          border-radius: 8px;
+          background: #ffffff;
+          color: #1e3a8a;
+          font: 900 13px/1 inherit;
+          cursor: pointer;
         }
 
         .header-admin-btn,
@@ -588,16 +691,62 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
               <SearchIcon />
             </button>
 
-            <button
-              className={`header-icon-btn${a11yMode ? " active" : ""}`}
-              type="button"
-              title="Версия для слабовидящих"
-              aria-label="Версия для слабовидящих"
-              aria-pressed={a11yMode}
-              onClick={() => setA11yMode((value) => !value)}
-            >
-              <EyeIcon />
-            </button>
+            <div className="header-a11y-wrap">
+              <button
+                className={`header-icon-btn${a11yMode ? " active" : ""}`}
+                type="button"
+                title="Версия для слабовидящих"
+                aria-label="Версия для слабовидящих"
+                aria-pressed={a11yMode}
+                aria-expanded={a11yPanelOpen}
+                onClick={() => setA11yPanelOpen((value) => !value)}
+              >
+                <EyeIcon />
+              </button>
+              {a11yPanelOpen && (
+                <div className="header-a11y-panel" role="dialog" aria-label="Настройки версии для слабовидящих">
+                  <div>
+                    <h2>Версия для слабовидящих</h2>
+                    <p>Настройки применяются ко всем страницам и сохраняются после перезагрузки.</p>
+                  </div>
+                  <div className="a11y-toggle-line">
+                    <span className="a11y-toggle-label">Режим включён</span>
+                    <button type="button" className={`a11y-switch${a11ySettings.enabled ? " is-on" : ""}`} aria-label={a11ySettings.enabled ? "Выключить режим" : "Включить режим"} aria-pressed={a11ySettings.enabled} onClick={() => updateA11ySettings({ enabled: !a11ySettings.enabled })}>
+                      <span />
+                    </button>
+                  </div>
+                  <div className="a11y-row">
+                    <label htmlFor="a11y-font">Размер шрифта</label>
+                    <select id="a11y-font" value={a11ySettings.fontSize} onChange={(event) => updateA11ySettings({ fontSize: event.target.value, enabled: true })}>
+                      <option value="large">Крупный</option>
+                      <option value="xlarge">Очень крупный</option>
+                    </select>
+                  </div>
+                  <div className="a11y-row">
+                    <label htmlFor="a11y-scheme">Цветовая схема</label>
+                    <select id="a11y-scheme" value={a11ySettings.scheme} onChange={(event) => updateA11ySettings({ scheme: event.target.value, enabled: true })}>
+                      <option value="light">Светлая контрастная</option>
+                      <option value="dark">Тёмная контрастная</option>
+                      <option value="mono">Чёрно-белая</option>
+                    </select>
+                  </div>
+                  <div className="a11y-row">
+                    <label htmlFor="a11y-line">Интервал</label>
+                    <select id="a11y-line" value={a11ySettings.lineHeight} onChange={(event) => updateA11ySettings({ lineHeight: event.target.value, enabled: true })}>
+                      <option value="wide">Увеличенный</option>
+                      <option value="extra">Очень широкий</option>
+                    </select>
+                  </div>
+                  <div className="a11y-toggle-line">
+                    <span className="a11y-toggle-label">Скрыть изображения</span>
+                    <button type="button" className={`a11y-switch${a11ySettings.hideImages ? " is-on" : ""}`} aria-label={a11ySettings.hideImages ? "Показывать изображения" : "Скрыть изображения"} aria-pressed={a11ySettings.hideImages} onClick={() => updateA11ySettings({ hideImages: !a11ySettings.hideImages, enabled: true })}>
+                      <span />
+                    </button>
+                  </div>
+                  <button type="button" className="a11y-reset" onClick={resetA11ySettings}>Сбросить настройки</button>
+                </div>
+              )}
+            </div>
 
             {canShowAdminButton && (
               <button className="header-admin-btn" type="button" onClick={onGoAdmin} title="Админ-панель">
@@ -665,7 +814,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         </div>
       </header>
 
-      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} currentUser={currentUser} />
     </>
   );
 }

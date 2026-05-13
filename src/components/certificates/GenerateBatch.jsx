@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { getApiErrorMessage } from "../../utils/apiError.js";
+import { authHeaders } from "../../utils/authHeaders.js";
 import AlertBanner from "./shared/AlertBanner.jsx";
 import { inputStyle, labelStyle, successBtn, cardStyle } from "./shared/styles.js";
 
@@ -62,7 +63,11 @@ export default function GenerateBatch({ templates }) {
       const fd = new FormData();
       fd.append("file", f);
       if (templateId) fd.append("template_id", String(templateId));
-      const res = await fetch(`${API_BASE}/certificates/excel/inspect`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/certificates/excel/inspect`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось проверить Excel"));
       const data = await res.json();
       const names = data.fio_column
@@ -126,7 +131,12 @@ export default function GenerateBatch({ templates }) {
       if (Object.keys(extraVariables).length > 0) {
         fd.append("extra_variables", JSON.stringify(extraVariables));
       }
-      const res = await fetch(`${API_BASE}/certificates/batch`, { method: "POST", body: fd, signal: controller.signal });
+      const res = await fetch(`${API_BASE}/certificates/batch`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+        signal: controller.signal,
+      });
       clearInterval(progressRef.current); setProgress(100);
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Ошибка на сервере"));
       const blob = await res.blob();
@@ -138,7 +148,7 @@ export default function GenerateBatch({ templates }) {
       const a = document.createElement("a");
       a.href = blobUrl; a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
       setMsg(`Готово! Скачано ${preview?.rowCount ?? "?"} грамот ZIP-архивом.`);
       setMsgType("success");
     } catch (e) {

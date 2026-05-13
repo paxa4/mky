@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
+import { authHeaders } from "../utils/authHeaders.js";
 
 const API_BASE   = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const SESSION_ID = crypto.randomUUID();
@@ -106,7 +107,7 @@ export default function ChatBot() {
     try {
       const res = await fetch(`${API_BASE}/assistant/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           question:   text.trim(),
           session_id: SESSION_ID,
@@ -151,7 +152,10 @@ export default function ChatBot() {
 
   const clearHistory = async () => {
     try {
-      await fetch(`${API_BASE}/assistant/clear/${SESSION_ID}`, { method: "POST" });
+      await fetch(`${API_BASE}/assistant/clear/${SESSION_ID}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
     } catch (e) {
       void e;
     }

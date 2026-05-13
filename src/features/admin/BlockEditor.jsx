@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { genId } from "./adminStore.js";
+import { revokeObjectUrl } from "../../utils/objectUrls.js";
 
 // ─── Визуальный предпросмотр блоков (читатель) ───────────────────────────────
 
@@ -59,13 +60,14 @@ export function BlockPreview({ block }) {
           </div>
         </div>
       );
-    case "list":
+    case "list": {
       const Tag = block.data.ordered ? "ol" : "ul";
       return (
         <Tag style={{ paddingLeft: 24, margin: "16px 0", color: "#334155", fontSize: 15, lineHeight: 1.8, textAlign: block.data.align || "left" }}>
           {(block.data.items || []).map((item, i) => <li key={i}>{item}</li>)}
         </Tag>
       );
+    }
     case "divider":
       return <hr style={{ border: "none", borderTop: "2px solid #E2E8F0", margin: "32px 0" }} />;
     default:
@@ -98,11 +100,18 @@ function Field({ label, value, onChange, multiline, placeholder }) {
 
 function ImageUpload({ value, onChange }) {
   const [uploading, setUploading] = useState(false);
+  const previewUrlRef = useRef("");
+
+  useEffect(() => () => {
+    revokeObjectUrl(previewUrlRef.current);
+  }, []);
 
   const handleFile = async (file) => {
     if (!file) return;
     // Показываем превью сразу через blob
+    revokeObjectUrl(previewUrlRef.current);
     const blob = URL.createObjectURL(file);
+    previewUrlRef.current = blob;
     onChange({ url: blob, _file: file });
     setUploading(true);
 
@@ -179,7 +188,7 @@ export function BlockEditor({ block, onChange }) {
           <Field label="Текст справа" value={block.data.text} onChange={v => update("text", v)} multiline placeholder="Текст рядом с изображением..." />
         </>
       );
-    case "list":
+    case "list": {
       const items = block.data.items || [""];
       return (
         <>
@@ -211,6 +220,7 @@ export function BlockEditor({ block, onChange }) {
           </button>
         </>
       );
+    }
     case "divider":
       return <p style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>Горизонтальный разделитель — нет настроек</p>;
     default:

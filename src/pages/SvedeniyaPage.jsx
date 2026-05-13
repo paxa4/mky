@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 import {
   SVEDENIYA_NAV_ITEMS,
   SVEDENIYA_ROUTE_TO_ANCHOR,
@@ -376,11 +377,7 @@ export default function SvedeniyaPage({ currentUser, onGoAuth, onGoAdmin, onGoPr
 
       <main className="sv-main">
         <div className="sv-shell">
-          <nav className="sv-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <span>Сведения об образовательной организации</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "Сведения об образовательной организации" }]} />
 
           <section className="sv-hero">
             <div className="sv-hero-copy">

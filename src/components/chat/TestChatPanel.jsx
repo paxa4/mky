@@ -8,6 +8,7 @@ import { API_BASE } from "../../constants/index.js";
 import { cardStyle } from "../certificates/shared/styles.js";
 import AlertBanner from "../certificates/shared/AlertBanner.jsx";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../../utils/chatLinks.jsx";
+import { authHeaders } from "../../utils/authHeaders.js";
 
 function makeSessionId() {
   return `admin-test-${crypto.randomUUID()}`;
@@ -38,7 +39,7 @@ export default function TestChatPanel() {
     try {
       const res = await fetch(`${API_BASE}/assistant/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ question: text, session_id: sessionId }),
       });
       if (!res.ok) {
@@ -61,7 +62,10 @@ export default function TestChatPanel() {
 
   const clearSession = async () => {
     try {
-      await fetch(`${API_BASE}/assistant/clear/${sessionId}`, { method: "POST" });
+      await fetch(`${API_BASE}/assistant/clear/${sessionId}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
     } catch (e) {
       void e;
     }

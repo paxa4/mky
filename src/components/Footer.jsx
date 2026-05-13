@@ -1,82 +1,172 @@
+import { Link } from "react-router-dom";
+import { A11Y_EVENT, readAccessibilitySettings, saveAccessibilitySettings } from "../accessibility.js";
+import { useEffect, useState } from "react";
+
 const FOOTER_COLS = [
-  { 
-    title: "О НАС", 
-    links: ["Об организации", "Руководство", "Структура", "Документы", "Вакансии"] 
+  {
+    title: "Основное",
+    links: [
+      { label: "Главная", to: "/" },
+      { label: "Сведения об организации", to: "/sveden/" },
+      { label: "Новости", to: "/novosti/" },
+      { label: "События", to: "/#calendar" },
+    ],
   },
-  { 
-    title: "РАЗДЕЛЫ", 
-    links: ["Деятельность", "Подразделения", "Аттестация", "Повышение квалификации"] 
+  {
+    title: "Разделы",
+    links: [
+      { label: "ТПМПК", to: "/tpmpk/" },
+      { label: "Дом учителя", to: "/dom-uchitelya/" },
+      { label: "Методическое пространство", to: "/metodika/" },
+      { label: "НОКО", to: "/noko/" },
+    ],
   },
-  { 
-    title: "ПРОЕКТЫ", 
-    links: ["ФГОС 2.0", "Эврика", "ВСОШ", "Конкурсы и гранты"] 
+  {
+    title: "Направления",
+    links: [
+      { label: "Деятельность", to: "/deyatelnost/" },
+      { label: "Олимпиады и конкурсы", to: "/konkursy/" },
+      { label: "Архив", to: "/archiv/" },
+      { label: "Контакты ТПМПК", to: "/tpmpk/kontakty/" },
+    ],
   },
-  { 
-    title: "ССЫЛКИ", 
-    links: ["Министерство просвещения РФ", "Портал Госуслуг", "Администрация г. Иркутска"] 
+  {
+    title: "Полезные ссылки",
+    links: [
+      { label: "Министерство просвещения РФ", href: "https://edu.gov.ru/" },
+      { label: "Портал Госуслуг", href: "https://www.gosuslugi.ru/" },
+      { label: "Администрация Иркутска", href: "https://admirk.ru/" },
+    ],
   },
 ];
 
 export default function Footer() {
-  return (
-    <footer style={{ background: "linear-gradient(180deg, #173285 0%, #1E40AF 100%)", padding: "60px 24px 30px" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+  const [settings, setSettings] = useState(() => readAccessibilitySettings());
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 30, marginBottom: 50 }}>
-          {FOOTER_COLS.map(col => (
-            <div key={col.title}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>
-                {col.title}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {col.links.map(l => (
-                  <a key={l} href="#" style={{ fontSize: 13, color: "#BFDBFE", textDecoration: "none", transition: "color 0.15s" }}
-                    onMouseOver={e => e.currentTarget.style.color = "#fff"}
-                    onMouseOut={e => e.currentTarget.style.color = "#BFDBFE"}
-                  >{l}</a>
+  useEffect(() => {
+    const sync = (event) => setSettings(event.detail || readAccessibilitySettings());
+    window.addEventListener(A11Y_EVENT, sync);
+    return () => window.removeEventListener(A11Y_EVENT, sync);
+  }, []);
+
+  function toggleA11y() {
+    setSettings(saveAccessibilitySettings({ ...settings, enabled: !settings.enabled }));
+  }
+
+  return (
+    <footer className="site-footer">
+      <style>{`
+        .site-footer {
+          background: linear-gradient(180deg, #173285 0%, #1e40af 100%);
+          color: #ffffff;
+          padding: 52px 24px 28px;
+        }
+        .site-footer-inner {
+          width: min(var(--app-page-max, 1180px), 100%);
+          margin: 0 auto;
+        }
+        .site-footer-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 28px;
+          margin-bottom: 38px;
+        }
+        .footer-title {
+          margin-bottom: 14px;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+        .footer-links {
+          display: grid;
+          gap: 8px;
+        }
+        .footer-link {
+          width: fit-content;
+          min-height: 30px;
+          display: inline-flex;
+          align-items: center;
+          color: #dbeafe;
+          font-size: 14px;
+          font-weight: 650;
+          text-decoration: none;
+        }
+        .footer-link:hover,
+        .footer-link:focus-visible {
+          color: #ffffff;
+          text-decoration: underline;
+          text-underline-offset: 4px;
+        }
+        .footer-bottom {
+          border-top: 1px solid rgba(255, 255, 255, 0.18);
+          padding-top: 24px;
+          padding-right: 78px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          flex-wrap: wrap;
+        }
+        .footer-copy {
+          color: #dbeafe;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        .footer-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .footer-a11y-btn {
+          min-height: 40px;
+          border: 1px solid rgba(255, 255, 255, 0.45);
+          border-radius: 8px;
+          background: ${settings.enabled ? "#ffffff" : "rgba(255,255,255,0.08)"};
+          color: ${settings.enabled ? "#173285" : "#ffffff"};
+          padding: 0 14px;
+          font: 900 13px/1 inherit;
+          cursor: pointer;
+        }
+        .footer-a11y-btn:hover,
+        .footer-a11y-btn:focus-visible {
+          background: #ffffff;
+          color: #173285;
+        }
+        @media (max-width: 900px) {
+          .site-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 560px) {
+          .site-footer { padding: 38px 18px 24px; }
+          .site-footer-grid { grid-template-columns: 1fr; gap: 22px; }
+          .footer-bottom { align-items: flex-start; flex-direction: column; padding-right: 0; padding-bottom: 72px; }
+          .footer-a11y-btn { width: 100%; }
+        }
+      `}</style>
+      <div className="site-footer-inner">
+        <div className="site-footer-grid">
+          {FOOTER_COLS.map((col) => (
+            <nav key={col.title} aria-label={col.title}>
+              <div className="footer-title">{col.title}</div>
+              <div className="footer-links">
+                {col.links.map((item) => item.to ? (
+                  <Link key={item.label} className="footer-link" to={item.to}>{item.label}</Link>
+                ) : (
+                  <a key={item.label} className="footer-link" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>
                 ))}
               </div>
-            </div>
+            </nav>
           ))}
         </div>
-
-        {/* Bottom bar */}
-        <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.15)", paddingTop: 30, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <span style={{ fontSize: 12, color: "#BFDBFE" }}>
-              © 2025 МКУ развития образования города Иркутска
-            </span>
-            <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>|</span>
-            <a href="#" style={{ fontSize: 12, color: "#BFDBFE", textDecoration: "none", transition: "color 0.15s" }}
-              onMouseOver={e => e.currentTarget.style.color = "#fff"}
-              onMouseOut={e => e.currentTarget.style.color = "#BFDBFE"}
-            >Политика конфиденциальности</a>
+        <div className="footer-bottom">
+          <div className="footer-copy">© 2026 МКУ развития образования города Иркутска</div>
+          <div className="footer-actions">
+            <button type="button" className="footer-a11y-btn" aria-pressed={settings.enabled} onClick={toggleA11y}>
+              {settings.enabled ? "Обычная версия сайта" : "Версия для слабовидящих"}
+            </button>
           </div>
-
-          {/* Social icons */}
-          <div style={{ display: "flex", gap: 16 }}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <a key={i} href="#" style={{ 
-                width: 32, height: 32, 
-                borderRadius: "50%", 
-                border: "1px solid rgba(255, 255, 255, 0.2)", 
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#BFDBFE",
-                textDecoration: "none",
-                transition: "all 0.15s"
-              }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = "#fff"; e.currentTarget.style.color = "#fff"; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)"; e.currentTarget.style.color = "#BFDBFE"; }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  {/* Generic icon shape */}
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
-              </a>
-            ))}
-          </div>
-
         </div>
       </div>
     </footer>

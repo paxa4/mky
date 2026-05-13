@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
 import Header from "../features/nav/Header.jsx";
 import Footer from "../components/Footer.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 import Badge from "../components/Badge.jsx";
 import { BlockPreview } from "../features/admin/BlockEditor.jsx";
 
@@ -46,9 +46,9 @@ export default function ArticlePage({
   const hasBlocks = article.blocks && article.blocks.length > 0;
   const heroImage = article.cover_image_url || article.image;
   const breadcrumbs = [
-    { label: "Главная", path: "/" },
-    article.parentLabel && article.parentPath ? { label: article.parentLabel, path: article.parentPath } : null,
-    article.sectionLabel && article.sectionPath ? { label: article.sectionLabel, path: article.sectionPath } : null,
+    { label: "Главная", to: "/" },
+    article.parentLabel && article.parentPath ? { label: article.parentLabel, to: article.parentPath } : null,
+    article.sectionLabel && article.sectionPath ? { label: article.sectionLabel, to: article.sectionPath } : null,
     { label: article.title },
   ].filter(Boolean);
 
@@ -82,17 +82,7 @@ export default function ArticlePage({
 
       <main style={{ flex: 1 }}>
         <div style={{ maxWidth: 980, margin: "0 auto", padding: "34px 20px 64px" }}>
-          <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, color: "#64748b", fontSize: 14, fontWeight: 800 }} aria-label="Навигация">
-            {breadcrumbs.map((crumb, index) => (
-              <span key={`${crumb.label}-${index}`} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                {index > 0 && <span style={{ color: "#CBD5E1" }}>→</span>}
-                {crumb.path
-                  ? <Link to={crumb.path} style={{ color: "#1e3a8a", textDecoration: "none" }}>{crumb.label}</Link>
-                  : <span>{crumb.label}</span>
-                }
-              </span>
-            ))}
-          </nav>
+          <Breadcrumbs items={breadcrumbs} />
 
           {heroImage && (
             <div style={{ width: "100%", borderRadius: 14, overflow: "hidden", marginBottom: 18, border: "1px solid #E2E8F0", boxShadow: "0 16px 44px rgba(15,23,42,.12)", position: "relative", background: "#E2E8F0" }}>

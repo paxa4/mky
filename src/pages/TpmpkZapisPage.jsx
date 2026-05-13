@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 import { API_BASE } from "../constants/index.js";
 
 const steps = ["Данные ребёнка", "Дата и время", "Дополнительно", "Контакты и согласия"];
@@ -432,26 +433,6 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           width: min(1040px, calc(100% - 28px));
           margin: 0 auto;
           padding: 34px 0 68px;
-        }
-
-        .tz-breadcrumb {
-          margin-bottom: 18px;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          flex-wrap: wrap;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 850;
-        }
-
-        .tz-breadcrumb a {
-          color: #1e3a8a;
-          text-decoration: none;
-        }
-
-        .tz-breadcrumb a:hover {
-          color: #6d28d9;
         }
 
         .tz-card {
@@ -923,13 +904,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
 
       <main className="tz-main">
         <div className="tz-shell">
-          <nav className="tz-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <Link to="/tpmpk">ТПМПК</Link>
-            <span aria-hidden="true">/</span>
-            <span>Запись</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "ТПМПК", to: "/tpmpk" }, { label: "Запись" }]} />
           <section className="tz-card">
             {success ? (
               <div className="tz-success" aria-live="polite">

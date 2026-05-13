@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import Footer from "../../components/Footer.jsx";
 import Header from "../../features/nav/Header.jsx";
+import Breadcrumbs from "../../components/Breadcrumbs.jsx";
 import { getTpmpkPage } from "./tpmpkPagesData.js";
 
 function Seo({ title, description }) {
@@ -107,22 +108,6 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: min(1120px, calc(100% - 28px));
           margin: 0 auto;
           padding: 30px 0 70px;
-        }
-
-        .ti-breadcrumb {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
-          color: #64748b;
-          font-size: 13px;
-          font-weight: 850;
-          margin-bottom: 14px;
-        }
-
-        .ti-breadcrumb a {
-          color: #1e3a8a;
-          text-decoration: none;
         }
 
         .ti-hero,
@@ -401,13 +386,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
 
       <main className="ti-main">
         <div className="ti-shell">
-          <nav className="ti-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <Link to="/tpmpk">ТПМПК</Link>
-            <span aria-hidden="true">/</span>
-            <span>{page.title}</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "ТПМПК", to: "/tpmpk" }, { label: page.title }]} />
 
           <section className="ti-hero">
             <span className="ti-eyebrow">{page.eyebrow}</span>
