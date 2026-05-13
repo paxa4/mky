@@ -1,21 +1,34 @@
 # Frontend MKY / EduIrk
 
-React + Vite frontend for the municipal education portal.
+Frontend портала MKY / EduIrk написан на React и Vite. Он отвечает за публичные страницы сайта, административные интерфейсы, редактор статей, генератор грамот, конструктор шаблонов, MegaMenu, footer, версию для слабовидящих и демонстрационный чат-бот.
 
-## Features
+## Возможности
 
-- Public pages, news, events, TPMPK, Dom Uchitelya, methodical sections, NОКО, contests, archive, and profile.
-- Role-aware admin navigation for articles, certificates, templates, Dom Uchitelya, and TPMPK.
-- Accessibility mode with larger fonts, contrast schemes, spacing, underlined links, and stronger focus states.
-- Lightweight demo chatbot UI.
+- Главная страница и публичные разделы портала.
+- Новости, мероприятия, архив, ТПМПК, НОКО, Дом учителя, методическое пространство, конкурсы и олимпиады.
+- Авторизация и профиль пользователя.
+- Ролевые административные страницы для администратора, методиста, редактора Дома учителя и оператора ТПМПК.
+- Редактор статей и новостей.
+- Генератор грамот и конструктор шаблонов.
+- Единый MegaMenu и footer.
+- Версия для слабовидящих: крупный шрифт, контрастные схемы, увеличенный интервал, подчёркнутые ссылки и усиленные focus-состояния.
+- Лёгкий демонстрационный чат-бот без backend RAG-запросов.
 
-## Demo Chatbot
+## Демо чат-бот
 
-The chatbot is frontend-only in this branch. It opens as a floating widget, keeps local message history while the page is open, shows quick prompts, and returns static navigation hints.
+Чат-бот в этой ветке работает только на стороне frontend. Он открывается как плавающий виджет, показывает приветствие, хранит историю сообщений в рамках открытой страницы, предлагает быстрые подсказки и отвечает статическими навигационными сообщениями.
 
-It does not call `/assistant`, `/api/assistant`, `/rag`, `/api/rag`, `/search/rag`, Chroma, vector, or GigaChat endpoints. Backend RAG/assistant is not used in this protected project version.
+Примеры быстрых подсказок:
 
-## Local Run
+- «Как записаться на ТПМПК?»
+- «Где найти новости?»
+- «Где находится методическое пространство?»
+- «Как найти сведения об организации?»
+- «Где посмотреть конкурсы и олимпиады?»
+
+Чат-бот не отправляет запросы на `/assistant`, `/api/assistant`, `/rag`, `/api/rag`, `/search/rag`, Chroma, vector или GigaChat endpoints. Backend RAG/assistant в защищаемой версии проекта не используется.
+
+## Локальный запуск
 
 ```bash
 cd frontend
@@ -23,15 +36,15 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+После запуска frontend доступен на [http://localhost:5173](http://localhost:5173).
 
-Set `VITE_API_URL` only if backend runs on a non-default address:
+Если backend работает не на стандартном адресе, задайте переменную окружения:
 
 ```bash
 VITE_API_URL=http://localhost:8000
 ```
 
-## Build And Checks
+## Сборка и проверки
 
 ```bash
 npm run build
@@ -39,4 +52,31 @@ npx eslint src
 node scripts/auth.test.mjs
 ```
 
-There is no separate type-check script in the current `package.json`.
+В текущем `package.json` нет отдельного скрипта type-check.
+
+## Docker
+
+Из корня проекта можно запустить frontend вместе с backend и PostgreSQL:
+
+```bash
+docker compose config
+docker compose up --build
+```
+
+После запуска frontend будет доступен на [http://localhost:5173](http://localhost:5173).
+
+## Связь с backend
+
+Frontend использует backend API для авторизации, статей, новостей, мероприятий, ТПМПК, шаблонов, грамот и административных модулей. Адрес backend задаётся через `VITE_API_URL`.
+
+Интеграция с backend RAG/assistant удалена: демонстрационный чат-бот не делает сетевых запросов к интеллектуальному поиску или ассистенту.
+
+## Проверка перед публикацией
+
+```bash
+npm run build
+npx eslint src
+rg -n "/assistant|/api/assistant|/rag|/api/rag|/search/rag|gigachat|chroma|vector" src
+```
+
+В результатах поиска не должно быть реальных fetch/API-вызовов к удалённому assistant/RAG backend. Допустимы только честные поясняющие тексты о demo-режиме.
