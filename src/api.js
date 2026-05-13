@@ -55,26 +55,3 @@ export async function apiMe() {
 export function isLoggedIn() {
   return Boolean(getToken());
 }
-
-// ── assistant ────────────────────────────────────────────────────────────────
-
-export async function apiAsk(question, sessionId = "default") {
-  const res = await fetch(`${BASE_URL}/assistant/ask`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-    },
-    body: JSON.stringify({ question, session_id: sessionId }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Ошибка запроса к ассистенту");
-  return data; // { answer, rewritten_question, sources }
-}
-
-export async function apiClearChat(sessionId = "default") {
-  await fetch(`${BASE_URL}/assistant/clear/${sessionId}`, {
-    method: "POST",
-    headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
-  });
-}

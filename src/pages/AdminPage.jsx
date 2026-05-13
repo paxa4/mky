@@ -93,7 +93,7 @@ export default function AdminPage({
     { key: "issue", path: "/admin/certificates", label: "Выпуск грамот" },
     { key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" },
     { key: "articles", path: "/admin/articles", label: "Статьи" },
-    { key: "chat", path: "/admin/chat", label: "Настройки чата" },
+    { key: "chat", path: "/admin/chat", label: "Демо чат-бота" },
   ];
   const moduleOrder = ["articles", "issue", "editor", "chat"];
   const orderedAdminModules = [...adminModules].sort(

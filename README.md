@@ -1,58 +1,42 @@
-# Проект MKY - EduIrk
+# Frontend MKY / EduIrk
 
-Единая информационная система для образовательных организаций г. Иркутска.
+React + Vite frontend for the municipal education portal.
 
----
+## Features
 
-## 🚀 Быстрый запуск (Через Docker)
-Самый простой способ запустить весь проект одной командой.
+- Public pages, news, events, TPMPK, Dom Uchitelya, methodical sections, NОКО, contests, archive, and profile.
+- Role-aware admin navigation for articles, certificates, templates, Dom Uchitelya, and TPMPK.
+- Accessibility mode with larger fonts, contrast schemes, spacing, underlined links, and stronger focus states.
+- Lightweight demo chatbot UI.
 
-**Требования:** Установленный Docker Desktop.
+## Demo Chatbot
 
-### Стандартный запуск
-1. Откройте терминал в корневой папке проекта.
-2. Выполните команду:
-   ```bash
-   docker compose up -d --build
-   ```
+The chatbot is frontend-only in this branch. It opens as a floating widget, keeps local message history while the page is open, shows quick prompts, and returns static navigation hints.
 
-### ⚡ Запуск БЕЗ RAG (Ускоренный)
-Если вам не нужен ИИ-помощник и вы хотите запустить проект быстрее:
-1. Откройте `docker-compose.yml`.
-2. В разделе `backend` -> `environment` установите `ENABLE_RAG: "false"`.
-3. Запустите:
-   ```bash
-   docker compose up -d --build
-   ```
-*Это пропустит загрузку тяжелых ML-библиотек и моделей.*
+It does not call `/assistant`, `/api/assistant`, `/rag`, `/api/rag`, `/search/rag`, Chroma, vector, or GigaChat endpoints. Backend RAG/assistant is not used in this protected project version.
 
----
+## Local Run
 
-## 💻 Локальный запуск (Без Docker)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### 🐍 Backend (FastAPI)
-1. Перейдите в папку: `cd backend`
-2. Создайте и активируйте окружение:
-   ```bash
-   python -m venv venv
-   # Windows: venv\Scripts\activate
-   # Linux/macOS: source venv/bin/activate
-   ```
-3. Установите зависимости: `pip install -r requirements.txt`
-4. **Запуск без RAG (Рекомендуется для скорости):**
-   - **Windows:** `set ENABLE_RAG=false && uvicorn main:app --reload`
-   - **Linux/macOS:** `ENABLE_RAG=false uvicorn main:app --reload`
+Open [http://localhost:5173](http://localhost:5173).
 
-### ⚛️ Frontend (React/Vite)
-1. Перейдите в папку: `cd frontend`
-2. Установите зависимости: `npm install`
-3. Запустите: `npm run dev`
+Set `VITE_API_URL` only if backend runs on a non-default address:
 
----
+```bash
+VITE_API_URL=http://localhost:8000
+```
 
-## 🛠 Краткая справка
-- **Frontend:** [http://localhost:5173](http://localhost:5173)
-- **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Отключение RAG** значительно ускоряет установку зависимостей и время старта бэкенда.
+## Build And Checks
 
-© 2026 MKY Team
+```bash
+npm run build
+npx eslint src
+node scripts/auth.test.mjs
+```
+
+There is no separate type-check script in the current `package.json`.
