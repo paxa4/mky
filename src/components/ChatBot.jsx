@@ -5,8 +5,7 @@ import { linkifyText } from "../utils/chatLinks.jsx";
 const INITIAL_MESSAGE = {
   id: 1,
   from: "bot",
-  text:
-    "Здравствуйте! Это демонстрационный чат-бот портала. Я помогу быстро найти основные разделы сайта. Backend RAG/assistant в этой версии не подключён.",
+  text: "Здравствуйте! Я помогу быстро найти нужный раздел портала.",
 };
 
 function Message({ msg }) {
@@ -249,14 +248,14 @@ export default function ChatBot() {
       `}</style>
 
       {open && (
-        <section className="chat-window" aria-label="Демонстрационный чат-бот">
+        <section className="chat-window" aria-label="Помощник по сайту">
           <div className="chat-header">
             <div className="chat-icon" aria-hidden="true">?</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="chat-header-title">Демо чат-бот</div>
-              <div className="chat-header-note">Frontend-only режим, без RAG-запросов</div>
+              <div className="chat-header-title">Помощник портала</div>
+              <div className="chat-header-note">Навигация по разделам сайта</div>
             </div>
-            <button className="chat-clear" type="button" onClick={clearHistory} title="Очистить историю">↺</button>
+            <button className="chat-clear" type="button" onClick={clearHistory} title="Очистить историю">↻</button>
             <button className="chat-close" type="button" onClick={() => setOpen(false)} title="Закрыть">×</button>
           </div>
 
@@ -290,7 +289,7 @@ export default function ChatBot() {
         </section>
       )}
 
-      <button className="chat-fab" type="button" onClick={() => setOpen((value) => !value)} title="Открыть демо чат-бот">
+      <button className="chat-fab" type="button" onClick={() => setOpen((value) => !value)} title="Открыть помощника">
         {open ? "×" : "?"}
       </button>
     </>

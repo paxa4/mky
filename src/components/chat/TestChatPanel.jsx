@@ -3,13 +3,14 @@ import { cardStyle } from "../certificates/shared/styles.js";
 import { DEMO_CHAT_PROMPTS, getDemoChatReply } from "../../utils/demoChat.js";
 import { linkifyText } from "../../utils/chatLinks.jsx";
 
+const INITIAL_MESSAGE = "Здравствуйте! Я помогу быстро найти нужный раздел портала.";
+
 export default function TestChatPanel() {
   const [messages, setMessages] = useState([
     {
       id: 1,
       from: "bot",
-      text:
-        "Это демонстрационный frontend-only чат. Он не обращается к backend assistant/RAG API и нужен только для показа предусмотренного интерфейса.",
+      text: INITIAL_MESSAGE,
     },
   ]);
   const [input, setInput] = useState("");
@@ -55,9 +56,9 @@ export default function TestChatPanel() {
     <div style={{ ...cardStyle, display: "flex", flexDirection: "column", minHeight: 560, maxHeight: "80vh" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: "#0f172a" }}>Демо чат-бота</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: "#0f172a" }}>Помощник портала</h2>
           <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 13, lineHeight: 1.55 }}>
-            Без сетевых запросов и без backend RAG. Ответы статические, для демонстрации сценария навигации.
+            Проверьте быстрые подсказки и ответы по навигации перед публикацией изменений на сайте.
           </p>
         </div>
         <button
@@ -133,7 +134,7 @@ export default function TestChatPanel() {
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKey}
-          placeholder="Напишите вопрос... Enter - отправить, Shift+Enter - новая строка"
+          placeholder="Напишите вопрос..."
           style={{
             flex: 1,
             border: "none",

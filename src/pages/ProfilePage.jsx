@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, getRoleLabel } from "../auth.js";
+import { formatArticleDate } from "../utils/articleMeta.js";
 
 const MOCK_USER = {
   id: 1,
@@ -720,7 +721,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
                           <div className="list-icon"><Icon name="edit" /></div>
                           <div>
                             <h3>{article.title}</h3>
-                            <p>/{article.slug} · обновлено {(article.updated_at || article.updatedAt || "").slice(0, 10)}</p>
+                            <p>/{article.slug} · обновлено {formatArticleDate(article.updated_at || article.updatedAt)}</p>
                           </div>
                           <Tag tone={status.tone}>{status.label}</Tag>
                         </article>

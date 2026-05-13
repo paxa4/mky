@@ -44,6 +44,7 @@ import NpaPage from "./pages/tpmpk/NpaPage.jsx";
 import SostavPage from "./pages/tpmpk/SostavPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import { API_BASE } from "./constants/index.js";
+import { getArticleAuthorLabel } from "./utils/articleMeta.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -139,8 +140,7 @@ function simpleSlug(value) {
 }
 
 function getAuthorLabel(item) {
-  const fio = [item.lastName, item.firstName, item.middleName].filter(Boolean).join(" ");
-  return item.full_name || item.fullName || fio || item.author_name || item.author || (item.author_id ? `Автор #${item.author_id}` : "Редакция ИМЦРО");
+  return getArticleAuthorLabel(item, "Редакция ИМЦРО");
 }
 
 function getAuthorKey(item) {
@@ -210,7 +210,7 @@ function articleToNewsItem(article) {
     id: article.slug || `admin-${article.id}`,
     articleId: article.id,
     slug: article.slug,
-    date: article.updatedAt || article.createdAt || "",
+    date: article.publishedAt || article.published_at || article.updatedAt || article.createdAt || "",
     dateSortValue: article.publishedAt || article.published_at || article.updatedAt || article.createdAt || "",
     category: catName,
     categoryColor: style.categoryColor,
@@ -226,7 +226,7 @@ function articleToNewsItem(article) {
     attachments: article.attachments || [],
     author: getAuthorLabel(article),
     author_id: article.author_id || null,
-    author_name: article.author_name || article.full_name || article.fullName || "",
+    author_name: getAuthorLabel(article),
     authorKey: getAuthorKey(article),
     parentLabel: location.parentLabel,
     parentPath: location.parentPath,
@@ -251,9 +251,9 @@ function apiArticleToNewsItem(article) {
     createdAt: article.created_at,
     updatedAt: article.published_at || article.updated_at || article.created_at,
     publishedAt: article.published_at,
-    author: article.full_name || article.author_name || "",
-    author_name: article.full_name || article.author_name || "",
-    full_name: article.full_name || article.author_name || "",
+    author: getArticleAuthorLabel(article, ""),
+    author_name: getArticleAuthorLabel(article, ""),
+    full_name: article.full_name || "",
     author_id: article.author_id || null,
   });
 }

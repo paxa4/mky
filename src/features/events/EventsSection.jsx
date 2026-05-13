@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { formatArticleDate } from "../../utils/articleMeta.js";
 
 const EVENTS_PER_PAGE = 8;
 
@@ -12,6 +13,7 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
       id: news.id,
       title: news.title,
       date: news.date,
+      dateSortValue: news.dateSortValue,
       category: news.category,
       image: news.image,
       author: news.author,
@@ -136,7 +138,7 @@ export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAu
                 <div className="event-card-bottom">
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#EFF6FF", padding: "4px 10px", borderRadius: 12 }}>{event.category || "Событие"}</span>
-                    <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{event.date}</span>
+                    <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{formatArticleDate(event.dateSortValue || event.date)}</span>
                   </div>
                   <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", lineHeight: 1.35, margin: 0 }}>
                     {event.is_pinned ? "📌 " : ""}
