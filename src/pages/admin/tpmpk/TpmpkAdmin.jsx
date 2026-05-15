@@ -78,11 +78,11 @@ const emptyManual = {
   child_age: "7",
   child_registered_irkutsk: true,
   document_readiness: "full",
-  parent_phone: "+7",
+  parent_phone: "",
   is_repeat: false,
   needs_psychiatrist: false,
   date: todayIso(),
-  start_time: "09:00",
+  start_time: "",
 };
 
 function formatDate(value, compact = false) {
@@ -96,6 +96,52 @@ function formatDate(value, compact = false) {
 
 function formatTime(value) {
   return String(value || "").slice(0, 5) || "";
+}
+
+function appointmentDateTimeLabel(appointment) {
+  const dateLabel = formatDate(appointment?.date, true);
+  const timeLabel = formatTime(appointment?.start_time) || "-";
+  return `${dateLabel}, ${timeLabel}`;
+}
+
+function onlyPhoneDigits(value) {
+  return String(value || "").replace(/\D/g, "").slice(0, 11);
+}
+
+function normalizePhoneDigits(value) {
+  const digits = onlyPhoneDigits(value);
+  return digits.startsWith("8") ? `7${digits.slice(1)}` : digits;
+}
+
+function formatPhoneInput(value) {
+  const normalized = normalizePhoneDigits(value);
+  const body = normalized.startsWith("7") ? normalized.slice(1) : normalized;
+  if (!normalized) return "";
+  const area = body.slice(0, 3);
+  const first = body.slice(3, 6);
+  const second = body.slice(6, 8);
+  const third = body.slice(8, 10);
+  let result = "+7";
+  if (area) result += ` (${area}`;
+  if (area.length === 3) result += ")";
+  if (first) result += ` ${first}`;
+  if (second) result += `-${second}`;
+  if (third) result += `-${third}`;
+  return result;
+}
+
+function phoneForApi(value) {
+  const normalized = normalizePhoneDigits(value);
+  return `+${normalized}`;
+}
+
+function groupAppointmentsByDate(rows) {
+  return rows.reduce((groups, item) => {
+    const key = item.date || "unknown";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+    return groups;
+  }, {});
 }
 
 function clampSlotMinutes(value) {
@@ -216,11 +262,12 @@ function StatCard({ label, value, hint }) {
   );
 }
 
-function Field({ label, children, error }) {
+function Field({ label, children, error, hint, className = "" }) {
   return (
-    <label className={`tp-field${error ? " has-error" : ""}`}>
+    <label className={`tp-field${error ? " has-error" : ""}${className ? ` ${className}` : ""}`}>
       <span>{label}</span>
       {children}
+      {hint && !error && <small className="tp-field-hint">{hint}</small>}
       {error && <small className="tp-field-error">{error}</small>}
     </label>
   );
@@ -240,7 +287,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
     { key: "audit", label: "Журнал", hint: "История действий", icon: "book" },
   ], []);
 
-  const [activeModule, setActiveModule] = useState("template");
+  const [activeModule, setActiveModule] = useState("dashboard");
   const [selectedDate, setSelectedDate] = useState(todayIso());
   const [dashboard, setDashboard] = useState(null);
   const [dayData, setDayData] = useState(null);
@@ -255,9 +302,13 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
   const [templateErrors, setTemplateErrors] = useState({});
   const [customDayErrors, setCustomDayErrors] = useState({});
   const [manual, setManual] = useState(emptyManual);
+  const [manualSlots, setManualSlots] = useState(null);
+  const [manualSlotsLoading, setManualSlotsLoading] = useState(false);
+  const [manualErrors, setManualErrors] = useState({});
   const [transfer, setTransfer] = useState({ sourceDayId: "", target_date: todayIso(1), allow_partial: false });
   const [transferWarning, setTransferWarning] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [revealedPhones, setRevealedPhones] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -296,6 +347,28 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
     }
   }
 
+  async function loadManualSlots(dateValue = manual.date) {
+    setManualSlotsLoading(true);
+    try {
+      const data = await fetchJson(`/api/tpmpk/admin/day/?date=${dateValue}`);
+      const publicSlots = await fetchJson(`/api/tpmpk/slots/?date=${dateValue}`);
+      const freeSlots = (publicSlots || [])
+        .filter((slot) => slot.is_available)
+        .map((slot) => ({ ...slot, status: "free", appointment: null }));
+      setManualSlots({ ...data, slots: freeSlots });
+      setManual((prev) => {
+        if (prev.date !== dateValue) return prev;
+        if (prev.start_time && freeSlots.some((slot) => formatTime(slot.start_time) === formatTime(prev.start_time))) return prev;
+        return { ...prev, start_time: formatTime(freeSlots[0]?.start_time) || "" };
+      });
+    } catch (error) {
+      setManualSlots(null);
+      showToast("error", error.message || "Не удалось загрузить свободные слоты");
+    } finally {
+      setManualSlotsLoading(false);
+    }
+  }
+
   useEffect(() => {
     document.title = "ТПМПК - личный кабинет психолога";
   }, []);
@@ -314,6 +387,11 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
   }, [activeModule, customDayDate, showCustomDaySettings]);
 
   useEffect(() => {
+    if (activeModule !== "manual") return;
+    loadManualSlots(manual.date);
+  }, [activeModule, manual.date]);
+
+  useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true;
       return;
@@ -327,6 +405,36 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
     const value = new Date(`${selectedDate}T00:00:00`);
     value.setDate(value.getDate() + offset);
     setSelectedDate(toLocalDateInputValue(value));
+  }
+
+  function askConfirm(options) {
+    setConfirmDialog(options);
+  }
+
+  function closeConfirm() {
+    setConfirmDialog(null);
+  }
+
+  function confirmRevealPhone(appointment) {
+    askConfirm({
+      title: "Показать телефон?",
+      text: "Телефон родителя относится к персональным данным. Откройте его только если он нужен для работы с записью.",
+      actionLabel: "Показать телефон",
+      tone: "primary",
+      onConfirm: () => revealPhone(appointment),
+    });
+  }
+
+  function confirmStatusChange(appointment, action) {
+    askConfirm({
+      title: action === "cancel" ? "Отменить запись?" : "Отметить запись выполненной?",
+      text: action === "cancel"
+        ? "Запись будет исключена из активного расписания. Это действие попадет в журнал."
+        : "Запись получит статус «Выполнена» и больше не будет переноситься на другие дни.",
+      actionLabel: action === "cancel" ? "Да, отменить" : "Да, завершить",
+      tone: action === "cancel" ? "danger" : "primary",
+      onConfirm: () => changeStatus(appointment, action),
+    });
   }
 
   async function revealPhone(appointment) {
@@ -379,18 +487,46 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
     }
   }
 
+  function validateManual() {
+    const errors = {};
+    const name = manual.child_full_name.trim();
+    const age = Number(manual.child_age);
+    const phoneDigits = normalizePhoneDigits(manual.parent_phone);
+    const freeSlots = (manualSlots?.slots || []).filter((slot) => slot.status === "free" && !slot.appointment);
+    if (name.length < 2 || name.split(/\s+/).length < 2) errors.child_full_name = "Введите фамилию и имя ребенка.";
+    if (!Number.isInteger(age) || age < 0 || age > 18) errors.child_age = "Возраст должен быть целым числом от 0 до 18.";
+    if (!manual.date) errors.date = "Выберите дату приема.";
+    if (!manual.start_time) errors.start_time = "Выберите свободный слот из списка.";
+    if (manual.start_time && !freeSlots.some((slot) => formatTime(slot.start_time) === formatTime(manual.start_time))) {
+      errors.start_time = "Выбранный слот уже занят или недоступен. Выберите другой.";
+    }
+    if (phoneDigits.length !== 11 || !["7", "8"].includes(phoneDigits[0])) {
+      errors.parent_phone = "Введите 11 цифр. Номер должен начинаться с 7 или 8.";
+    }
+    setManualErrors(errors);
+    return errors;
+  }
+
   async function createManualAppointment(event) {
     event.preventDefault();
+    const errors = validateManual();
+    if (Object.keys(errors).length) {
+      showToast("error", "Проверьте поля ручной записи");
+      return;
+    }
     try {
       await fetchJson("/api/tpmpk/admin/manual-appointments/", {
         method: "POST",
         body: JSON.stringify({
           ...manual,
           child_age: Number(manual.child_age),
+          parent_phone: phoneForApi(manual.parent_phone),
           start_time: `${manual.start_time}:00`,
         }),
       });
       setManual({ ...emptyManual, date: manual.date });
+      setManualErrors({});
+      await loadManualSlots(manual.date);
       showToast("success", "Запись создана");
       if (activeModule === "day" || activeModule === "dashboard" || activeModule === "appointments") await loadData(activeModule);
     } catch (error) {
@@ -400,6 +536,16 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
   async function transferDay(event) {
     event.preventDefault();
+    askConfirm({
+      title: "Перенести записи?",
+      text: "Будут перенесены только активные записи. Выполненные и отмененные записи останутся на месте.",
+      actionLabel: "Перенести",
+      tone: "primary",
+      onConfirm: runTransferDay,
+    });
+  }
+
+  async function runTransferDay() {
     setTransferWarning(null);
     try {
       const data = await fetchJson(`/api/tpmpk/admin/days/${transfer.sourceDayId}/transfer/`, {
@@ -409,6 +555,16 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
       if (data.status === "not_enough_slots") {
         setTransferWarning(data);
         showToast("error", "Недостаточно свободных слотов");
+        return;
+      }
+      if (data.status === "no_appointments") {
+        showToast("error", data.message || "В выбранном дне нет записей для переноса");
+        setTransferWarning({ message: data.message || "В выбранном дне нет записей для переноса" });
+        return;
+      }
+      if (data.status === "no_free_slots") {
+        showToast("error", data.message || "На новую дату нет свободных слотов");
+        setTransferWarning({ message: data.message || "На новую дату нет свободных слотов" });
         return;
       }
       showToast("success", `Перенесено записей: ${data.moved?.length || 0}`);
@@ -462,7 +618,10 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
   const appointmentRows = (rows) => rows.map((item) => (
     <button className="tp-record-row" key={item.id} type="button" onClick={() => setSelectedAppointment(item)}>
-      <span className="tp-record-time">{formatTime(item.start_time)}</span>
+      <span className="tp-record-time">
+        <strong>{formatTime(item.start_time)}</strong>
+        <small>{formatDate(item.date, true)}</small>
+      </span>
       <span className="tp-record-main">
         <strong>{item.child_full_name}</strong>
         <small>{item.child_age} лет, {item.child_registered_irkutsk ? "Иркутск" : "не Иркутск"} · {readinessLabels[item.document_readiness] || "Документы"}</small>
@@ -552,44 +711,110 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
   }
 
   function renderManual() {
+    const freeSlots = (manualSlots?.slots || []).filter((slot) => slot.status === "free" && !slot.appointment);
+    const day = manualSlots?.day;
     return (
       <section className="tp-module narrow">
         <div className="tp-module-head">
           <div>
-            <p>Запись со звонка</p>
-            <h2>Добавить ребенка в расписание</h2>
+            <p>Ручная запись</p>
+            <h2>Запись через свободный слот</h2>
           </div>
+          <button className="tp-link-btn" type="button" onClick={() => loadManualSlots(manual.date)}>Обновить слоты</button>
+        </div>
+        <div className="tp-help-card">
+          <strong>Как заполнить</strong>
+          <span>Выберите дату, затем свободное время. Система не даст создать запись в занятый или закрытый слот.</span>
         </div>
         <form className="tp-form" onSubmit={createManualAppointment}>
-          <Field label="ФИО ребенка"><input value={manual.child_full_name} onChange={(event) => setManual({ ...manual, child_full_name: event.target.value })} required placeholder="Иванов Иван Иванович" /></Field>
-          <Field label="Возраст"><input type="number" min="0" max="18" value={manual.child_age} onChange={(event) => setManual({ ...manual, child_age: event.target.value })} required /></Field>
-          <Field label="Ребенок прописан в Иркутске?">
+          <Field label="ФИО ребенка" error={manualErrors.child_full_name} hint="Укажите фамилию, имя и при наличии отчество.">
+            <input value={manual.child_full_name} onChange={(event) => { setManualErrors((prev) => ({ ...prev, child_full_name: "" })); setManual({ ...manual, child_full_name: event.target.value }); }} required placeholder="Иванов Иван Иванович" />
+          </Field>
+          <Field label="Возраст" error={manualErrors.child_age} hint="Возраст ребенка на момент обращения.">
+            <input type="number" min="0" max="18" value={manual.child_age} onChange={(event) => { setManualErrors((prev) => ({ ...prev, child_age: "" })); setManual({ ...manual, child_age: event.target.value }); }} required />
+          </Field>
+          <Field label="Ребенок прописан в Иркутске?" hint="Это влияет на порядок приема документов.">
             <select value={manual.child_registered_irkutsk ? "true" : "false"} onChange={(event) => setManual({ ...manual, child_registered_irkutsk: event.target.value === "true" })}>
               <option value="true">Да</option>
               <option value="false">Нет</option>
             </select>
           </Field>
-          <Field label="Готовность документов">
+          <Field label="Готовность документов" hint="Выберите состояние по словам родителя или законного представителя.">
             <select value={manual.document_readiness} onChange={(event) => setManual({ ...manual, document_readiness: event.target.value })}>
               <option value="full">Полная готовность</option>
               <option value="not_ready">Документы не готовы</option>
               <option value="psychiatrist_consultation">Нужна консультация врача-психиатра</option>
             </select>
           </Field>
-          <Field label="Телефон родителя"><input value={manual.parent_phone} onChange={(event) => setManual({ ...manual, parent_phone: event.target.value })} required placeholder="+73952..." /></Field>
-          <Field label="Дата"><input type="date" value={manual.date} onChange={(event) => setManual({ ...manual, date: event.target.value })} required /></Field>
-          <Field label="Время"><input type="time" value={manual.start_time} onChange={(event) => setManual({ ...manual, start_time: event.target.value })} required /></Field>
-          <div className="tp-checks">
-            <label><input type="checkbox" checked={manual.is_repeat} onChange={(event) => setManual({ ...manual, is_repeat: event.target.checked })} /> Повторное обращение</label>
-            <label><input type="checkbox" checked={manual.needs_psychiatrist} onChange={(event) => setManual({ ...manual, needs_psychiatrist: event.target.checked })} /> Нужна консультация психиатра</label>
+          <Field label="Телефон родителя" error={manualErrors.parent_phone}>
+            <input
+              value={formatPhoneInput(manual.parent_phone)}
+              inputMode="tel"
+              maxLength={18}
+              onChange={(event) => {
+                setManualErrors((prev) => ({ ...prev, parent_phone: "" }));
+                setManual({ ...manual, parent_phone: normalizePhoneDigits(event.target.value) });
+              }}
+              required
+              placeholder="+7 (___) ___-__-__"
+            />
+          </Field>
+          <Field label="Дата приема" error={manualErrors.date} hint="После выбора даты ниже появятся доступные слоты.">
+            <input type="date" value={manual.date} onChange={(event) => { setManualErrors((prev) => ({ ...prev, date: "", start_time: "" })); setManual({ ...manual, date: event.target.value, start_time: "" }); }} required />
+          </Field>
+          <div className={`tp-slot-picker${manualErrors.start_time ? " has-error" : ""}`}>
+            <div className="tp-slot-picker-head">
+              <strong>Свободные слоты</strong>
+              <span>{manualSlotsLoading ? "Загружаем..." : day?.is_open ? `День открыт, ${freeSlots.length} свободно` : "День закрыт или расписание не создано"}</span>
+            </div>
+            {day?.is_open && (
+              <div className="tp-manual-slots" role="radiogroup" aria-label="Выберите свободное время приема">
+                {freeSlots.map((slot) => {
+                  const timeValue = formatTime(slot.start_time);
+                  return (
+                    <button
+                      className={`tp-manual-slot${manual.start_time === timeValue ? " active" : ""}`}
+                      type="button"
+                      key={`${slot.working_day_id}-${slot.start_time}`}
+                      onClick={() => {
+                        setManualErrors((prev) => ({ ...prev, start_time: "" }));
+                        setManual({ ...manual, start_time: timeValue });
+                      }}
+                      aria-pressed={manual.start_time === timeValue}
+                    >
+                      {timeValue}
+                    </button>
+                  );
+                })}
+                {!manualSlotsLoading && !freeSlots.length && <div className="tp-empty full">На выбранную дату свободных слотов нет. Выберите другой день.</div>}
+              </div>
+            )}
+            {!day?.is_open && !manualSlotsLoading && <div className="tp-empty full">День закрыт для записи. Выберите другую дату или настройте день в расписании.</div>}
+            {manualErrors.start_time && <small className="tp-field-error">{manualErrors.start_time}</small>}
           </div>
-          <button className="tp-primary" type="submit">Создать запись</button>
+          <div className="tp-checks">
+            <label className="tp-check-card">
+              <input type="checkbox" checked={manual.is_repeat} onChange={(event) => setManual({ ...manual, is_repeat: event.target.checked })} />
+              <span><strong>Повторное обращение</strong><small>Отметьте, если семья уже обращалась в ТПМПК.</small></span>
+            </label>
+            <label className="tp-check-card">
+              <input type="checkbox" checked={manual.needs_psychiatrist} onChange={(event) => setManual({ ...manual, needs_psychiatrist: event.target.checked })} />
+              <span><strong>Нужна консультация психиатра</strong><small>Используйте, если заявитель сообщил о необходимости консультации.</small></span>
+            </label>
+          </div>
+          <button className="tp-primary" type="submit" disabled={manualSlotsLoading}>Создать запись на {manual.start_time || "выбранный слот"}</button>
         </form>
       </section>
     );
   }
 
   function renderAppointments() {
+    const grouped = groupAppointmentsByDate(appointments);
+    const dateKeys = Object.keys(grouped).sort((left, right) => {
+      if (left === "unknown") return 1;
+      if (right === "unknown") return -1;
+      return new Date(`${left}T00:00:00`) - new Date(`${right}T00:00:00`);
+    });
     return (
       <section className="tp-module">
         <div className="tp-module-head">
@@ -598,8 +823,20 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
             <h2>Общий список заявок</h2>
           </div>
         </div>
-        <div className="tp-record-list">
-          {appointments.length ? appointmentRows(appointments) : <div className="tp-empty">Записей пока нет.</div>}
+        <div className="tp-day-groups">
+          {dateKeys.length ? dateKeys.map((dateKey) => (
+            <section className="tp-day-group" key={dateKey}>
+              <div className="tp-day-group-head">
+                <div>
+                  <strong>{dateKey === "unknown" ? "Дата не указана" : formatDate(dateKey)}</strong>
+                  <span>{grouped[dateKey].length} записей</span>
+                </div>
+              </div>
+              <div className="tp-record-list">
+                {appointmentRows(grouped[dateKey])}
+              </div>
+            </section>
+          )) : <div className="tp-empty">Записей пока нет.</div>}
         </div>
       </section>
     );
@@ -747,6 +984,11 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
             <h2>Перенести записи на другой день</h2>
           </div>
         </div>
+        <div className="tp-help-card">
+          <strong>Правила переноса</strong>
+          <span>Переносятся только активные записи. Выполненные и отмененные записи остаются в исходном дне.</span>
+          <span>Если записей для переноса нет, действие не выполняется и журнал не пополняется ложной записью.</span>
+        </div>
         <form className="tp-form" onSubmit={transferDay}>
           <Field label="Исходный день">
             <select value={transfer.sourceDayId} onChange={(event) => setTransfer({ ...transfer, sourceDayId: event.target.value })}>
@@ -763,8 +1005,12 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
               </span>
             </label>
           </div>
-          {transferWarning && <div className="tp-warning">Не хватает свободных слотов: записей {transferWarning.appointments ?? transferWarning.required_slots}, свободно {transferWarning.free_slots ?? transferWarning.available_slots}. Можно перенести {transferWarning.can_move ?? 0}.</div>}
-          <button className="tp-primary" type="submit">Перенести записи</button>
+          {transferWarning && (
+            <div className="tp-warning">
+              {transferWarning.message || `Не хватает свободных слотов: записей ${transferWarning.appointments ?? transferWarning.required_slots}, свободно ${transferWarning.free_slots ?? transferWarning.available_slots}. Можно перенести ${transferWarning.can_move ?? 0}.`}
+            </div>
+          )}
+          <button className="tp-primary" type="submit" disabled={!transfer.sourceDayId}>Перенести записи</button>
         </form>
       </section>
     );
@@ -1168,6 +1414,13 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           box-shadow: 0 14px 28px rgba(29, 78, 216, .18);
         }
 
+        .tp-primary:disabled {
+          opacity: .58;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+
         .tp-link-btn:hover,
         .tp-primary:hover {
           transform: translateY(-2px);
@@ -1224,6 +1477,25 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           padding: 22px;
         }
 
+        .tp-help-card {
+          margin-bottom: 14px;
+          padding: 14px 16px;
+          border: 1px solid #bfdbfe;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #eff6ff, #f8fafc);
+          color: #334155;
+          display: grid;
+          gap: 6px;
+          font-size: 13px;
+          line-height: 1.45;
+          font-weight: 760;
+        }
+
+        .tp-help-card strong {
+          color: #1d4ed8;
+          font-size: 14px;
+        }
+
         .tp-panel-head {
           display: flex;
           justify-content: space-between;
@@ -1244,6 +1516,44 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         .tp-record-list {
           display: grid;
           gap: 10px;
+        }
+
+        .tp-day-groups {
+          display: grid;
+          gap: 18px;
+        }
+
+        .tp-day-group {
+          border: 1px solid #dbeafe;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, .94);
+          box-shadow: 0 18px 44px rgba(15, 23, 42, .06);
+          overflow: hidden;
+        }
+
+        .tp-day-group-head {
+          padding: 16px 18px;
+          border-bottom: 1px solid #e2e8f0;
+          background: linear-gradient(135deg, #eff6ff, #f8fafc);
+        }
+
+        .tp-day-group-head strong {
+          display: block;
+          color: #0f172a;
+          font-size: 20px;
+          line-height: 1.2;
+        }
+
+        .tp-day-group-head span {
+          display: block;
+          margin-top: 4px;
+          color: #1d4ed8;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .tp-day-group .tp-record-list {
+          padding: 14px;
         }
 
         .tp-record-row {
@@ -1278,6 +1588,23 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           color: #1d4ed8;
           font-size: 20px;
           font-weight: 950;
+        }
+
+        .tp-record-time {
+          display: grid;
+          gap: 4px;
+          line-height: 1.05;
+        }
+
+        .tp-record-time strong {
+          color: #1d4ed8;
+          font-size: 20px;
+        }
+
+        .tp-record-time small {
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 850;
         }
 
         .tp-record-main {
@@ -1529,6 +1856,77 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           line-height: 1.35;
         }
 
+        .tp-field-hint {
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 760;
+          line-height: 1.35;
+        }
+
+        .tp-slot-picker {
+          grid-column: 1 / -1;
+          display: grid;
+          gap: 10px;
+          padding: 16px;
+          border: 1px solid #dbeafe;
+          border-radius: 8px;
+          background: #f8fbff;
+        }
+
+        .tp-slot-picker.has-error {
+          border-color: #fecaca;
+          background: #fff7f7;
+        }
+
+        .tp-slot-picker-head {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .tp-slot-picker-head strong {
+          color: #0f172a;
+          font-size: 16px;
+        }
+
+        .tp-slot-picker-head span {
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        .tp-manual-slots {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+          gap: 8px;
+        }
+
+        .tp-manual-slot {
+          min-height: 42px;
+          border: 1px solid #bfdbfe;
+          border-radius: 8px;
+          background: #fff;
+          color: #1d4ed8;
+          font-family: inherit;
+          font-weight: 950;
+          cursor: pointer;
+          transition: transform .16s ease, box-shadow .16s ease, background .16s ease, color .16s ease, border-color .16s ease;
+        }
+
+        .tp-manual-slot:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 10px 20px rgba(29, 78, 216, .10);
+        }
+
+        .tp-manual-slot.active {
+          background: linear-gradient(135deg, #1d4ed8, #0f766e);
+          color: #fff;
+          border-color: transparent;
+          box-shadow: 0 12px 24px rgba(29, 78, 216, .18);
+        }
+
         .tp-checks {
           grid-column: 1 / -1;
           display: grid;
@@ -1758,6 +2156,50 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           background: #fff;
           box-shadow: 0 30px 90px rgba(15, 23, 42, .28);
           overflow: hidden;
+        }
+
+        .tp-confirm {
+          width: min(440px, 100%);
+          border-radius: 8px;
+          background: #fff;
+          padding: 24px;
+          box-shadow: 0 30px 90px rgba(15, 23, 42, .28);
+          display: grid;
+          gap: 12px;
+        }
+
+        .tp-confirm-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          background: #fff7ed;
+          color: #c2410c;
+          font-weight: 950;
+          font-size: 20px;
+        }
+
+        .tp-confirm h3 {
+          margin: 0;
+          color: #0f172a;
+          font-size: 22px;
+          line-height: 1.15;
+        }
+
+        .tp-confirm p {
+          margin: 0;
+          color: #475569;
+          line-height: 1.55;
+          font-weight: 720;
+        }
+
+        .tp-confirm-actions {
+          margin-top: 4px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
         }
 
         .tp-modal-head,
@@ -2048,6 +2490,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
             </div>
             <div className="tp-modal-body">
               <div className="tp-detail"><span>Ребенок</span><strong>{selectedAppointment.child_full_name}</strong></div>
+              <div className="tp-detail"><span>Дата и время приема</span><strong>{appointmentDateTimeLabel(selectedAppointment)}</strong></div>
               <div className="tp-detail"><span>Возраст</span><strong>{selectedAppointment.child_age} лет</strong></div>
               <div className="tp-detail"><span>Телефон</span><strong>{revealedPhones[selectedAppointment.id] || "Скрыт"}</strong></div>
               <div className="tp-detail"><span>Статус</span><strong>{statusLabels[selectedAppointment.status]}</strong></div>
@@ -2056,17 +2499,41 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
             </div>
             <div className="tp-modal-actions">
               {!revealedPhones[selectedAppointment.id] && (
-                <button className="tp-secondary" type="button" onClick={() => revealPhone(selectedAppointment)}>
+                <button className="tp-secondary" type="button" onClick={() => confirmRevealPhone(selectedAppointment)}>
                   <Icon name="eye" />
                   Показать телефон
                 </button>
               )}
               {selectedAppointment.status !== "done" && selectedAppointment.status !== "cancelled" && (
                 <>
-                  <button className="tp-secondary" type="button" onClick={() => changeStatus(selectedAppointment, "done")}>Завершить</button>
-                  <button className="tp-danger" type="button" onClick={() => changeStatus(selectedAppointment, "cancel")}>Отменить</button>
+                  <button className="tp-secondary" type="button" onClick={() => confirmStatusChange(selectedAppointment, "done")}>Завершить</button>
+                  <button className="tp-danger" type="button" onClick={() => confirmStatusChange(selectedAppointment, "cancel")}>Отменить</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="tp-modal-backdrop" onClick={closeConfirm}>
+          <div className="tp-confirm" role="dialog" aria-modal="true" aria-labelledby="tp-confirm-title" onClick={(event) => event.stopPropagation()}>
+            <div className="tp-confirm-icon">!</div>
+            <h3 id="tp-confirm-title">{confirmDialog.title}</h3>
+            <p>{confirmDialog.text}</p>
+            <div className="tp-confirm-actions">
+              <button className="tp-secondary" type="button" onClick={closeConfirm}>Отмена</button>
+              <button
+                className={confirmDialog.tone === "danger" ? "tp-danger" : "tp-primary small"}
+                type="button"
+                onClick={async () => {
+                  const action = confirmDialog.onConfirm;
+                  closeConfirm();
+                  await action?.();
+                }}
+              >
+                {confirmDialog.actionLabel || "Подтвердить"}
+              </button>
             </div>
           </div>
         </div>

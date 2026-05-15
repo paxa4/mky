@@ -184,8 +184,6 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
   return (
     <div className="profile-page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-
         .profile-page {
           --blue-950: #0B1F49;
           --blue-900: #123C7C;
@@ -202,7 +200,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           --line: rgba(148, 163, 184, 0.22);
           min-height: 100vh;
           color: var(--slate-900);
-          font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           background:
             radial-gradient(circle at 11% 7%, rgba(37, 99, 235, 0.13), transparent 28rem),
             radial-gradient(circle at 91% 4%, rgba(124, 58, 237, 0.13), transparent 26rem),

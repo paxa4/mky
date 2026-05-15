@@ -59,13 +59,29 @@ export function BlockPreview({ block }) {
           </div>
         </div>
       );
-    case "list":
+    case "list": {
       const Tag = block.data.ordered ? "ol" : "ul";
       return (
-        <Tag style={{ paddingLeft: 24, margin: "16px 0", color: "#334155", fontSize: 15, lineHeight: 1.8, textAlign: block.data.align || "left" }}>
-          {(block.data.items || []).map((item, i) => <li key={i}>{item}</li>)}
-        </Tag>
+        <section style={{ margin: "16px 0", textAlign: block.data.align || "left" }}>
+          {block.data.title && (
+            <div
+              style={{
+                margin: "0 0 8px",
+                color: "#334155",
+                fontSize: 15,
+                fontWeight: block.data.title_bold ? 700 : 400,
+                lineHeight: 1.8,
+              }}
+            >
+              {block.data.title}
+            </div>
+          )}
+          <Tag style={{ paddingLeft: 24, margin: 0, color: "#334155", fontSize: 15, lineHeight: 1.8 }}>
+            {(block.data.items || []).map((item, i) => <li key={i}>{item}</li>)}
+          </Tag>
+        </section>
       );
+    }
     case "divider":
       return <hr style={{ border: "none", borderTop: "2px solid #E2E8F0", margin: "32px 0" }} />;
     default:
@@ -179,10 +195,15 @@ export function BlockEditor({ block, onChange }) {
           <Field label="Текст справа" value={block.data.text} onChange={v => update("text", v)} multiline placeholder="Текст рядом с изображением..." />
         </>
       );
-    case "list":
+    case "list": {
       const items = block.data.items || [""];
       return (
         <>
+          <Field label="Заголовок списка" value={block.data.title} onChange={v => update("title", v)} placeholder="Необязательный заголовок" />
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13, fontWeight: 700, color: "#334155" }}>
+            <input type="checkbox" checked={Boolean(block.data.title_bold)} onChange={e => update("title_bold", e.target.checked)} />
+            <span>Жирный заголовок списка</span>
+          </label>
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Тип списка</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -211,6 +232,7 @@ export function BlockEditor({ block, onChange }) {
           </button>
         </>
       );
+    }
     case "divider":
       return <p style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>Горизонтальный разделитель — нет настроек</p>;
     default:
@@ -236,7 +258,7 @@ const DEFAULT_DATA = {
   quote:     { text: "", author: "" },
   image:     { url: "", caption: "" },
   imagetext: { url: "", heading: "", text: "" },
-  list:      { ordered: false, items: [""] },
+  list:      { title: "", title_bold: true, ordered: false, items: [""] },
   divider:   {},
 };
 

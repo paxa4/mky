@@ -44,7 +44,7 @@ import NpaPage from "./pages/tpmpk/NpaPage.jsx";
 import SostavPage from "./pages/tpmpk/SostavPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import { API_BASE } from "./constants/index.js";
-import { INITIAL_ARTICLES } from "./features/admin/adminStore.js";
+import { apiMe, authFetch, AUTH_SESSION_EXPIRED_EVENT } from "./api.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -55,8 +55,7 @@ import {
   resolveArticleLocation,
   resolveArticleSectionLabel,
 } from "./features/admin/articleTaxonomy.js";
-import { NEWS } from "./features/news/newsData.js";
-import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, clearStoredUser, getStoredUser, storeUser } from "./auth.js";
+import { AUTH_TOKEN_STORAGE_KEYS, canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, clearStoredUser, getStoredUser, storeUser } from "./auth.js";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -86,7 +85,6 @@ const CATEGORY_STYLE = {
   "События": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
 };
 
-CATEGORY_STYLE["Новости"] = CATEGORY_STYLE["РќРѕРІРѕСЃС‚Рё"] || { categoryColor: "#D97706", categoryBg: "#FFFBEB" };
 CATEGORY_STYLE["Дом учителя"] = { categoryColor: "#047857", categoryBg: "#ECFDF5" };
 CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#1D4ED8", categoryBg: "#EFF6FF" };
 CATEGORY_STYLE["НОКО"] = { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" };
@@ -110,8 +108,6 @@ const FALLBACK_IMAGES = [
   "/images/news4.jpg",
 ];
 const ARTICLES_STORAGE_KEY = "mky_articles";
-const COMMON_NEWS_SCOPES = new Set(["imcro_only", "both"]);
-const DOMU_NEWS_SCOPES = new Set(["dom_uchitelya_only", "both"]);
 
 function simpleSlug(value) {
   return String(value || "")
@@ -131,36 +127,36 @@ function getAuthorKey(item) {
   return `name-${simpleSlug(getAuthorLabel(item) || "author")}`;
 }
 
-function isHomeArticle(article) {
-  return !article.methodika_subject && !article.dom_uchitelya_section && !article.noko_section && !article.hub_kind;
-}
-
-function isInMainFeed(article) {
-  return Boolean(article.duplicate_to_main) || isHomeArticle(article);
-}
-
-function isInEventsFeed(article) {
-  return Boolean(article.duplicate_to_events);
-}
-
 function stripMkyPrefix(path) {
   return typeof path === "string" ? path.replace(new RegExp("^/" + "mky" + "(?=/)"), "") : path;
 }
 
+function hasStoredArticleApiToken() {
+  if (typeof window === "undefined") return false;
+  return AUTH_TOKEN_STORAGE_KEYS.some((key) => Boolean(window.localStorage.getItem(key)));
+}
+
 function getStoredArticles() {
+  if (typeof window === "undefined" || hasStoredArticleApiToken()) return [];
   try {
     const raw = window.localStorage.getItem(ARTICLES_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : INITIAL_ARTICLES;
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return INITIAL_ARTICLES;
+    return [];
   }
 }
 
 function persistArticles(articles) {
+  if (typeof window === "undefined") return;
   try {
+    if (hasStoredArticleApiToken()) {
+      window.localStorage.removeItem(ARTICLES_STORAGE_KEY);
+      return;
+    }
     window.localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(articles));
   } catch {
-    // Local demo storage can fail in private mode; the current session still keeps state.
+    // Local storage can fail in private mode; the current session still keeps state.
   }
 }
 
@@ -179,22 +175,37 @@ function sortNewsByDateDesc(items) {
 }
 
 function isVisiblePublishedArticle(article) {
-  if (article.status !== "published") return false;
+  if (!article || article.status !== "published") return false;
   const rawDate = article.published_at || article.publishedAt;
   if (!rawDate) return true;
-  const date = Date.parse(rawDate);
-  return Number.isNaN(date) || date <= Date.now();
+  const parsed = Date.parse(rawDate);
+  return Number.isNaN(parsed) || parsed <= Date.now();
 }
 
-function normalizeMojibake(value) {
-  return String(value || "")
-    .replaceAll("РњРµСЂРѕРїСЂРёСЏС‚РёСЏ", "Мероприятия")
-    .replaceAll("РљСѓСЂСЃС‹", "Курсы")
-    .replaceAll("Р”РѕСЃС‚РёР¶РµРЅРёСЏ", "Достижения")
-    .replaceAll("РќРѕРІРѕСЃС‚Рё", "Новости")
-    .replaceAll("РџСЂРѕРµРєС‚С‹", "Проекты")
-    .replaceAll("РЎРµРјРёРЅР°СЂС‹", "Семинары")
-    .replaceAll("РЎРѕР±С‹С‚РёСЏ", "События");
+function isHomePlacement(article) {
+  return !article.methodika_subject && !article.dom_uchitelya_section && !article.noko_section && !article.hub_kind;
+}
+
+function isInMainFeed(article) {
+  return Boolean(article.duplicate_to_main) || isHomePlacement(article);
+}
+
+function isCommonScope(article) {
+  return ["imcro_only", "both"].includes(article.publishing_scope || "imcro_only");
+}
+
+function isDomuScope(article) {
+  return ["dom_uchitelya_only", "both"].includes(article.publishing_scope || "imcro_only") || Boolean(article.dom_uchitelya_section);
+}
+
+function mergeNewsItems(...groups) {
+  const map = new Map();
+  groups.flat().forEach((item) => {
+    if (!item) return;
+    const key = item.articleId ? `article-${item.articleId}` : String(item.slug || item.id);
+    if (!map.has(key)) map.set(key, item);
+  });
+  return sortNewsByDateDesc([...map.values()]);
 }
 
 function articleToNewsItem(article) {
@@ -260,30 +271,22 @@ function apiArticleToNewsItem(article) {
   });
 }
 
-function staticNewsToItem(news) {
-  const category = normalizeMojibake(news.category);
-  const style = CATEGORY_STYLE[category] || {};
+function apiArticleToLocalArticle(article) {
   return {
-    ...news,
-    id: `static-${news.id}`,
-    articleId: news.id,
-    category,
-    categoryColor: style.categoryColor || news.categoryColor,
-    categoryBg: style.categoryBg || news.categoryBg,
-    image: stripMkyPrefix(news.image),
-    dateSortValue: news.dateSortValue || `2025-11-${String(30 - Number(news.id || 0)).padStart(2, "0")}`,
-    blocks: [],
-    author: "Редакция ИМЦРО",
-    authorKey: "name-redakciya-imcro",
-    publishing_scope: news.publishing_scope || "imcro_only",
-    duplicate_to_main: true,
-    duplicate_to_events: false,
-    methodika_subject: news.methodika_subject || "",
-    dom_uchitelya_section: news.dom_uchitelya_section || "",
-    noko_section: news.noko_section || "",
-    hub_kind: news.hub_kind || "",
-    hub_path: news.hub_path || "",
-    _isAdmin: false,
+    ...article,
+    createdAt: article.createdAt || article.created_at || "",
+    updatedAt: article.updatedAt || article.published_at || article.updated_at || article.created_at || "",
+    publishedAt: article.publishedAt || article.published_at || "",
+    author: article.full_name || article.author_name || article.author || "",
+    author_name: article.full_name || article.author_name || article.author || "",
+    full_name: article.full_name || article.author_name || article.author || "",
+    author_id: article.author_id || null,
+    publishing_scope: article.publishing_scope || "imcro_only",
+    methodika_subject: article.methodika_subject || "",
+    dom_uchitelya_section: article.dom_uchitelya_section || "",
+    noko_section: article.noko_section || "",
+    hub_kind: article.hub_kind || "",
+    hub_path: article.hub_path || "",
   };
 }
 
@@ -308,10 +311,10 @@ function AppRoutes() {
   const saveArticle = useCallback((article) => {
     const now = new Date().toISOString().slice(0, 10);
     setArticles((prev) => {
-      const exists = prev.find((item) => item.id === article.id);
+      const exists = prev.find((item) => String(item.id) === String(article.id));
       const authorName = article.full_name || article.author_name || article.author || currentUserFullName;
       if (exists) {
-        return prev.map((item) => item.id === article.id ? {
+        return prev.map((item) => String(item.id) === String(article.id) ? {
           ...item,
           ...article,
           updatedAt: now,
@@ -336,86 +339,132 @@ function AppRoutes() {
   }, [currentUser?.id, currentUserFullName]);
 
   const deleteArticle = useCallback((id) => {
-    setArticles((prev) => prev.filter((article) => article.id !== id));
+    setArticles((prev) => prev.filter((article) => String(article.id) !== String(id)));
   }, []);
 
   const changeArticleStatus = useCallback((id, status) => {
     setArticles((prev) => prev.map((article) =>
-      article.id === id ? { ...article, status, updatedAt: new Date().toISOString().slice(0, 10) } : article
+      String(article.id) === String(id) ? { ...article, status, updatedAt: new Date().toISOString().slice(0, 10) } : article
     ));
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadNews() {
+  const loadPublicNews = useCallback(async () => {
+    try {
+      const [commonRes, domuRes, eventsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/news/`),
+        fetch(`${API_BASE}/api/dom-uchitelya/news/`),
+        fetch(`${API_BASE}/api/events/`),
+      ]);
+      if (commonRes.ok) {
+        const data = await commonRes.json();
+        setApiCommonNews((data.items || []).map(apiArticleToNewsItem));
+      }
+      if (domuRes.ok) {
+        const data = await domuRes.json();
+        setApiDomuNews((data.items || []).map(apiArticleToNewsItem));
+      }
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
+        setApiEventsNews((data.items || []).map(apiArticleToNewsItem));
+      }
+    } catch {
+      setApiCommonNews([]);
+      setApiDomuNews([]);
+      setApiEventsNews([]);
+    }
+
+    if (hasStoredArticleApiToken()) {
       try {
-        const [commonRes, domuRes, eventsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/news/`),
-          fetch(`${API_BASE}/api/dom-uchitelya/news/`),
-          fetch(`${API_BASE}/api/events/`),
+        const responses = await Promise.allSettled([
+          authFetch(`${API_BASE}/api/admin/news/`),
+          authFetch(`${API_BASE}/api/admin/dom-uchitelya/news/`),
         ]);
-        if (cancelled) return;
-        if (commonRes.ok) {
-          const data = await commonRes.json();
-          setApiCommonNews((data.items || []).map(apiArticleToNewsItem));
+        const items = [];
+        for (const result of responses) {
+          if (result.status !== "fulfilled" || !result.value.ok) continue;
+          const data = await result.value.json().catch(() => ({}));
+          items.push(...(data.items || []));
         }
-        if (domuRes.ok) {
-          const data = await domuRes.json();
-          setApiDomuNews((data.items || []).map(apiArticleToNewsItem));
-        }
-        if (eventsRes.ok) {
-          const data = await eventsRes.json();
-          setApiEventsNews((data.items || []).map(apiArticleToNewsItem));
-        }
+        setArticles(items.map(apiArticleToLocalArticle));
       } catch {
-        if (!cancelled) {
-          setApiCommonNews([]);
-          setApiDomuNews([]);
-          setApiEventsNews([]);
-        }
+        setArticles([]);
       }
     }
-    loadNews();
-    return () => { cancelled = true; };
   }, []);
 
-  const localCommonNews = useMemo(() => {
-    const adminNews = articles
-      .filter((article) =>
-        isVisiblePublishedArticle(article)
-        && COMMON_NEWS_SCOPES.has(article.publishing_scope || "imcro_only")
-        && isInMainFeed(article)
-      )
-      .map(articleToNewsItem);
-    const adminTitles = new Set(adminNews.map((news) => news.title));
-    const staticNews = NEWS
-      .filter((news) => !adminTitles.has(news.title))
-      .map(staticNewsToItem);
-    return sortNewsByDateDesc([...adminNews, ...staticNews]);
-  }, [articles]);
+  useEffect(() => {
+    loadPublicNews();
+  }, [loadPublicNews]);
 
-  const localEventsNews = useMemo(() => articles
-    .filter((article) =>
-      isVisiblePublishedArticle(article)
-      && COMMON_NEWS_SCOPES.has(article.publishing_scope || "imcro_only")
-      && isInEventsFeed(article)
-    )
-    .map(articleToNewsItem), [articles]);
+  useEffect(() => {
+    if (!getStoredUser()) return;
+    apiMe().catch(() => {
+      // apiMe itself clears only truly unauthorized sessions; network hiccups keep the current UI intact.
+    });
+  }, []);
 
-  const localDomuNews = useMemo(() => articles
-    .filter((article) => isVisiblePublishedArticle(article) && DOMU_NEWS_SCOPES.has(article.publishing_scope || "imcro_only"))
-    .map(articleToNewsItem), [articles]);
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      clearStoredUser();
+      setCurrentUser(null);
+      navigate("/auth?tab=login&reason=session-expired", { replace: true });
+    };
 
-  const publishedNews = sortNewsByDateDesc(apiCommonNews.length ? apiCommonNews : localCommonNews);
-  const eventsNews = sortNewsByDateDesc(apiEventsNews.length ? apiEventsNews : localEventsNews);
-  const domuNews = sortNewsByDateDesc(apiDomuNews.length ? apiDomuNews : localDomuNews);
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [navigate]);
+
+  const visibleLocalArticles = useMemo(
+    () => articles.filter(isVisiblePublishedArticle),
+    [articles],
+  );
+  const localMainNews = useMemo(
+    () => visibleLocalArticles
+      .filter((article) => isCommonScope(article) && isInMainFeed(article))
+      .map(articleToNewsItem),
+    [visibleLocalArticles],
+  );
+  const localSectionNews = useMemo(
+    () => visibleLocalArticles
+      .filter(isCommonScope)
+      .map(articleToNewsItem),
+    [visibleLocalArticles],
+  );
+  const localEventsNews = useMemo(
+    () => visibleLocalArticles
+      .filter((article) => isCommonScope(article) && article.duplicate_to_events)
+      .map(articleToNewsItem),
+    [visibleLocalArticles],
+  );
+  const localDomuNews = useMemo(
+    () => visibleLocalArticles
+      .filter(isDomuScope)
+      .map(articleToNewsItem),
+    [visibleLocalArticles],
+  );
+  const publishedNews = useMemo(
+    () => mergeNewsItems(apiCommonNews, localMainNews),
+    [apiCommonNews, localMainNews],
+  );
+  const sectionNews = useMemo(
+    () => mergeNewsItems(apiCommonNews, localSectionNews),
+    [apiCommonNews, localSectionNews],
+  );
+  const eventsNews = useMemo(
+    () => mergeNewsItems(apiEventsNews, localEventsNews),
+    [apiEventsNews, localEventsNews],
+  );
+  const domuNews = useMemo(
+    () => mergeNewsItems(apiDomuNews, localDomuNews),
+    [apiDomuNews, localDomuNews],
+  );
   const allPublicNews = useMemo(() => {
     const map = new Map();
-    [...publishedNews, ...eventsNews, ...domuNews].forEach((item) => {
+    [...sectionNews, ...eventsNews, ...domuNews].forEach((item) => {
       if (!map.has(item.id)) map.set(item.id, item);
     });
     return [...map.values()];
-  }, [publishedNews, eventsNews, domuNews]);
+  }, [sectionNews, eventsNews, domuNews]);
 
   const openArticle = useCallback((newsItem) => {
     navigate(`/article/${encodeURIComponent(newsItem.slug || newsItem.id)}`, { state: { article: newsItem } });
@@ -456,7 +505,7 @@ function AppRoutes() {
     const { predmetSlug, articleSlug } = useParams();
     const stateArticle = location.state?.article;
     const stateKey = stateArticle ? String(stateArticle.slug || stateArticle.id) : "";
-    const freshArticle = publishedNews.find((item) =>
+    const freshArticle = sectionNews.find((item) =>
       methodikaSubjectSlug(item.methodika_subject || "") === predmetSlug
       && (
         String(item.slug || item.id) === articleSlug
@@ -519,12 +568,14 @@ function AppRoutes() {
   const handleLogin = useCallback((user) => {
     storeUser(user);
     setCurrentUser(user);
+    if (user?.access_token) setArticles([]);
     navigate("/profile", { replace: true });
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
     clearStoredUser();
     setCurrentUser(null);
+    setArticles(getStoredArticles());
     navigate("/auth?tab=login", { replace: true });
   }, [navigate]);
 
@@ -592,6 +643,7 @@ function AppRoutes() {
                 saveArticle={saveArticle}
                 deleteArticle={deleteArticle}
                 changeArticleStatus={changeArticleStatus}
+                onArticlesChanged={loadPublicNews}
                 onLogout={handleLogout}
               />
             </RequireDomuAdmin>
@@ -607,6 +659,7 @@ function AppRoutes() {
                 saveArticle={saveArticle}
                 deleteArticle={deleteArticle}
                 changeArticleStatus={changeArticleStatus}
+                onArticlesChanged={loadPublicNews}
               />
             </RequireAdmin>
           }
@@ -616,25 +669,25 @@ function AppRoutes() {
         <Route path="/dom-uchitelya/" element={<DomUchitelyaHome {...publicPageProps} newsItems={domuNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />} />
         <Route path="/dom-uchitelya/novosti/" element={<DomUchitelyaNewsPage {...publicPageProps} newsItems={domuNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />} />
         {DOMU_SECTIONS.filter((section) => section.path !== "/dom-uchitelya/novosti/").map((section) => (
-          <Route key={section.path} path={section.path} element={<DomUchitelyaStaticPage {...publicPageProps} section={section} />} />
+          <Route key={section.path} path={section.path} element={<DomUchitelyaStaticPage {...publicPageProps} section={section} newsItems={domuNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />} />
         ))}
-        <Route path="/metodika/" element={<MethodikaHomePage {...publicPageProps} newsItems={publishedNews} />} />
+        <Route path="/metodika/" element={<MethodikaHomePage {...publicPageProps} newsItems={sectionNews} />} />
         {METHODIKA_STATIC_PAGES.map((page) => (
           <Route
             key={page.path}
             path={page.path}
-            element={<MethodikaStaticPage {...publicPageProps} page={page} newsItems={publishedNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
+            element={<MethodikaStaticPage {...publicPageProps} page={page} newsItems={sectionNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
           />
         ))}
         <Route path="/metodika/:predmetSlug/:articleSlug/" element={<MethodikaArticleRoute />} />
-        <Route path="/metodika/:predmetSlug/" element={<MethodikaSubjectPage {...publicPageProps} newsItems={publishedNews} onOpenAuthor={openAuthor} />} />
+        <Route path="/metodika/:predmetSlug/" element={<MethodikaSubjectPage {...publicPageProps} newsItems={sectionNews} onOpenAuthor={openAuthor} />} />
 
         <Route path="/noko/" element={<NokoHomePage {...publicPageProps} />} />
         {NOKO_ROUTES.map((section) => (
           <Route
             key={section.path}
             path={section.path}
-            element={<NokoSectionPage {...publicPageProps} section={section} newsItems={publishedNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
+            element={<NokoSectionPage {...publicPageProps} section={section} newsItems={sectionNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
           />
         ))}
 
@@ -643,7 +696,7 @@ function AppRoutes() {
           <Route
             key={section.path}
             path={section.path}
-            element={<KonkursySectionPage {...publicPageProps} section={section} newsItems={publishedNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
+            element={<KonkursySectionPage {...publicPageProps} section={section} newsItems={sectionNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
           />
         ))}
 
@@ -652,7 +705,7 @@ function AppRoutes() {
           <Route
             key={section.path}
             path={section.path}
-            element={<DeyatelnostSectionPage {...publicPageProps} section={section} newsItems={publishedNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
+            element={<DeyatelnostSectionPage {...publicPageProps} section={section} newsItems={sectionNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
           />
         ))}
 
@@ -661,7 +714,7 @@ function AppRoutes() {
           <Route
             key={section.path}
             path={section.path}
-            element={<ArchivSectionPage {...publicPageProps} section={section} newsItems={publishedNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
+            element={<ArchivSectionPage {...publicPageProps} section={section} newsItems={sectionNews} onOpenArticle={openArticle} onOpenAuthor={openAuthor} />}
           />
         ))}
         <Route path="/authors/:authorKey/" element={<AuthorArticlesPage {...publicPageProps} allNews={allPublicNews} onOpenArticle={openArticle} />} />

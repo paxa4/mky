@@ -1,40 +1,48 @@
-/**
- * ChatSettings — модуль админ-панели «Настройки чата».
- * Три блока:
- *   1. Состояние системы      — статус планировщика + фоновых задач
- *   2. Управление индексом    — инкрементальное обновление / полная переиндексация
- *   3. Тестовый чат           — быстрая проверка качества ответов бота
- *
- * Ендпоинты:
- *   GET  /admin/update/status
- *   POST /admin/update/run
- *   POST /admin/reindex
- *   POST /assistant/ask
- *   POST /assistant/clear/{session_id}
- */
 import { useState, useEffect, useCallback } from "react";
+import { apiAssistantStatus, authFetch } from "../../api.js";
 import { API_BASE } from "../../constants/index.js";
 import StatusPanel from "./StatusPanel.jsx";
 import UpdatePanel from "./UpdatePanel.jsx";
 import TestChatPanel from "./TestChatPanel.jsx";
 
-const POLL_INTERVAL = 3000;   // 3 сек между опросами статуса
+const POLL_INTERVAL = 3000;
+
+async function readJson(response) {
+  return response.json().catch(() => null);
+}
+
+function getErrorMessage(data, fallback) {
+  if (!data?.detail) return fallback;
+  if (typeof data.detail === "string") return data.detail;
+  return fallback;
+}
 
 export default function ChatSettings() {
   const [status, setStatus] = useState(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [statusError, setStatusError] = useState(null);
 
-  // ── Опрос статуса (раз в 3 сек, пока открыта страница) ─────────────────────
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/update/status`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setStatus(data);
+      const assistant = await apiAssistantStatus();
+      let updateStatus = {};
+      let updateError = null;
+
+      try {
+        const updateRes = await authFetch(`${API_BASE}/admin/update/status`);
+        const updateData = await readJson(updateRes);
+        if (!updateRes.ok) {
+          throw new Error(getErrorMessage(updateData, `HTTP ${updateRes.status}`));
+        }
+        updateStatus = updateData || {};
+      } catch (e) {
+        updateError = e.message || "Не удалось получить статус обновления индекса";
+      }
+
+      setStatus({ ...updateStatus, assistant, updateError });
       setStatusError(null);
     } catch (e) {
-      setStatusError(e.message || "Не удалось получить статус");
+      setStatusError(e.message || "Не удалось получить статус ассистента");
     } finally {
       setLoadingStatus(false);
     }
@@ -46,21 +54,18 @@ export default function ChatSettings() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  // ── Запуск задачи обновления ────────────────────────────────────────────────
   const runTask = useCallback(async (endpoint) => {
-    const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST" });
+    const res = await authFetch(`${API_BASE}${endpoint}`, { method: "POST" });
+    const data = await readJson(res);
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+      throw new Error(getErrorMessage(data, `HTTP ${res.status}`));
     }
     await fetchStatus();
-    return await res.json();
+    return data;
   }, [fetchStatus]);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
-
-      {/* Левая колонка: статус + управление */}
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <StatusPanel
           status={status}
@@ -73,7 +78,6 @@ export default function ChatSettings() {
         />
       </div>
 
-      {/* Правая колонка: тестовый чат */}
       <TestChatPanel />
     </div>
   );

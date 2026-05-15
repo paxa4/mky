@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { authenticate, TEST_CREDENTIALS } from "../auth.js";
-import { API_BASE } from "../constants/index.js";
+import { TEST_CREDENTIALS } from "../auth.js";
+import { apiLoginWithProfile, apiRegister } from "../api.js";
 
 export default function AuthPage({ onLogin }) {
   const navigate = useNavigate();
@@ -13,7 +13,10 @@ export default function AuthPage({ onLogin }) {
   const [regForm, setRegForm] = useState({ name: "", email: "", password: "" });
   const [showPass, setShowPass] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    searchParams.get("reason") === "session-expired" ? "Сессия истекла. Войдите снова." : "",
+  );
+  const [submitting, setSubmitting] = useState(null);
 
   const getPasswordStrength = (pass) => {
     if (!pass) return 0;
@@ -36,45 +39,42 @@ export default function AuthPage({ onLogin }) {
   const handleLogin = async (event) => {
     event.preventDefault();
     setError("");
+    setSubmitting("login");
     try {
-      const formData = new URLSearchParams();
-      formData.set("username", loginForm.email);
-      formData.set("password", loginForm.password);
-      const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
-      });
-      if (tokenResponse.ok) {
-        const token = await tokenResponse.json();
-        const meResponse = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token.access_token}` },
-        });
-        if (meResponse.ok) {
-          const me = await meResponse.json();
-          onLogin?.({ ...me, access_token: token.access_token });
-          return;
-        }
-      }
-    } catch {
-      // If the backend has no seeded user, demo credentials still keep local work usable.
+      const user = await apiLoginWithProfile(loginForm.email.trim(), loginForm.password);
+      onLogin?.(user);
+    } catch (e) {
+      setError(e.message || "Не удалось войти. Проверьте email и пароль.");
+    } finally {
+      setSubmitting(null);
     }
-    const user = authenticate(loginForm.email, loginForm.password);
-    if (!user) {
-      setError("Неверный логин или пароль. Выберите тестовый аккаунт ниже или проверьте данные.");
-      return;
-    }
-    onLogin?.(user);
   };
 
-  const handleRegister = (event) => {
+  const handleRegister = async (event) => {
     event.preventDefault();
     if (!regForm.name || !regForm.email || regForm.password.length < 8) return;
-    setDone(true);
+    setError("");
+    setSubmitting("register");
+    try {
+      const email = regForm.email.trim();
+      const password = regForm.password;
+      await apiRegister({
+        full_name: regForm.name.trim(),
+        email,
+        password,
+      });
+      setLoginForm({ email, password });
+      setDone(true);
+    } catch (e) {
+      setError(e.message || "Не удалось зарегистрироваться. Проверьте данные.");
+    } finally {
+      setSubmitting(null);
+    }
   };
 
   const fillCredentials = (credentials) => {
     setError("");
+    setDone(false);
     setTab("login");
     setLoginForm({ email: credentials.email, password: credentials.password });
   };
@@ -257,13 +257,13 @@ export default function AuthPage({ onLogin }) {
                 </svg>
               </div>
               <h1>{tab === "login" ? "Добро пожаловать" : "Создать аккаунт"}</h1>
-              <p>{tab === "login" ? "Войдите в личный кабинет МКУ ИМЦРО" : "Регистрация пока демонстрационная, вход доступен через тестовые роли"}</p>
+              <p>{tab === "login" ? "Войдите в личный кабинет МКУ ИМЦРО" : "Создайте аккаунт через серверную форму регистрации"}</p>
             </div>
 
             <div className="auth-card">
               <div className="tab-row">
-                <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); }}>Вход</button>
-                <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setError(""); }}>Регистрация</button>
+                <button className={`tab-btn${tab === "login" ? " active" : ""}`} onClick={() => { setTab("login"); setDone(false); setError(""); }}>Вход</button>
+                <button className={`tab-btn${tab === "register" ? " active" : ""}`} onClick={() => { setTab("register"); setDone(false); setError(""); }}>Регистрация</button>
               </div>
 
               <div key={tab} className="form-animate">
@@ -301,8 +301,8 @@ export default function AuthPage({ onLogin }) {
                         </button>
                       </div>
                     </div>
-                    <button className="auth-btn" disabled={!loginForm.email || !loginForm.password}>
-                      Войти в систему
+                    <button className="auth-btn" disabled={submitting === "login" || !loginForm.email || !loginForm.password}>
+                      {submitting === "login" ? "Входим..." : "Войти в систему"}
                     </button>
                   </form>
                 )}
@@ -312,11 +312,12 @@ export default function AuthPage({ onLogin }) {
                     {done ? (
                       <div className="success-box">
                         <h3>Готово</h3>
-                        <p>На почту <strong>{regForm.email}</strong> отправлено письмо с подтверждением.</p>
+                        <p>Аккаунт <strong>{regForm.email}</strong> создан. Теперь можно войти с этим email и паролем.</p>
                         <button className="auth-btn" onClick={() => { setTab("login"); setDone(false); }}>Войти в аккаунт</button>
                       </div>
                     ) : (
                       <form className="auth-form" onSubmit={handleRegister}>
+                        {error && <div className="auth-error">{error}</div>}
                         <div className="auth-field">
                           <label>ФИО</label>
                           <input className="auth-input" placeholder="Иванов Иван Иванович" value={regForm.name} onChange={(event) => setRegForm((form) => ({ ...form, name: event.target.value }))} required />
@@ -351,8 +352,8 @@ export default function AuthPage({ onLogin }) {
                             </div>
                           )}
                         </div>
-                        <button className="auth-btn" disabled={!regForm.name || !regForm.email || regForm.password.length < 8}>
-                          Зарегистрироваться
+                        <button className="auth-btn" disabled={submitting === "register" || !regForm.name || !regForm.email || regForm.password.length < 8}>
+                          {submitting === "register" ? "Регистрируем..." : "Зарегистрироваться"}
                         </button>
                       </form>
                     )}
@@ -364,7 +365,7 @@ export default function AuthPage({ onLogin }) {
 
           <aside className="test-card">
             <h2>Тестовые роли</h2>
-            <p>Нажмите на роль, чтобы автоматически подставить логин и пароль.</p>
+            <p>Нажмите на роль, чтобы подставить логин и пароль для отправки на сервер.</p>
             <div className="credential-list">
               {TEST_CREDENTIALS.map((credentials) => (
                 <button className="credential-btn" key={credentials.role} type="button" onClick={() => fillCredentials(credentials)}>

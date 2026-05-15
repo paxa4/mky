@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { AUTH_STORAGE_KEY } from "../../auth.js";
+import { authFetch } from "../../api.js";
 import { buildPendingAttachments } from "./articleAttachments.js";
 import { generateSlug, genId } from "./adminStore.js";
 import {
@@ -64,6 +65,15 @@ function getStoredToken() {
   }
 }
 
+function extractSavedArticle(data) {
+  if (!data || typeof data !== "object") return null;
+  if (data.item && typeof data.item === "object") return data.item;
+  if (data.article && typeof data.article === "object") return data.article;
+  if (data.data && typeof data.data === "object") return data.data;
+  if (data.id || data.slug || data.title) return data;
+  return null;
+}
+
 function toDateInputValue(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -80,7 +90,7 @@ function fromDateInputValue(value) {
 function defaultBlock(type = "paragraph") {
   const base = { id: genId(), type, data: {} };
   if (type === "heading") return { ...base, data: { text: "", level: 2, align: "left" } };
-  if (type === "list") return { ...base, data: { ordered: false, items: [""], align: "left" } };
+  if (type === "list") return { ...base, data: { title: "", title_bold: true, ordered: false, items: [""], align: "left" } };
   if (type === "image") return { ...base, data: { url: "", caption: "" } };
   if (type === "quote") return { ...base, data: { html: "", author: "" } };
   if (type === "divider") return base;
@@ -93,7 +103,7 @@ function normalizeBlock(block) {
   if (block.type === "hero") return { id: block.id || genId(), type: "heading", data: { text: block.data?.title || "", level: 1, align } };
   if (block.type === "paragraph") return { id: block.id || genId(), type: "paragraph", data: { html: block.data?.html || block.data?.text || "", align } };
   if (block.type === "heading") return { id: block.id || genId(), type: "heading", data: { text: block.data?.text || block.data?.title || "", level: Number(block.data?.level || 2), align } };
-  if (block.type === "list") return { id: block.id || genId(), type: "list", data: { ordered: Boolean(block.data?.ordered), items: Array.isArray(block.data?.items) ? block.data.items : [""], align } };
+  if (block.type === "list") return { id: block.id || genId(), type: "list", data: { title: block.data?.title || "", title_bold: block.data?.title_bold !== false, ordered: Boolean(block.data?.ordered), items: Array.isArray(block.data?.items) ? block.data.items : [""], align } };
   if (block.type === "image") return { id: block.id || genId(), type: "image", data: { url: block.data?.url || "", caption: block.data?.caption || "" } };
   if (block.type === "quote") return { id: block.id || genId(), type: "quote", data: { html: block.data?.html || block.data?.text || "", author: block.data?.author || "" } };
   if (block.type === "divider") return { id: block.id || genId(), type: "divider", data: {} };
@@ -144,7 +154,7 @@ function plainTextFromBlocks(blocks) {
   return blocks
     .map((block) => {
       if (block.type === "heading") return block.data.text || "";
-      if (block.type === "list") return (block.data.items || []).join(" ");
+      if (block.type === "list") return [block.data.title || "", ...(block.data.items || [])].join(" ");
       return String(block.data.html || block.data.caption || "").replace(/<[^>]*>/g, " ");
     })
     .join(" ")
@@ -294,6 +304,18 @@ function ChipInput({ value, onChange }) {
         onBlur={add}
         placeholder={value.length ? "Добавить тег" : "Добавьте теги"}
       />
+    </div>
+  );
+}
+
+function InfoNote({ title, children }) {
+  return (
+    <div className="article-info-note">
+      <span className="article-info-icon" aria-hidden="true">i</span>
+      <div>
+        <strong>{title}</strong>
+        <p>{children}</p>
+      </div>
     </div>
   );
 }
@@ -495,7 +517,12 @@ function BlockPreview({ block }) {
   }
   if (block.type === "list") {
     const Tag = block.data.ordered ? "ol" : "ul";
-    return <Tag className="preview-list" style={{ textAlign: block.data.align || "left" }}>{(block.data.items || []).filter(Boolean).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</Tag>;
+    return (
+      <section className="preview-list-block" style={{ textAlign: block.data.align || "left" }}>
+        {block.data.title && <div className={block.data.title_bold ? "preview-list-title is-bold" : "preview-list-title"}>{block.data.title}</div>}
+        <Tag className="preview-list">{(block.data.items || []).filter(Boolean).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</Tag>
+      </section>
+    );
   }
   if (block.type === "image") {
     return (
@@ -582,6 +609,11 @@ function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadIm
         {block.type === "list" && (
           <>
             <AlignControl value={block.data.align || "left"} onChange={(align) => updateData({ align })} />
+            <input value={block.data.title || ""} onChange={(event) => updateData({ title: event.target.value })} placeholder="Заголовок списка" />
+            <label className="article-check compact">
+              <input type="checkbox" checked={block.data.title_bold !== false} onChange={(event) => updateData({ title_bold: event.target.checked })} />
+              <span>Жирный заголовок</span>
+            </label>
             <label className="article-check compact">
               <input type="checkbox" checked={Boolean(block.data.ordered)} onChange={(event) => updateData({ ordered: event.target.checked })} />
               <span>Нумерованный список</span>
@@ -638,7 +670,10 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
     setPickerOpen(false);
   };
   const updateBlock = (block) => onChange(blocks.map((item) => item.id === block.id ? block : item));
-  const removeBlock = (id) => onChange(blocks.filter((item) => item.id !== id));
+  const removeBlock = (id) => {
+    if (!window.confirm("Удалить этот блок из статьи?")) return;
+    onChange(blocks.filter((item) => item.id !== id));
+  };
   const moveBlock = (draggedId, targetId = null, direction = 0, placement = "before") => {
     const currentIndex = blocks.findIndex((item) => item.id === draggedId);
     if (currentIndex < 0) return;
@@ -699,6 +734,9 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
         </div>
         <button type="button" onClick={() => setPickerOpen((value) => !value)}>Добавить блок</button>
       </div>
+      <InfoNote title="Работа с блоками">
+        Добавьте нужный тип блока, заполните поля и меняйте порядок стрелками или перетаскиванием за значок «::». Удаление блока нужно подтвердить.
+      </InfoNote>
       {pickerOpen && (
         <div className="block-picker">
           {BLOCK_TYPES.map((blockType) => (
@@ -926,7 +964,7 @@ function ArticleForm({
     } catch {
       setDraftNotice("");
     }
-  }, [article?.id, article?.updated_at, article?.updatedAt, draftKey]);
+  }, [article?.id, article?.updated_at, article?.updatedAt, draftKey, form]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1110,7 +1148,7 @@ function ArticleForm({
           <span>Редактор статьи</span>
           <h2>{isNew ? "Новая статья" : "Редактирование статьи"}</h2>
         </div>
-        <button type="button" className="article-btn article-btn-muted" onClick={() => setPreviewOpen(true)}>Предпросмотр</button>
+        <button type="button" className="article-btn article-btn-muted" onClick={() => setPreviewOpen(true)} title="Открыть крупный предпросмотр статьи перед публикацией">Предпросмотр</button>
         <button type="button" className="article-btn article-btn-primary" onClick={() => handleSave("published")} disabled={saving || errors.length > 0}>
           {saving ? "Сохраняю..." : publishLabel}
         </button>
@@ -1152,9 +1190,15 @@ function ArticleForm({
         <aside className="article-editor-side">
           <section className="article-panel article-panel-compact">
             <ValidationPanel errors={errors} modeLabel={isDomuMode ? "Дома учителя" : "общей админки"} />
+            <InfoNote title="Перед публикацией">
+              Если есть ошибки, кнопка публикации будет недоступна. Исправьте поля из списка и проверьте статью в предпросмотре.
+            </InfoNote>
           </section>
           <section className="article-panel article-panel-compact">
             <div className="article-label">Публикация</div>
+            <InfoNote title="Статус и дата">
+              Черновик виден только в редакторе. Для публикации сразу оставьте дату выключенной, для отложенной публикации включите планирование.
+            </InfoNote>
             <div className="article-status-text">{STATUS_LABELS[form.status] || STATUS_LABELS.draft}</div>
             <label className="article-check">
               <input type="checkbox" checked={form.is_pinned} onChange={(event) => set("is_pinned", event.target.checked)} />
@@ -1199,6 +1243,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Область и разделы</div>
+            <InfoNote title="Где появится статья">
+              Выберите основной раздел публикации. Дополнительные подразделы уточняют место материала на сайте.
+            </InfoNote>
             <label className="article-stack-label">
               <span>Раздел</span>
               <select value={rootSection} onChange={(event) => updateRootSection(event.target.value)}>
@@ -1272,6 +1319,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Главное изображение</div>
+            <InfoNote title="Обложка">
+              Обложка показывается в карточках и в начале статьи. Можно перетащить изображение или вставить готовую ссылку.
+            </InfoNote>
             <label
               className={`article-cover-drop${coverDragActive ? " is-active" : ""}${form.cover_image_url ? " has-image" : ""}`}
               onDragEnter={(event) => {
@@ -1311,6 +1361,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Файлы</div>
+            <InfoNote title="Прикрепление файлов">
+              Добавьте документы, которые читатель должен скачать вместе со статьей. Поддерживаются PDF, Word, PowerPoint и Excel.
+            </InfoNote>
             <label
               className={`article-file-drop${attachmentDragActive ? " is-active" : ""}`}
               onDragEnter={(event) => {
@@ -1349,6 +1402,9 @@ function ArticleForm({
 
           <section className="article-panel article-panel-compact">
             <div className="article-label">Теги</div>
+            <InfoNote title="Теги">
+              Введите слово или короткую фразу и нажмите Enter. Теги помогают быстро находить материалы по теме.
+            </InfoNote>
             <ChipInput value={form.tags} onChange={(value) => set("tags", value)} />
           </section>
         </aside>
@@ -1507,6 +1563,7 @@ export default function ArticlesModule({
   uploadPath = "/api/admin/news/upload-cover/",
   uploadAttachmentPath = "/api/admin/news/upload-attachment/",
   isDomuMode = false,
+  onArticlesChanged,
 }) {
   const [articles, setArticles] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -1525,7 +1582,7 @@ export default function ArticlesModule({
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE}${apiPath}`, { headers: authHeaders });
+      const response = await authFetch(`${API_BASE}${apiPath}`, { headers: authHeaders });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       setArticles((data.items || []).map((article) => normalizeArticle(article, defaultScope)));
@@ -1545,9 +1602,10 @@ export default function ArticlesModule({
     const nextPayload = { ...payload, publishing_scope: payload.publishing_scope || defaultScope };
     if (!apiMode) {
       saveLocalArticle?.({ ...nextPayload, id, updatedAt: new Date().toISOString(), createdAt: new Date().toISOString() });
+      await onArticlesChanged?.();
       return;
     }
-    const response = await fetch(`${API_BASE}${apiPath}${id ? `${id}/` : ""}`, {
+    const response = await authFetch(`${API_BASE}${apiPath}${id ? `${id}/` : ""}`, {
       method: id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(nextPayload),
@@ -1557,28 +1615,43 @@ export default function ArticlesModule({
       setError(detail.detail || "Не удалось сохранить статью.");
       throw new Error("Article save failed");
     }
+    const data = await response.json().catch(() => null);
+    const savedArticle = extractSavedArticle(data);
+    const now = new Date().toISOString();
+    saveLocalArticle?.({
+      ...nextPayload,
+      ...(savedArticle || {}),
+      id: savedArticle?.id || id || nextPayload.id,
+      updatedAt: savedArticle?.updated_at || savedArticle?.updatedAt || now,
+      createdAt: savedArticle?.created_at || savedArticle?.createdAt || now,
+    });
     await loadArticles();
+    await onArticlesChanged?.();
   };
 
   const deleteArticle = async (article) => {
     if (!apiMode) {
       deleteLocalArticle?.(article.id);
+      await onArticlesChanged?.();
       return;
     }
-    const response = await fetch(`${API_BASE}${apiPath}${article.id}/`, { method: "DELETE", headers: authHeaders });
+    const response = await authFetch(`${API_BASE}${apiPath}${article.id}/`, { method: "DELETE", headers: authHeaders });
     if (!response.ok) {
       setError("Не удалось удалить статью.");
       return;
     }
+    deleteLocalArticle?.(article.id);
     await loadArticles();
+    await onArticlesChanged?.();
   };
 
   const archiveArticle = async (article) => {
     if (!apiMode) {
       saveLocalArticle?.({ ...article, status: "archive", updatedAt: new Date().toISOString() });
+      await onArticlesChanged?.();
       return;
     }
-    const response = await fetch(`${API_BASE}${apiPath}${article.id}/`, {
+    const response = await authFetch(`${API_BASE}${apiPath}${article.id}/`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ status: "archive" }),
@@ -1587,14 +1660,16 @@ export default function ArticlesModule({
       setError("Не удалось перенести статью в архив.");
       return;
     }
+    saveLocalArticle?.({ ...article, status: "archive", updatedAt: new Date().toISOString() });
     await loadArticles();
+    await onArticlesChanged?.();
   };
 
   const uploadCover = async (file) => {
     if (!apiMode) return "";
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_BASE}${uploadPath}`, { method: "POST", headers: authHeaders, body: formData });
+    const response = await authFetch(`${API_BASE}${uploadPath}`, { method: "POST", headers: authHeaders, body: formData });
     if (!response.ok) {
       setError("Не удалось загрузить изображение.");
       return "";
@@ -1607,7 +1682,7 @@ export default function ArticlesModule({
     if (!apiMode) return null;
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_BASE}${uploadAttachmentPath}`, { method: "POST", headers: authHeaders, body: formData });
+    const response = await authFetch(`${API_BASE}${uploadAttachmentPath}`, { method: "POST", headers: authHeaders, body: formData });
     if (!response.ok) {
       setError("Не удалось загрузить файл.");
       return null;
@@ -1663,6 +1738,10 @@ const ARTICLE_CSS = `
 .article-editor-main, .article-editor-side { display: grid; gap: 14px; min-width: 0; }
 .article-panel, .block-workspace { border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; padding: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .05); }
 .article-panel-compact { padding: 16px; }
+.article-info-note { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; margin: 0 0 12px; padding: 11px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #f8fbff; color: #334155; }
+.article-info-note strong { display: block; color: #1d4ed8; font-size: 13px; line-height: 1.25; }
+.article-info-note p { margin: 3px 0 0; color: #475569; font-size: 12px; line-height: 1.45; font-weight: 760; }
+.article-info-icon { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: #dbeafe; color: #1d4ed8; font-size: 13px; font-weight: 950; }
 .article-label { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 9px; }
 .article-title-input { width: 100%; border: 0; outline: 0; background: transparent; color: #0f172a; font: inherit; font-size: clamp(24px, 5vw, 38px); font-weight: 900; line-height: 1.05; }
 .article-slug-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 13px; font-weight: 800; flex-wrap: wrap; }
@@ -1755,7 +1834,10 @@ const ARTICLE_CSS = `
 .preview-paragraph a { color: #1d4ed8; }
 .preview-quote { border-left: 4px solid #1d4ed8; background: #eff6ff; color: #1e3a8a; padding: 14px 16px; margin: 0; border-radius: 0 8px 8px 0; }
 .preview-quote cite { display: block; margin-top: 8px; color: #64748b; font-size: 13px; }
-.preview-list { margin: 0; padding-left: 22px; }
+.preview-list-block { display: grid; gap: 8px; }
+.preview-list-title { margin: 0; color: #334155; font-size: 15px; line-height: 1.8; font-weight: 400; }
+.preview-list-title.is-bold { font-weight: 700; }
+.preview-list { margin: 0; padding-left: 22px; font-size: 15px; line-height: 1.8; }
 .preview-image { margin: 0; }
 .preview-image img { width: 100%; max-height: 460px; object-fit: cover; border-radius: 8px; }
 .preview-image div { min-height: 160px; display: grid; place-items: center; background: #f1f5f9; border-radius: 8px; color: #64748b; }

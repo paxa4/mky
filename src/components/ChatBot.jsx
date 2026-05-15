@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { apiAsk, apiClearChat } from "../api.js";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
 
-const API_BASE   = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const SESSION_ID = crypto.randomUUID();
+const SESSION_ID = `web-${crypto.randomUUID()}`;
 
 function Message({ msg }) {
   const isBot = msg.from === "bot";
@@ -28,21 +28,21 @@ function Message({ msg }) {
         wordBreak: "break-word",
         overflowWrap: "anywhere",
       }}>
-        {linkifyText(msg.text, { isBot })}
+        {msg.text ? linkifyText(msg.text, { isBot }) : "Готовлю ответ..."}
 
         {isBot && msg.sources?.length > 0 && (
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #CBD5E1" }}>
             <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Источники:</div>
             {msg.sources.map((src, i) => (
               <a
-                key={i}
+                key={`${src.source || src.title || i}-${i}`}
                 href={getLinkHref(src.source)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="chat-source-link"
                 title={getLinkHref(src.source)}
               >
-                🔗 {src.title || shortenUrlLabel(src.source)}
+                {src.title || shortenUrlLabel(src.source)}
               </a>
             ))}
           </div>
@@ -77,7 +77,11 @@ function TypingIndicator() {
 export default function ChatBot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, from: "bot", text: "Здравствуйте! 👋 Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос." }
+    {
+      id: 1,
+      from: "bot",
+      text: "Здравствуйте! Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос.",
+    },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,68 +99,65 @@ export default function ChatBot() {
   }, [messages, loading]);
 
   const sendMessage = async (text) => {
-    if (!text.trim() || loading) return;
+    const question = text.trim();
+    if (!question || loading) return;
     setError(null);
 
-    const userMsg = { id: Date.now(), from: "user", text: text.trim() };
-    setMessages(m => [...m, userMsg]);
+    const userMsg = { id: Date.now(), from: "user", text: question };
+    const botId = Date.now() + 1;
+    const botMsg = { id: botId, from: "bot", text: "", sources: [] };
+
+    setMessages(m => [...m, userMsg, botMsg]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/assistant/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question:   text.trim(),
-          session_id: SESSION_ID,
-        }),
+      const data = await apiAsk(question, SESSION_ID, {
+        onDelta: (chunk) => {
+          setMessages(m => m.map(msg => (
+            msg.id === botId ? { ...msg, text: `${msg.text || ""}${chunk}` } : msg
+          )));
+        },
       });
 
-      if (!res.ok) {
-        let detail = `Ошибка сервера (${res.status})`;
-        try {
-          const err = await res.json();
-          detail = err.detail || detail;
-        } catch (e) {
-          void e;
-        }
-        throw new Error(detail);
-      }
-
-      const data = await res.json();
-
-      setMessages(m => [...m, {
-        id:      Date.now() + 1,
-        from:    "bot",
-        text:    data.answer,
-        sources: data.sources || [],
-      }]);
+      setMessages(m => m.map(msg => (
+        msg.id === botId
+          ? {
+              ...msg,
+              text: data.answer || msg.text || "Ассистент не вернул текст ответа.",
+              sources: data.sources || [],
+              rewritten: data.rewritten_question,
+            }
+          : msg
+      )));
     } catch (e) {
       const errText = e.message || "Не удалось подключиться к серверу";
       setError(errText);
-      setMessages(m => [...m, {
-        id:   Date.now() + 1,
-        from: "bot",
-        text: `⚠️ ${errText}`,
-      }]);
+      setMessages(m => m.map(msg => (
+        msg.id === botId ? { ...msg, text: `Ошибка: ${errText}`, sources: [] } : msg
+      )));
     } finally {
       setLoading(false);
     }
   };
 
   const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
   };
 
   const clearHistory = async () => {
     try {
-      await fetch(`${API_BASE}/assistant/clear/${SESSION_ID}`, { method: "POST" });
+      await apiClearChat(SESSION_ID);
     } catch (e) {
       void e;
     }
+    setError(null);
     setMessages([{
-      id: Date.now(), from: "bot",
+      id: Date.now(),
+      from: "bot",
       text: "История очищена. Задайте новый вопрос.",
     }]);
   };
@@ -237,7 +238,7 @@ export default function ChatBot() {
         }
         .chat-clear {
           background: none; border: none; cursor: pointer; padding: 4px;
-          color: rgba(255,255,255,0.7); font-size: 11px;
+          color: rgba(255,255,255,0.7); font-size: 13px;
           border-radius: 6px; transition: color 0.15s;
         }
         .chat-clear:hover { color: #fff; }
@@ -249,8 +250,6 @@ export default function ChatBot() {
 
       {open && (
         <div className="chat-window">
-
-          {/* Шапка */}
           <div style={{ background: "#1D4ED8", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -261,11 +260,11 @@ export default function ChatBot() {
               <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Помощник МКУ</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: loading ? "#FCD34D" : "#4ADE80", display: "inline-block", transition: "background 0.3s" }}/>
-                {loading ? "Печатает…" : "Онлайн"}
+                {loading ? "Печатает..." : "Онлайн"}
               </div>
             </div>
             <button className="chat-clear" onClick={clearHistory} title="Очистить историю">
-              ↺
+              Сброс
             </button>
             <button onClick={() => setOpen(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -274,39 +273,35 @@ export default function ChatBot() {
             </button>
           </div>
 
-          {/* Сообщения */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px 8px", display: "flex", flexDirection: "column" }}>
             {messages.map(msg => <Message key={msg.id} msg={msg} />)}
-            {loading && <TypingIndicator />}
+            {loading && !messages[messages.length - 1]?.text && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>
 
-          {/* Поле ввода */}
           <div style={{ padding: "10px 12px 12px", borderTop: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8, background: "#F8FAFC", border: `1.5px solid ${error ? "#FCA5A5" : "#E2E8F0"}`, borderRadius: 12, padding: "9px 10px 9px 14px", transition: "border-color 0.2s" }}>
               <textarea
                 ref={inputRef}
                 className="chat-input"
                 rows={1}
-                placeholder="Напишите вопрос…"
+                placeholder="Напишите вопрос..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
                 style={{ maxHeight: 80 }}
                 disabled={loading}
               />
-              <button className="chat-send" onClick={() => sendMessage(input)} disabled={!input.trim() || loading}>
+              <button className="chat-send" onClick={() => sendMessage(input)} disabled={!input.trim() || loading} title="Отправить">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M12.5 1.5L1.5 6l4.5 1.5L7.5 12l5-10.5Z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
                 </svg>
               </button>
             </div>
           </div>
-
         </div>
       )}
 
-      {/* Кнопка открытия */}
       <button className="chat-fab" onClick={() => setOpen(v => !v)} title="Написать нам">
         {open ? (
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none">

@@ -190,6 +190,8 @@ export function DomUchitelyaHome(props) {
 
 export function DomUchitelyaStaticPage({ section, ...props }) {
   const copy = pageCopy[section.path] || { lead: section.text, items: [] };
+  const sectionValue = section.path.split("/").filter(Boolean).pop();
+  const news = (props.newsItems || []).filter((item) => item.dom_uchitelya_section === sectionValue);
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
@@ -207,6 +209,17 @@ export function DomUchitelyaStaticPage({ section, ...props }) {
           <ul className="domu-list">
             {copy.items.map(item => <li key={item}>{item}</li>)}
           </ul>
+        </section>
+        <section>
+          <div className="domu-section-head">
+            <h2>Материалы раздела</h2>
+          </div>
+          <div className="domu-news-grid">
+            {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />)}
+          </div>
+          {!news.length && (
+            <div className="domu-empty">В этом разделе пока нет опубликованных материалов.</div>
+          )}
         </section>
       </div>
     </DomuShell>

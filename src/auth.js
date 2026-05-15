@@ -1,4 +1,5 @@
 export const AUTH_STORAGE_KEY = "mky_current_user";
+export const AUTH_TOKEN_STORAGE_KEYS = ["access_token", "mky_access_token"];
 
 export const ROLE_LABELS = {
   user: "Пользователь",
@@ -136,7 +137,8 @@ export const TEST_CREDENTIALS = [
 
 function withoutPassword(user) {
   if (!user) return null;
-  const { password, ...safeUser } = user;
+  const safeUser = { ...user };
+  delete safeUser.password;
   return safeUser;
 }
 
@@ -158,7 +160,7 @@ export function canAccessAdmin(user) {
 
 export function canAccessTpmpkAdmin(user) {
   const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "operator";
+  return role === "operator" || role === "admin";
 }
 
 export function canAccessDomuAdmin(user) {
@@ -177,8 +179,12 @@ export function getStoredUser() {
 
 export function storeUser(user) {
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(withoutPassword(user)));
+  if (user?.access_token) {
+    AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.setItem(key, user.access_token));
+  }
 }
 
 export function clearStoredUser() {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
 }

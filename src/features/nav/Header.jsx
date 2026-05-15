@@ -54,7 +54,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     : "П";
   const currentRole = typeof currentUser?.role === "object" ? currentUser.role?.role_name : currentUser?.role;
   const canShowAdminButton = Boolean(currentUser && onGoAdmin && (currentRole === "admin" || currentRole === "methodist" || currentRole === "domu_editor"));
-  const canShowTpmpkCabinetButton = currentRole === "operator";
+  const canShowTpmpkCabinetButton = currentRole === "operator" || currentRole === "admin";
 
   useEffect(() => {
     const update = () => setScrolled(window.scrollY > 8);

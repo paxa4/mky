@@ -82,6 +82,7 @@ export default function AdminPage({
   saveArticle,
   deleteArticle,
   changeArticleStatus,
+  onArticlesChanged,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,13 +107,6 @@ export default function AdminPage({
       document.title = "МКУ развития образования города Иркутска";
     };
   }, [loadTemplates]);
-
-  const modules = [
-    { key: "issue", label: "Выпуск грамот" },
-    { key: "editor", label: "Конструктор шаблонов" },
-    { key: "articles", label: "Статьи" },
-    { key: "chat", label: "Настройки чата" },
-  ];
 
   const adminModules = [
     { key: "issue", path: "/admin/certificates", label: "Выпуск грамот" },
@@ -189,6 +183,7 @@ export default function AdminPage({
                   saveArticle={saveArticle}
                   deleteArticle={deleteArticle}
                   changeArticleStatus={changeArticleStatus}
+                  onArticlesChanged={onArticlesChanged}
                 />
               )}
               {activeModule === "chat" && <ChatSettings />}
