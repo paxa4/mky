@@ -1,19 +1,22 @@
 import assert from "node:assert/strict";
 import {
-  authenticate,
   canAccessAdmin,
+  canAccessDomuAdmin,
+  canAccessTpmpkAdmin,
   getRoleLabel,
-  TEST_USERS,
 } from "../src/auth.js";
 
-assert.equal(authenticate("user@mky.test", "user123")?.role, "user");
-assert.equal(authenticate("methodist@mky.test", "methodist123")?.role, "methodist");
-assert.equal(authenticate("admin@mky.test", "admin123")?.role, "admin");
-assert.equal(authenticate("admin@mky.test", "wrong"), null);
+assert.equal(canAccessAdmin({ role: "user" }), false);
+assert.equal(canAccessAdmin({ role: "methodist" }), true);
+assert.equal(canAccessAdmin({ role: "admin" }), true);
 
-assert.equal(canAccessAdmin(TEST_USERS.user), false);
-assert.equal(canAccessAdmin(TEST_USERS.methodist), true);
-assert.equal(canAccessAdmin(TEST_USERS.admin), true);
+assert.equal(canAccessTpmpkAdmin({ role: "operator" }), true);
+assert.equal(canAccessTpmpkAdmin({ role: "methodist" }), false);
+assert.equal(canAccessTpmpkAdmin({ role: { role_name: "admin" } }), true);
+
+assert.equal(canAccessDomuAdmin({ role: "domu_editor" }), true);
+assert.equal(canAccessDomuAdmin({ role: "methodist" }), true);
+assert.equal(canAccessDomuAdmin({ role: "user" }), false);
 
 assert.equal(getRoleLabel("user"), "Пользователь");
 assert.equal(getRoleLabel("methodist"), "Методист");
