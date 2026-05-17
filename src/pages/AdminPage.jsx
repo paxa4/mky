@@ -7,6 +7,7 @@ import GenerateSingle from "../components/certificates/GenerateSingle.jsx";
 import GenerateBatch from "../components/certificates/GenerateBatch.jsx";
 import TemplateConstructor from "../components/certificates/TemplateConstructor.jsx";
 import ChatSettings from "../components/chat/ChatSettings.jsx";
+import AnswerQualityStats from "../components/chat/AnswerQualityStats.jsx";
 import ArticlesModule from "../features/admin/ArticlesModule.jsx";
 
 function IssueModule({ templates }) {
@@ -113,12 +114,15 @@ export default function AdminPage({
     { key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" },
     { key: "articles", path: "/admin/articles", label: "Статьи" },
     { key: "chat", path: "/admin/chat", label: "Настройки чата" },
+    { key: "quality", path: "/admin/chat-quality", label: "Качество ответов" },
   ];
-  const moduleOrder = ["articles", "issue", "editor", "chat"];
+  const moduleOrder = ["articles", "issue", "editor", "chat", "quality"];
   const orderedAdminModules = [...adminModules].sort(
     (left, right) => moduleOrder.indexOf(left.key) - moduleOrder.indexOf(right.key),
   );
-  const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || "articles";
+  const activeModule = orderedAdminModules.find((module) => (
+    location.pathname === module.path || location.pathname.startsWith(`${module.path}/`)
+  ))?.key || "articles";
 
   useEffect(() => {
     if (location.pathname === "/admin" || location.pathname === "/admin/") {
@@ -187,6 +191,7 @@ export default function AdminPage({
                 />
               )}
               {activeModule === "chat" && <ChatSettings />}
+              {activeModule === "quality" && <AnswerQualityStats />}
             </>
           )}
         </div>

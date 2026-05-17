@@ -188,6 +188,10 @@ function normalizeAssistantPayload(payload) {
     answer: payload.answer || payload.response || payload.message || payload.text || payload.content || "",
     sources: normalizeSources(payload.sources),
     rewritten_question: payload.rewritten_question || payload.rewrittenQuestion || "",
+    answer_id: payload.answer_id || payload.answerId || payload.id || "",
+    message_id: payload.message_id || payload.messageId || "",
+    request_id: payload.request_id || payload.requestId || payload.trace_id || payload.traceId || "",
+    conversation_id: payload.conversation_id || payload.conversationId || "",
     access_scope: payload.access_scope,
     user_role: payload.user_role,
   };
@@ -250,6 +254,10 @@ function applyAssistantEvent(result, eventName, payload, onDelta) {
   if (normalized.answer) result.answer = normalized.answer;
   if (normalized.sources.length) result.sources = normalized.sources;
   if (normalized.rewritten_question) result.rewritten_question = normalized.rewritten_question;
+  if (normalized.answer_id) result.answer_id = normalized.answer_id;
+  if (normalized.message_id) result.message_id = normalized.message_id;
+  if (normalized.request_id) result.request_id = normalized.request_id;
+  if (normalized.conversation_id) result.conversation_id = normalized.conversation_id;
   if (normalized.access_scope) result.access_scope = normalized.access_scope;
   if (normalized.user_role !== undefined) result.user_role = normalized.user_role;
 }
@@ -334,5 +342,114 @@ export async function apiAssistantStatus() {
   });
   const data = await readJson(res);
   if (!res.ok) throw new Error(getErrorMessage(data, "Не удалось получить статус ассистента"));
+  return data;
+}
+
+function normalizeHistoryMessage(message) {
+  if (!message || typeof message !== "object") return null;
+
+  return {
+    ...message,
+    messageId: message.db_id || message.message_id || message.messageId || message.id,
+    text: message.content || message.text || message.answer || "",
+    role: message.role,
+  };
+}
+
+export async function apiGetLatestAssistantAnswer(sessionId = "default", { answer = "" } = {}) {
+  const history = await apiGetChatHistory(sessionId, 20);
+  const messages = Array.isArray(history?.messages)
+    ? history.messages.map(normalizeHistoryMessage).filter(Boolean)
+    : [];
+  const assistantMessages = messages.filter((message) => message.role === "assistant").reverse();
+
+  if (!assistantMessages.length) return null;
+
+  const normalizedAnswer = String(answer || "").trim();
+  if (!normalizedAnswer) return assistantMessages[0];
+
+  return assistantMessages.find((message) => String(message.text || "").trim() === normalizedAnswer) || assistantMessages[0];
+}
+
+export async function apiRateAssistantAnswer(feedback) {
+  const messageId = Number(feedback.messageId || feedback.message_id || feedback.answerId || feedback.answer_id);
+  if (!Number.isInteger(messageId) || messageId < 1) {
+    throw new Error("Не удалось определить ID ответа для оценки");
+  }
+
+  const score = Math.max(1, Math.min(5, Math.round(Number(feedback.score || feedback.rating || 0))));
+  if (!score) {
+    throw new Error("Оценка должна быть от 1 до 5");
+  }
+
+  const res = await authFetch(`${API_BASE}/assistant/quality/${messageId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      score,
+      comment: feedback.comment || null,
+      tags: Array.isArray(feedback.tags) ? feedback.tags.slice(0, 10) : [],
+    }),
+  });
+  const data = await readJson(res);
+  if (!res.ok) {
+    const fallback = res.status === 401
+      ? "Войдите в аккаунт, чтобы оценить ответ"
+      : "Не удалось сохранить оценку ответа";
+    throw new Error(getErrorMessage(data, fallback));
+  }
+
+  return data;
+}
+
+export async function apiGetAssistantAnswerQuality(messageId) {
+  const normalizedMessageId = Number(messageId);
+  if (!Number.isInteger(normalizedMessageId) || normalizedMessageId < 1) {
+    throw new Error("Не удалось определить ID ответа");
+  }
+
+  const res = await authFetch(`${API_BASE}/assistant/quality/${normalizedMessageId}`);
+  const data = await readJson(res);
+  if (!res.ok) {
+    const fallback = res.status === 401
+      ? "Нужна авторизация для просмотра качества ответа"
+      : "Не удалось загрузить качество ответа";
+    throw new Error(getErrorMessage(data, fallback));
+  }
+
+  return data;
+}
+
+export async function apiAssistantQualityStats(params = {}) {
+  const query = new URLSearchParams();
+  query.set("limit", String(params.limit || 100));
+
+  const sessionId = params.sessionId || params.session_id;
+  if (sessionId) query.set("session_id", sessionId);
+
+  if (params.ratedOnly !== undefined) {
+    query.set("rated_only", String(Boolean(params.ratedOnly)));
+  } else if (params.rated_only !== undefined) {
+    query.set("rated_only", String(Boolean(params.rated_only)));
+  }
+
+  const minScore = params.minScore ?? params.min_score;
+  const maxScore = params.maxScore ?? params.max_score;
+  if (minScore !== "" && minScore !== undefined && minScore !== null) {
+    query.set("min_score", String(minScore));
+  }
+  if (maxScore !== "" && maxScore !== undefined && maxScore !== null) {
+    query.set("max_score", String(maxScore));
+  }
+
+  const res = await authFetch(`${API_BASE}/assistant/quality?${query}`);
+  const data = await readJson(res);
+  if (!res.ok) {
+    const fallback = res.status === 401
+      ? "Нужна авторизация для просмотра качества ответов"
+      : "Не удалось загрузить качество ответов";
+    throw new Error(getErrorMessage(data, fallback));
+  }
+
   return data;
 }

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { apiAsk, apiClearChat } from "../api.js";
+import { apiAsk, apiClearChat, apiGetLatestAssistantAnswer } from "../api.js";
+import AnswerFeedback from "./chat/AnswerFeedback.jsx";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
 
 const SESSION_ID = `web-${crypto.randomUUID()}`;
 
-function Message({ msg }) {
+function Message({ msg, sessionId }) {
   const isBot = msg.from === "bot";
   return (
     <div style={{ display: "flex", justifyContent: isBot ? "flex-start" : "flex-end", marginBottom: 12, minWidth: 0 }}>
@@ -47,6 +48,8 @@ function Message({ msg }) {
             ))}
           </div>
         )}
+
+        {isBot && <AnswerFeedback message={msg} sessionId={sessionId} />}
       </div>
     </div>
   );
@@ -81,6 +84,7 @@ export default function ChatBot() {
       id: 1,
       from: "bot",
       text: "Здравствуйте! Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос.",
+      rateable: false,
     },
   ]);
   const [input, setInput] = useState("");
@@ -105,7 +109,7 @@ export default function ChatBot() {
 
     const userMsg = { id: Date.now(), from: "user", text: question };
     const botId = Date.now() + 1;
-    const botMsg = { id: botId, from: "bot", text: "", sources: [] };
+    const botMsg = { id: botId, from: "bot", text: "", sources: [], question, rateable: false };
 
     setMessages(m => [...m, userMsg, botMsg]);
     setInput("");
@@ -120,6 +124,15 @@ export default function ChatBot() {
         },
       });
 
+      let storedAnswer = null;
+      try {
+        storedAnswer = await apiGetLatestAssistantAnswer(SESSION_ID, { answer: data.answer || "" });
+      } catch (historyError) {
+        void historyError;
+      }
+      const messageId = data.message_id || storedAnswer?.messageId || storedAnswer?.db_id;
+      const manualQuality = storedAnswer?.manual_quality || storedAnswer?.metadata?.manual_quality || null;
+
       setMessages(m => m.map(msg => (
         msg.id === botId
           ? {
@@ -127,6 +140,14 @@ export default function ChatBot() {
               text: data.answer || msg.text || "Ассистент не вернул текст ответа.",
               sources: data.sources || [],
               rewritten: data.rewritten_question,
+              answerId: data.answer_id,
+              messageId,
+              requestId: data.request_id,
+              conversationId: data.conversation_id,
+              quality: storedAnswer?.quality || storedAnswer?.metadata?.quality || null,
+              manualQuality,
+              feedbackScore: manualQuality?.score || 0,
+              rateable: Boolean(messageId),
             }
           : msg
       )));
@@ -134,7 +155,7 @@ export default function ChatBot() {
       const errText = e.message || "Не удалось подключиться к серверу";
       setError(errText);
       setMessages(m => m.map(msg => (
-        msg.id === botId ? { ...msg, text: `Ошибка: ${errText}`, sources: [] } : msg
+        msg.id === botId ? { ...msg, text: `Ошибка: ${errText}`, sources: [], rateable: false } : msg
       )));
     } finally {
       setLoading(false);
@@ -159,6 +180,7 @@ export default function ChatBot() {
       id: Date.now(),
       from: "bot",
       text: "История очищена. Задайте новый вопрос.",
+      rateable: false,
     }]);
   };
 
@@ -274,7 +296,7 @@ export default function ChatBot() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px 8px", display: "flex", flexDirection: "column" }}>
-            {messages.map(msg => <Message key={msg.id} msg={msg} />)}
+            {messages.map(msg => <Message key={msg.id} msg={msg} sessionId={SESSION_ID} />)}
             {loading && !messages[messages.length - 1]?.text && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>

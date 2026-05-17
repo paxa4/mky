@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { apiAsk, apiClearChat } from "../../api.js";
+import { apiAsk, apiClearChat, apiGetLatestAssistantAnswer } from "../../api.js";
 import { cardStyle } from "../certificates/shared/styles.js";
 import AlertBanner from "../certificates/shared/AlertBanner.jsx";
+import AnswerFeedback from "./AnswerFeedback.jsx";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../../utils/chatLinks.jsx";
 
 function makeSessionId() {
@@ -32,7 +33,7 @@ export default function TestChatPanel() {
     setMessages(m => [
       ...m,
       { id: Date.now(), from: "user", text },
-      { id: botId, from: "bot", text: "", sources: [] },
+      { id: botId, from: "bot", text: "", sources: [], question: text, rateable: false },
     ]);
     setLoading(true);
 
@@ -45,6 +46,15 @@ export default function TestChatPanel() {
         },
       });
 
+      let storedAnswer = null;
+      try {
+        storedAnswer = await apiGetLatestAssistantAnswer(sessionId, { answer: data.answer || "" });
+      } catch (historyError) {
+        void historyError;
+      }
+      const messageId = data.message_id || storedAnswer?.messageId || storedAnswer?.db_id;
+      const manualQuality = storedAnswer?.manual_quality || storedAnswer?.metadata?.manual_quality || null;
+
       setMessages(m => m.map(msg => (
         msg.id === botId
           ? {
@@ -52,6 +62,14 @@ export default function TestChatPanel() {
               text: data.answer || msg.text || "Ассистент не вернул текст ответа.",
               rewritten: data.rewritten_question,
               sources: data.sources || [],
+              answerId: data.answer_id,
+              messageId,
+              requestId: data.request_id,
+              conversationId: data.conversation_id,
+              quality: storedAnswer?.quality || storedAnswer?.metadata?.quality || null,
+              manualQuality,
+              feedbackScore: manualQuality?.score || 0,
+              rateable: Boolean(messageId),
             }
           : msg
       )));
@@ -59,7 +77,7 @@ export default function TestChatPanel() {
       const message = e.message || "Ошибка связи с сервером";
       setError(message);
       setMessages(m => m.map(msg => (
-        msg.id === botId ? { ...msg, text: `Ошибка: ${message}`, sources: [] } : msg
+        msg.id === botId ? { ...msg, text: `Ошибка: ${message}`, sources: [], rateable: false } : msg
       )));
     } finally {
       setLoading(false);
@@ -91,7 +109,7 @@ export default function TestChatPanel() {
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0F172A" }}>Тестовый чат</h2>
           <p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>
-            Проверяйте качество ответов, переформулировку вопроса и найденные источники.
+            Проверяйте качество ответов, переформулировку вопроса, источники и сохранение оценки ответа.
           </p>
         </div>
         <button
@@ -131,7 +149,7 @@ export default function TestChatPanel() {
           </div>
         )}
 
-        {messages.map(msg => <TestMessage key={msg.id} msg={msg} />)}
+        {messages.map(msg => <TestMessage key={msg.id} msg={msg} sessionId={sessionId} />)}
 
         {loading && (
           <div style={{ padding: "12px 16px", color: "#64748B", fontSize: 14, fontStyle: "italic" }}>
@@ -193,7 +211,7 @@ export default function TestChatPanel() {
   );
 }
 
-function TestMessage({ msg }) {
+function TestMessage({ msg, sessionId }) {
   const isBot = msg.from === "bot";
 
   return (
@@ -262,6 +280,8 @@ function TestMessage({ msg }) {
             ))}
           </div>
         )}
+
+        {isBot && <AnswerFeedback message={msg} sessionId={sessionId} />}
       </div>
     </div>
   );
