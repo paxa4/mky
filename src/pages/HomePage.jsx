@@ -24,7 +24,7 @@ export default function HomePage({
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#EAF7FA" }}>
       <Header
         onGoAuth={onGoAuth || ((tab) => navigate(`/auth?tab=${tab || 'login'}`))}
         onGoAdmin={onGoAdmin || (() => navigate("/admin"))}
@@ -32,10 +32,10 @@ export default function HomePage({
         currentUser={currentUser}
       />
 
-      <main style={{ flex: 1 }}>
+      <main style={{ flex: 1, background: "#EAF7FA" }}>
+        <DepartmentsSection />
         <NewsFeed publishedNews={publishedNews} onOpenArticle={onOpenArticle} onOpenAuthor={onOpenAuthor} />
         <EventsSection eventsNews={eventsNews} onOpenArticle={onOpenArticle} onOpenAuthor={onOpenAuthor} />
-        <DepartmentsSection />
         <MapSection />
       </main>
 

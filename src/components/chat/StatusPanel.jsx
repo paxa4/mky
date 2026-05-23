@@ -164,11 +164,11 @@ export default function StatusPanel({ status, loading, error }) {
         <div style={{
           marginTop: 16,
           padding: "12px 16px",
-          background: "#EFF6FF",
+          background: "#EAF7FA",
           borderRadius: 10,
-          border: "1px solid #BFDBFE",
+          border: "1px solid #A9D9E7",
           fontSize: 13,
-          color: "#1E40AF",
+          color: "#145F7D",
           lineHeight: 1.6,
         }}>
           <strong>Последний прогон:</strong>{" "}

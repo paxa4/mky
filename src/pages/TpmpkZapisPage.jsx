@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
+import { getAuthHeaders } from "../api.js";
 import { API_BASE } from "../constants/index.js";
 
 const steps = ["Данные ребёнка", "Дата и время", "Дополнительно", "Контакты и согласия"];
@@ -214,7 +215,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     try {
       const response = await fetch(`${API_BASE}/api/tpmpk/zapis/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           working_day_id: form.workingDayId,
           start_time: form.selectedSlot,

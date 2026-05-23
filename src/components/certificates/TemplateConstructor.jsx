@@ -296,7 +296,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   const [elements, setElements] = useState([
     { id: 1, text: "Сертификат", x: 50, y: 14, size: 48, color: "#0F172A", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
     { id: 2, text: "награждается", x: 50, y: 24, size: 22, color: "#64748B", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
-    { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#1D4ED8", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
+    { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
     { id: 4, text: "за участие в {Мероприятие}", x: 50, y: 54, size: 18, color: "#475569", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
   ]);
 
@@ -481,7 +481,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setElements([
       { id: 1, text: "Сертификат", x: 50, y: 14, size: 48, color: "#0F172A", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
       { id: 2, text: "награждается", x: 50, y: 24, size: 22, color: "#64748B", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
-      { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#1D4ED8", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
+      { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
       { id: 4, text: "за участие в {Мероприятие}", x: 50, y: 54, size: 18, color: "#475569", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
     ]);
     setPreviewVariables(DEFAULT_PREVIEW_VARIABLES);
@@ -531,7 +531,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       x: cx,
       y: cy,
       size: key === "ФИО" ? 34 : 20,
-      color: key === "ФИО" ? "#1D4ED8" : "#334155",
+      color: key === "ФИО" ? "#19789C" : "#334155",
       weight: key === "ФИО" ? "700" : "500",
       fontFamily: DEFAULT_FONT_FAMILY,
       maxWidthMm: null,
@@ -958,8 +958,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       {showOnboarding && (
         <div style={{
           gridColumn: "1 / -1", marginBottom: 4,
-          background: "linear-gradient(135deg, #EFF6FF 0%, #F0FDF4 100%)",
-          border: "1px solid #BFDBFE",
+          background: "linear-gradient(135deg, #EAF7FA 0%, #F0FDF4 100%)",
+          border: "1px solid #A9D9E7",
           borderRadius: 12,
           padding: "16px 20px",
           position: "relative",
@@ -973,7 +973,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
             style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1 }}
             title="Закрыть подсказку"
           >×</button>
-          <div style={{ fontWeight: 800, fontSize: 14, color: "#1D4ED8", marginBottom: 10 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: "#19789C", marginBottom: 10 }}>
             Быстрый старт
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
@@ -986,7 +986,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
               ["6️⃣", "Сохраните шаблон", "Ctrl+S или кнопка «Сохранить»"],
             ].map(([icon, title, desc]) => (
               <div key={title} style={{ background: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "8px 10px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#1E40AF", marginBottom: 2 }}>{icon} {title}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#145F7D", marginBottom: 2 }}>{icon} {title}</div>
                 <div style={{ fontSize: 11, color: "#64748B" }}>{desc}</div>
               </div>
             ))}
@@ -1068,7 +1068,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                   title={t.name}
                   style={{
                     width: 72, height: 100, borderRadius: 8, overflow: "hidden", cursor: "pointer",
-                    border: editingId === t.id ? "3px solid #1D4ED8" : "2px solid #E2E8F0",
+                    border: editingId === t.id ? "3px solid #19789C" : "2px solid #E2E8F0",
                     background: "#F1F5F9", flexShrink: 0, position: "relative",
                     transition: "border-color 0.15s, transform 0.1s",
                     transform: editingId === t.id ? "scale(1.05)" : "scale(1)",
@@ -1482,19 +1482,19 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
               "Пол определяется автоматически по окончанию ФИО."
             } />
           </div>
-          <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.8, marginBottom: 12, padding: "10px 14px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
-            <div style={{ fontWeight: 700, color: "#1E40AF", marginBottom: 6, fontSize: 13 }}>Как вставлять переменные</div>
+          <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.8, marginBottom: 12, padding: "10px 14px", background: "#EAF7FA", borderRadius: 8, border: "1px solid #A9D9E7" }}>
+            <div style={{ fontWeight: 700, color: "#145F7D", marginBottom: 6, fontSize: 13 }}>Как вставлять переменные</div>
             <div>Вставьте переменную в текст блока — она автоматически заменится на реальные данные при генерации.</div>
             <div style={{ marginTop: 6 }}>
               📊 <strong>Из Excel:</strong> имя переменной должно точно совпадать с заголовком колонки.
-              Пример: колонка «Класс» → <code style={{ background: "#DBEAFE", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>{"{Класс}"}</code>
+              Пример: колонка «Класс» → <code style={{ background: "#D1EEF5", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>{"{Класс}"}</code>
             </div>
             <div style={{ marginTop: 6 }}>
               🔤 <strong>Склонение ФИО:</strong> по умолчанию система автоматически склоняет ФИО в зависимости от текста грамоты.
               При необходимости можно явно указать падеж:{" "}
-              <code style={{ background: "#DBEAFE", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:дательный}"}</code>,{" "}
-              <code style={{ background: "#DBEAFE", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:родительный}"}</code>,{" "}
-              <code style={{ background: "#DBEAFE", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:винительный}"}</code> и т.д.
+              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:дательный}"}</code>,{" "}
+              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:родительный}"}</code>,{" "}
+              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:винительный}"}</code> и т.д.
             </div>
           </div>
           <div style={{ fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 8 }}>
@@ -1519,7 +1519,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                   fontFamily: "inherit",
                   transition: "border-color 150ms, background 150ms",
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#93C5FD"; }}
+                onMouseOver={(e) => { e.currentTarget.style.background = "#EAF7FA"; e.currentTarget.style.borderColor = "#78C2D8"; }}
                 onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#CBD5E1"; }}
               >
                 {`{${key}}`}
@@ -1660,8 +1660,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
               <div key={el.id}
                 data-element-card-id={el.id}
                 style={{
-                background: selectedElementId === el.id ? "#EFF6FF" : "#fff",
-                border: selectedElementId === el.id ? "2px solid #3B82F6" : "1px solid #E2E8F0",
+                background: selectedElementId === el.id ? "#EAF7FA" : "#fff",
+                border: selectedElementId === el.id ? "2px solid #2E9ABA" : "1px solid #E2E8F0",
                 borderRadius: 12, padding: 16, position: "relative",
                 animation: "elCardIn 200ms ease-out",
                 transition: "border-color 150ms, background 150ms, box-shadow 150ms",
@@ -1685,10 +1685,10 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                       onClick={(e) => { e.stopPropagation(); setPickerOpenId((prev) => prev === el.id ? null : el.id); }}
                       style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
-                        padding: "4px 10px", background: pickerOpenId === el.id ? "#EFF6FF" : "#F8FAFC",
-                        border: `1px solid ${pickerOpenId === el.id ? "#93C5FD" : "#CBD5E1"}`,
+                        padding: "4px 10px", background: pickerOpenId === el.id ? "#EAF7FA" : "#F8FAFC",
+                        border: `1px solid ${pickerOpenId === el.id ? "#78C2D8" : "#CBD5E1"}`,
                         borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                        color: pickerOpenId === el.id ? "#1D4ED8" : "#475569",
+                        color: pickerOpenId === el.id ? "#19789C" : "#475569",
                         fontFamily: "inherit", transition: "background 150ms, border-color 150ms",
                       }}
                     >
@@ -1710,15 +1710,15 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         position: "absolute", top: "100%", left: 0, right: 0, zIndex: 9000,
-                        background: "#fff", borderRadius: 12, border: "1px solid #BFDBFE",
+                        background: "#fff", borderRadius: 12, border: "1px solid #A9D9E7",
                         boxShadow: "0 8px 32px rgba(30,64,175,0.13)",
                         overflow: "hidden", animation: "pickerIn 180ms ease-out",
                         marginTop: 4,
                       }}
                     >
                       {/* Заголовок */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px 8px", borderBottom: "1px solid #EFF6FF" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8" }}>Вставить переменную в текст</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px 8px", borderBottom: "1px solid #EAF7FA" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#19789C" }}>Вставить переменную в текст</span>
                         <button type="button" onClick={() => setPickerOpenId(null)}
                           style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1, padding: "0 2px" }}
                         >×</button>
@@ -1758,7 +1758,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                               inp.value = "";
                             }}
                             style={{
-                              padding: "7px 12px", background: "#1D4ED8", color: "#fff",
+                              padding: "7px 12px", background: "#19789C", color: "#fff",
                               border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
                             }}
                           >↵</button>
@@ -1781,14 +1781,14 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                               onClick={() => insertAtCursor(el.id, `{${key}}`)}
                               style={{
                                 padding: "6px 11px",
-                                background: "#EFF6FF", color: "#1D4ED8",
-                                border: "1px solid #BFDBFE", borderRadius: 7,
+                                background: "#EAF7FA", color: "#19789C",
+                                border: "1px solid #A9D9E7", borderRadius: 7,
                                 cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
                                 display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
                               }}
                             >
                               <span style={{ fontFamily: "monospace", fontWeight: 900 }}>{`{${key}}`}</span>
-                              <span style={{ fontSize: 10, fontWeight: 400, color: "#60A5FA" }}>{desc}</span>
+                              <span style={{ fontSize: 10, fontWeight: 400, color: "#4FB0CA" }}>{desc}</span>
                             </button>
                           ))}
                         </div>

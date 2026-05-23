@@ -23,7 +23,7 @@ export default function Partners() {
           transition: box-shadow 0.2s, border-color 0.2s;
           flex-shrink: 0;
         }
-        .partner-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #BFDBFE; }
+        .partner-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #A9D9E7; }
         .partner-nav {
           position: absolute; top: 50%; transform: translateY(-50%);
           width: 32px; height: 32px; border-radius: 50%;
@@ -31,7 +31,7 @@ export default function Partners() {
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: background 0.15s;
         }
-        .partner-nav:hover { background: #EFF6FF; border-color: #93C5FD; }
+        .partner-nav:hover { background: #EAF7FA; border-color: #78C2D8; }
         .partner-nav.left { left: 0; }
         .partner-nav.right { right: 0; }
       `}</style>

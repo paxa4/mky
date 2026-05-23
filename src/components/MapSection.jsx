@@ -1,19 +1,26 @@
+const ORGANIZATION_ADDRESS = "Иркутская область, г. Иркутск, ул. Ленина, дом 26";
+const MAP_COORDS = "104.2809,52.2817";
+const MAP_MARKER = `${MAP_COORDS},pm2rdm`;
+const MAP_SRC = `https://yandex.ru/map-widget/v1/?ll=${MAP_COORDS}&z=17&pt=${MAP_MARKER}`;
+const MAP_LINK = `https://yandex.ru/maps/?ll=${MAP_COORDS}&z=17&pt=${MAP_MARKER}`;
+
 export default function MapSection() {
   return (
-    <section style={{ background: "linear-gradient(180deg, #F1F5F9 0%, #F8FAFC 100%)", padding: "0 24px 60px" }}>
+    <section style={{ background: "#EAF7FA", padding: "0 24px 60px" }}>
       <style>{`
         .map-card {
           max-width: 1200px;
           margin: 0 auto;
-          background: linear-gradient(135deg, #1E3A8A, #1D4ED8);
+          background: linear-gradient(135deg, #12334A, #145F7D);
           border-radius: 24px;
           padding: 24px;
           display: flex;
           gap: 40px;
           align-items: center;
-          box-shadow: 0 12px 32px rgba(15,23,42,0.15);
+          box-shadow: 0 18px 42px rgba(8, 43, 57, .18);
         }
         .map-embed {
+          position: relative;
           flex: 1.5;
           height: 340px;
           border-radius: 16px;
@@ -41,6 +48,9 @@ export default function MapSection() {
           line-height: 1.5;
         }
         .map-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           margin-top: 32px;
           background: #fff;
           color: #0F172A;
@@ -49,6 +59,7 @@ export default function MapSection() {
           border-radius: 20px;
           font-weight: 600;
           font-size: 14px;
+          text-decoration: none;
           cursor: pointer;
           transition: background 0.15s;
         }
@@ -60,30 +71,31 @@ export default function MapSection() {
           .map-info { padding-right: 0; padding-bottom: 20px; }
         }
       `}</style>
-      
+
       <div className="map-card">
         <div className="map-embed">
-          <iframe 
-            src="https://yandex.ru/map-widget/v1/?ll=104.2806%2C52.2829&z=15" 
-            width="100%" 
-            height="100%" 
-            frameBorder="0" 
+          <iframe
+            src={MAP_SRC}
+            width="100%"
+            height="100%"
+            frameBorder="0"
             allowFullScreen={true}
+            title="МКУ развития образования города Иркутска на карте"
             style={{ display: "block" }}
           ></iframe>
         </div>
-        
+
         <div className="map-info">
           <div className="map-info-title">Контактная информация</div>
-          
+
           <div className="map-info-item">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
               <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-            <span>Иркутская область, г. Иркутск,<br/>ул. Ленина, дом 26</span>
+            <span>{ORGANIZATION_ADDRESS}</span>
           </div>
-          
+
           <div className="map-info-item">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
@@ -99,7 +111,7 @@ export default function MapSection() {
             <span>irk_imcro@bk.ru</span>
           </div>
 
-          <button className="map-btn">Все контакты</button>
+          <a className="map-btn" href={MAP_LINK} target="_blank" rel="noreferrer">Открыть на карте</a>
         </div>
       </div>
     </section>

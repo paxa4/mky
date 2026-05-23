@@ -130,8 +130,8 @@ function sortItems(items, sortBy) {
   return sorted;
 }
 
-function getDistribution(items, maxScore) {
-  const rows = Array.from({ length: maxScore }, (_, index) => {
+function getDistribution(items, maxScore, ratedState = "all") {
+  const scoreRows = Array.from({ length: maxScore }, (_, index) => {
     const score = maxScore - index;
     return {
       key: String(score),
@@ -141,14 +141,16 @@ function getDistribution(items, maxScore) {
     };
   });
 
-  rows.push({
+  const unratedRow = {
     key: "unrated",
     label: "Без оценки",
     count: items.filter((item) => !Number.isFinite(item.manualScore)).length,
     accent: "#64748B",
-  });
+  };
 
-  return rows;
+  if (ratedState === "rated") return scoreRows;
+  if (ratedState === "unrated") return [unratedRow];
+  return [...scoreRows, unratedRow];
 }
 
 function Metric({ label, value, accent = "#0F172A" }) {
@@ -304,8 +306,8 @@ export default function AnswerQualityStats() {
     [filters, stats.items],
   );
   const distribution = useMemo(
-    () => getDistribution(visibleItems, stats.maxScore),
-    [stats.maxScore, visibleItems],
+    () => getDistribution(visibleItems, stats.maxScore, filters.ratedState),
+    [filters.ratedState, stats.maxScore, visibleItems],
   );
   const ratedItems = visibleItems.filter((item) => Number.isFinite(item.manualScore));
   const unratedCount = visibleItems.length - ratedItems.length;
@@ -364,7 +366,7 @@ export default function AnswerQualityStats() {
             style={{
               border: "1px solid #CBD5E1",
               background: "#fff",
-              color: "#1D4ED8",
+              color: "#0F766E",
               borderRadius: 8,
               padding: "10px 14px",
               fontWeight: 800,
@@ -390,7 +392,7 @@ export default function AnswerQualityStats() {
               <Metric label="Ответов" value={visibleItems.length} />
               <Metric label="Оценено" value={ratedItems.length} accent="#047857" />
               <Metric label="Без оценки" value={unratedCount} accent="#64748B" />
-              <Metric label="Средний балл" value={averageScore === null ? "-" : formatScore(Number(averageScore.toFixed(1)), stats.maxScore)} accent="#1D4ED8" />
+              <Metric label="Средний балл" value={averageScore === null ? "-" : formatScore(Number(averageScore.toFixed(1)), stats.maxScore)} accent="#0F766E" />
               <Metric label="Низкие" value={ratedItems.filter((item) => item.manualScore <= 2).length} accent="#B91C1C" />
               <Metric label="Высокие" value={ratedItems.filter((item) => item.manualScore >= 4).length} accent="#047857" />
             </div>

@@ -215,8 +215,8 @@ export default function AnswerFeedback({ message, sessionId }) {
                 onClick={saveComment}
                 disabled={status === "sending"}
                 style={{
-                  border: "1px solid #1D4ED8",
-                  background: "#1D4ED8",
+                  border: "1px solid #19789C",
+                  background: "#19789C",
                   color: "#fff",
                   borderRadius: 8,
                   padding: "9px 12px",

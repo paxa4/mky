@@ -4,13 +4,55 @@ import AnswerFeedback from "./chat/AnswerFeedback.jsx";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
 
 const SESSION_ID = `web-${crypto.randomUUID()}`;
+const CHAT_SIZE_STORAGE_KEY = "mky_chat_window_size";
+const DEFAULT_CHAT_SIZE = { width: 340, height: 500 };
+const MIN_CHAT_SIZE = { width: 320, height: 420 };
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getChatSizeLimits() {
+  if (typeof window === "undefined") {
+    return { minWidth: MIN_CHAT_SIZE.width, minHeight: MIN_CHAT_SIZE.height, maxWidth: 720, maxHeight: 760 };
+  }
+  return {
+    minWidth: MIN_CHAT_SIZE.width,
+    minHeight: MIN_CHAT_SIZE.height,
+    maxWidth: Math.max(MIN_CHAT_SIZE.width, window.innerWidth - 48),
+    maxHeight: Math.max(MIN_CHAT_SIZE.height, window.innerHeight - 120),
+  };
+}
+
+function clampChatSize(size) {
+  const limits = getChatSizeLimits();
+  return {
+    width: clamp(Number(size?.width) || DEFAULT_CHAT_SIZE.width, limits.minWidth, limits.maxWidth),
+    height: clamp(Number(size?.height) || DEFAULT_CHAT_SIZE.height, limits.minHeight, limits.maxHeight),
+  };
+}
+
+function getInitialChatSize() {
+  try {
+    return clampChatSize(JSON.parse(window.localStorage.getItem(CHAT_SIZE_STORAGE_KEY) || "null"));
+  } catch {
+    return clampChatSize(DEFAULT_CHAT_SIZE);
+  }
+}
+
+function getResizeCursor(direction) {
+  if (direction === "nw" || direction === "se") return "nwse-resize";
+  if (direction === "ne" || direction === "sw") return "nesw-resize";
+  if (direction === "n" || direction === "s") return "ns-resize";
+  return "ew-resize";
+}
 
 function Message({ msg, sessionId }) {
   const isBot = msg.from === "bot";
   return (
     <div style={{ display: "flex", justifyContent: isBot ? "flex-start" : "flex-end", marginBottom: 12, minWidth: 0 }}>
       {isBot && (
-        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1D4ED8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#19789C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M3 5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5l-2 2V5Z" stroke="white" strokeWidth="1.3"/>
           </svg>
@@ -21,7 +63,7 @@ function Message({ msg, sessionId }) {
         minWidth: 0,
         padding: "10px 14px",
         borderRadius: isBot ? "4px 16px 16px 16px" : "16px 4px 16px 16px",
-        background: isBot ? "#F1F5F9" : "#1D4ED8",
+        background: isBot ? "#F1F5F9" : "#19789C",
         color: isBot ? "#0F172A" : "#fff",
         fontSize: 13,
         lineHeight: 1.55,
@@ -58,7 +100,7 @@ function Message({ msg, sessionId }) {
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 12 }}>
-      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1D4ED8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
+      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#19789C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M3 5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5l-2 2V5Z" stroke="white" strokeWidth="1.3"/>
         </svg>
@@ -79,6 +121,7 @@ function TypingIndicator() {
 
 export default function ChatBot() {
   const [open, setOpen] = useState(false);
+  const [chatSize, setChatSize] = useState(getInitialChatSize);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -95,8 +138,41 @@ export default function ChatBot() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+    try {
+      window.localStorage.setItem(CHAT_SIZE_STORAGE_KEY, JSON.stringify(chatSize));
+    } catch {
+      // Размер окна чата не критичен, если localStorage недоступен.
+    }
+  }, [chatSize]);
+
+  useEffect(() => {
+    const handleResize = () => setChatSize((size) => clampChatSize(size));
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const adjustInputHeight = () => {
+    const element = inputRef.current;
+    if (!element) return;
+    const maxHeight = Math.min(160, Math.max(80, Math.round(chatSize.height * 0.28)));
+    element.style.height = "auto";
+    const nextHeight = Math.min(element.scrollHeight, maxHeight);
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY = element.scrollHeight > maxHeight ? "auto" : "hidden";
+  };
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+        adjustInputHeight();
+      }, 100);
+    }
   }, [open]);
+
+  useEffect(() => {
+    adjustInputHeight();
+  }, [input, chatSize.height, open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -184,12 +260,56 @@ export default function ChatBot() {
     }]);
   };
 
+  const startResize = (event, direction) => {
+    if (window.matchMedia("(max-width: 480px)").matches) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = chatSize.width;
+    const startHeight = chatSize.height;
+    const resizeDirection = direction || "nw";
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = getResizeCursor(resizeDirection);
+    document.body.style.userSelect = "none";
+
+    const handleMove = (moveEvent) => {
+      const limits = getChatSizeLimits();
+      let nextWidth = startWidth;
+      let nextHeight = startHeight;
+      if (resizeDirection.includes("w")) nextWidth = startWidth + startX - moveEvent.clientX;
+      if (resizeDirection.includes("e")) nextWidth = startWidth + moveEvent.clientX - startX;
+      if (resizeDirection.includes("n")) nextHeight = startHeight + startY - moveEvent.clientY;
+      if (resizeDirection.includes("s")) nextHeight = startHeight + moveEvent.clientY - startY;
+      setChatSize({
+        width: clamp(nextWidth, limits.minWidth, limits.maxWidth),
+        height: clamp(nextHeight, limits.minHeight, limits.maxHeight),
+      });
+    };
+
+    const stopResize = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+  };
+
   return (
     <>
       <style>{`
         .chat-window {
           position: fixed; bottom: 94px; right: 24px; z-index: 400;
-          width: 340px; height: 500px; max-height: calc(100vh - 120px);
+          width: min(var(--chat-width, 340px), calc(100vw - 48px));
+          height: min(var(--chat-height, 500px), calc(100vh - 120px));
+          min-width: 320px; min-height: 420px; max-height: calc(100vh - 120px);
           background: #fff; border-radius: 20px;
           border: 1px solid #E2E8F0;
           box-shadow: 0 16px 48px rgba(0,0,0,0.14);
@@ -211,52 +331,52 @@ export default function ChatBot() {
           overflow-wrap: anywhere;
           font-weight: 600;
         }
-        .chat-link-bot  { color: #1D4ED8; }
-        .chat-link-bot:hover  { color: #1E40AF; }
+        .chat-link-bot  { color: #19789C; }
+        .chat-link-bot:hover  { color: #19789C; }
         .chat-link-user { color: #fff; }
-        .chat-link-user:hover { color: #DBEAFE; }
+        .chat-link-user:hover { color: #D1EEF5; }
         .chat-source-link {
           display: block;
           font-size: 11px;
-          color: #1D4ED8;
+          color: #19789C;
           font-weight: 600;
           text-decoration: none;
           margin-bottom: 4px;
           padding: 4px 8px;
-          background: rgba(29,78,216,0.06);
+          background: rgba(25,120,156,0.08);
           border-radius: 6px;
           word-break: break-all;
           overflow-wrap: anywhere;
           line-height: 1.4;
           transition: background 0.15s;
         }
-        .chat-source-link:hover { background: rgba(29,78,216,0.12); text-decoration: underline; }
+        .chat-source-link:hover { background: rgba(25,120,156,0.14); text-decoration: underline; }
         .chat-input {
-          flex: 1; border: none; outline: none; background: transparent;
+          flex: 1; min-height: 20px; border: none; outline: none; background: transparent;
           font-size: 13px; color: #0F172A; font-family: inherit; resize: none;
-          line-height: 1.5;
+          line-height: 1.5; overflow-y: hidden;
         }
         .chat-input::placeholder { color: #94A3B8; }
         .chat-send {
           width: 32px; height: 32px; border-radius: 9px; border: none;
-          background: #1D4ED8; cursor: pointer; display: flex;
+          background: #19789C; cursor: pointer; display: flex;
           align-items: center; justify-content: center; flex-shrink: 0;
           transition: background 0.15s, transform 0.1s;
         }
-        .chat-send:hover { background: #1E40AF; transform: scale(1.05); }
+        .chat-send:hover { background: #19789C; transform: scale(1.05); }
         .chat-send:disabled { background: #CBD5E1; cursor: default; transform: none; }
         .chat-fab {
           position: fixed; bottom: 24px; right: 24px; z-index: 400;
           width: 60px; height: 60px; border-radius: 50%;
-          background: #1D4ED8; cursor: pointer; color: #fff;
+          background: #19789C; cursor: pointer; color: #fff;
           display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 8px 24px rgba(29,78,216,0.35);
+          box-shadow: 0 8px 24px rgba(25,120,156,0.35);
           border: 4px solid #fff;
           transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
         }
         .chat-fab:hover {
           transform: scale(1.08) translateY(-4px);
-          box-shadow: 0 12px 32px rgba(29,78,216,0.45);
+          box-shadow: 0 12px 32px rgba(25,120,156,0.42);
         }
         .chat-clear {
           background: none; border: none; cursor: pointer; padding: 4px;
@@ -264,15 +384,37 @@ export default function ChatBot() {
           border-radius: 6px; transition: color 0.15s;
         }
         .chat-clear:hover { color: #fff; }
+        .chat-resize-handle {
+          position: absolute; z-index: 5; border: 0; padding: 0;
+          background: transparent; touch-action: none;
+        }
+        .chat-resize-handle:hover { background: rgba(25,120,156,0.1); }
+        .chat-resize-top { top: 0; left: 18px; right: 18px; height: 8px; cursor: ns-resize; }
+        .chat-resize-right { top: 18px; right: 0; bottom: 18px; width: 8px; cursor: ew-resize; }
+        .chat-resize-bottom { left: 18px; right: 18px; bottom: 0; height: 8px; cursor: ns-resize; }
+        .chat-resize-left { top: 18px; left: 0; bottom: 18px; width: 8px; cursor: ew-resize; }
+        .chat-resize-nw { top: 0; left: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+        .chat-resize-ne { top: 0; right: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+        .chat-resize-sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+        .chat-resize-se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; }
         @media (max-width: 480px) {
-          .chat-window { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
+          .chat-window { width: calc(100vw - 32px); height: min(500px, calc(100vh - 96px)); min-width: 0; right: 16px; bottom: 80px; }
           .chat-fab { right: 16px; bottom: 16px; }
+          .chat-resize-handle { display: none; }
         }
       `}</style>
 
       {open && (
-        <div className="chat-window">
-          <div style={{ background: "#1D4ED8", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="chat-window" style={{ "--chat-width": `${chatSize.width}px`, "--chat-height": `${chatSize.height}px` }}>
+          <div className="chat-resize-handle chat-resize-top" aria-hidden="true" onPointerDown={(event) => startResize(event, "n")} />
+          <div className="chat-resize-handle chat-resize-right" aria-hidden="true" onPointerDown={(event) => startResize(event, "e")} />
+          <div className="chat-resize-handle chat-resize-bottom" aria-hidden="true" onPointerDown={(event) => startResize(event, "s")} />
+          <div className="chat-resize-handle chat-resize-left" aria-hidden="true" onPointerDown={(event) => startResize(event, "w")} />
+          <div className="chat-resize-handle chat-resize-nw" aria-hidden="true" onPointerDown={(event) => startResize(event, "nw")} />
+          <div className="chat-resize-handle chat-resize-ne" aria-hidden="true" onPointerDown={(event) => startResize(event, "ne")} />
+          <div className="chat-resize-handle chat-resize-sw" aria-hidden="true" onPointerDown={(event) => startResize(event, "sw")} />
+          <div className="chat-resize-handle chat-resize-se" aria-hidden="true" onPointerDown={(event) => startResize(event, "se")} />
+          <div style={{ background: "#19789C", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path d="M3 5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6l-3 2V5Z" stroke="white" strokeWidth="1.5"/>
@@ -309,9 +451,9 @@ export default function ChatBot() {
                 rows={1}
                 placeholder="Напишите вопрос..."
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKey}
-                style={{ maxHeight: 80 }}
+                style={{ maxHeight: Math.min(160, Math.max(80, Math.round(chatSize.height * 0.28))) }}
                 disabled={loading}
               />
               <button className="chat-send" onClick={() => sendMessage(input)} disabled={!input.trim() || loading} title="Отправить">

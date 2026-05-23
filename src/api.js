@@ -224,6 +224,10 @@ function parseSseEvent(rawEvent) {
 function applyAssistantEvent(result, eventName, payload, onDelta) {
   const event = eventName || payload?.event || payload?.type || "message";
 
+  if (event === "error") {
+    throw new Error(getErrorMessage(payload, "Не удалось получить ответ ассистента"));
+  }
+
   if (event === "token") {
     const chunk = typeof payload === "string"
       ? payload

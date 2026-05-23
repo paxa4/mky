@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resolveAssetUrl } from "../../utils/assetUrl.js";
 import { genId } from "./adminStore.js";
 
 // ─── Визуальный предпросмотр блоков (читатель) ───────────────────────────────
@@ -26,7 +27,7 @@ export function BlockPreview({ block }) {
         : <p style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18, textAlign: block.data.align || "left" }}>{block.data.text}</p>;
     case "quote":
       return (
-        <blockquote style={{ borderLeft: "4px solid #1D4ED8", paddingLeft: 20, margin: "24px 0", background: "#EFF6FF", borderRadius: "0 12px 12px 0", padding: "16px 20px" }}>
+        <blockquote style={{ borderLeft: "4px solid #19789C", paddingLeft: 20, margin: "24px 0", background: "#EAF7FA", borderRadius: "0 12px 12px 0", padding: "16px 20px" }}>
           {block.data.html
             ? <div style={{ fontSize: 16, fontStyle: "italic", color: "#1e3a8a", lineHeight: 1.6, margin: 0 }} dangerouslySetInnerHTML={{ __html: block.data.html }} />
             : <p style={{ fontSize: 16, fontStyle: "italic", color: "#1e3a8a", lineHeight: 1.6, margin: 0 }}>«{block.data.text || ""}»</p>
@@ -38,7 +39,7 @@ export function BlockPreview({ block }) {
       return (
         <figure style={{ margin: "24px 0" }}>
           {block.data.url
-            ? <img src={block.data.url} alt={block.data.caption} style={{ width: "100%", borderRadius: 12, objectFit: "cover", maxHeight: 400 }} />
+            ? <img src={resolveAssetUrl(block.data.url)} alt={block.data.caption} style={{ width: "100%", borderRadius: 12, objectFit: "cover", maxHeight: 400 }} />
             : <div style={{ width: "100%", height: 200, background: "#F1F5F9", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}>Изображение не загружено</div>
           }
           {block.data.caption && <figcaption style={{ fontSize: 13, color: "#64748B", textAlign: "center", marginTop: 8 }}>{block.data.caption}</figcaption>}
@@ -49,7 +50,7 @@ export function BlockPreview({ block }) {
         <div style={{ display: "flex", gap: 24, margin: "24px 0", alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 40%", minWidth: 220 }}>
             {block.data.url
-              ? <img src={block.data.url} alt="" style={{ width: "100%", borderRadius: 12, objectFit: "cover" }} />
+              ? <img src={resolveAssetUrl(block.data.url)} alt="" style={{ width: "100%", borderRadius: 12, objectFit: "cover" }} />
               : <div style={{ width: "100%", height: 160, background: "#F1F5F9", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}>Фото</div>
             }
           </div>
@@ -105,8 +106,8 @@ function Field({ label, value, onChange, multiline, placeholder }) {
     <div style={{ marginBottom: 10 }}>
       {label && <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>}
       {multiline
-        ? <textarea style={style} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3} onFocus={e => e.target.style.borderColor = "#93C5FD"} onBlur={e => e.target.style.borderColor = "#E2E8F0"} />
-        : <input style={style} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={placeholder} onFocus={e => e.target.style.borderColor = "#93C5FD"} onBlur={e => e.target.style.borderColor = "#E2E8F0"} />
+        ? <textarea style={style} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3} onFocus={e => e.target.style.borderColor = "#78C2D8"} onBlur={e => e.target.style.borderColor = "#E2E8F0"} />
+        : <input style={style} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={placeholder} onFocus={e => e.target.style.borderColor = "#78C2D8"} onBlur={e => e.target.style.borderColor = "#E2E8F0"} />
       }
     </div>
   );
@@ -141,7 +142,7 @@ function ImageUpload({ value, onChange }) {
       <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Изображение</label>
       {value?.url && (
         <div style={{ marginBottom: 8, position: "relative" }}>
-          <img src={value.url} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8 }} />
+          <img src={resolveAssetUrl(value.url)} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8 }} />
           {uploading && (
             <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 600 }}>
               Загрузка...
@@ -149,7 +150,7 @@ function ImageUpload({ value, onChange }) {
           )}
         </div>
       )}
-      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1D4ED8" }}>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#EAF7FA", border: "1.5px solid #A9D9E7", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#19789C" }}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M7 1v8M4 4l3-3 3 3M2 10v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -210,9 +211,9 @@ export function BlockEditor({ block, onChange }) {
               {[{ val: false, label: "• Маркированный" }, { val: true, label: "1. Нумерованный" }].map(opt => (
                 <button key={String(opt.val)} onClick={() => update("ordered", opt.val)}
                   style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                    borderColor: block.data.ordered === opt.val ? "#1D4ED8" : "#E2E8F0",
-                    background: block.data.ordered === opt.val ? "#EFF6FF" : "#fff",
-                    color: block.data.ordered === opt.val ? "#1D4ED8" : "#64748B",
+                    borderColor: block.data.ordered === opt.val ? "#19789C" : "#E2E8F0",
+                    background: block.data.ordered === opt.val ? "#EAF7FA" : "#fff",
+                    color: block.data.ordered === opt.val ? "#19789C" : "#64748B",
                   }}>{opt.label}</button>
               ))}
             </div>
@@ -227,7 +228,7 @@ export function BlockEditor({ block, onChange }) {
             </div>
           ))}
           <button onClick={() => update("items", [...items, ""])}
-            style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ fontSize: 13, fontWeight: 600, color: "#19789C", background: "#EAF7FA", border: "1.5px solid #A9D9E7", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
             + Добавить пункт
           </button>
         </>
@@ -300,9 +301,9 @@ export function BlockConstructor({ blocks, onChange }) {
         <div style={{ flex: 1 }} />
         <button onClick={() => setPreview(v => !v)}
           style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            borderColor: preview ? "#1D4ED8" : "#E2E8F0",
-            background: preview ? "#EFF6FF" : "#fff",
-            color: preview ? "#1D4ED8" : "#64748B",
+            borderColor: preview ? "#19789C" : "#E2E8F0",
+            background: preview ? "#EAF7FA" : "#fff",
+            color: preview ? "#19789C" : "#64748B",
           }}>
           {preview ? "← Редактор" : "Предпросмотр →"}
         </button>
@@ -330,7 +331,7 @@ export function BlockConstructor({ blocks, onChange }) {
             const meta = BLOCK_TYPES.find(t => t.type === block.type);
             return (
               <div key={block.id} style={{
-                border: `2px solid ${isActive ? "#1D4ED8" : "#E2E8F0"}`,
+                border: `2px solid ${isActive ? "#19789C" : "#E2E8F0"}`,
                 borderRadius: 12, marginBottom: 10, overflow: "hidden",
                 transition: "border-color 0.15s",
               }}>
@@ -339,7 +340,7 @@ export function BlockConstructor({ blocks, onChange }) {
                   onClick={() => setActiveId(isActive ? null : block.id)}
                   style={{
                     display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-                    background: isActive ? "#EFF6FF" : "#F8FAFC", cursor: "pointer",
+                    background: isActive ? "#EAF7FA" : "#F8FAFC", cursor: "pointer",
                     userSelect: "none",
                   }}
                 >
@@ -375,14 +376,14 @@ export function BlockConstructor({ blocks, onChange }) {
               onClick={() => setShowPicker(v => !v)}
               style={{
                 width: "100%", padding: "12px", borderRadius: 10,
-                border: "2px dashed #BFDBFE", background: "#F8FBFF",
-                fontSize: 14, fontWeight: 600, color: "#1D4ED8",
+                border: "2px dashed #A9D9E7", background: "#F4FBFD",
+                fontSize: 14, fontWeight: 600, color: "#19789C",
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background 0.15s",
               }}
-              onMouseOver={e => e.currentTarget.style.background = "#EFF6FF"}
-              onMouseOut={e => e.currentTarget.style.background = "#F8FBFF"}
+              onMouseOver={e => e.currentTarget.style.background = "#EAF7FA"}
+              onMouseOut={e => e.currentTarget.style.background = "#F4FBFD"}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -407,7 +408,7 @@ export function BlockConstructor({ blocks, onChange }) {
                       fontSize: 13, fontWeight: 500, color: "#334155",
                       transition: "all 0.12s",
                     }}
-                    onMouseOver={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.color = "#1D4ED8"; }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = "#78C2D8"; e.currentTarget.style.background = "#EAF7FA"; e.currentTarget.style.color = "#19789C"; }}
                     onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#334155"; }}
                   >
                     <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{bt.icon}</span>

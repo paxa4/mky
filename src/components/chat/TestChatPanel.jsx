@@ -195,7 +195,7 @@ export default function TestChatPanel() {
           disabled={!input.trim() || loading}
           style={{
             padding: "0 20px",
-            background: !input.trim() || loading ? "#CBD5E1" : "#1D4ED8",
+            background: !input.trim() || loading ? "#CBD5E1" : "#19789C",
             color: "#fff",
             border: "none",
             borderRadius: 10,
@@ -224,7 +224,7 @@ function TestMessage({ msg, sessionId }) {
         maxWidth: "88%",
         padding: "12px 16px",
         borderRadius: isBot ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
-        background: isBot ? "#fff" : "#1D4ED8",
+        background: isBot ? "#fff" : "#19789C",
         color: isBot ? "#0F172A" : "#fff",
         fontSize: 14,
         lineHeight: 1.55,
@@ -266,7 +266,7 @@ function TestMessage({ msg, sessionId }) {
                 style={{
                   display: "block",
                   fontSize: 12,
-                  color: "#1D4ED8",
+                  color: "#19789C",
                   textDecoration: "none",
                   marginBottom: 3,
                   overflow: "hidden",

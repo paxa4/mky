@@ -52,7 +52,7 @@ function StepIndicator({ current, total }) {
       {Array.from({ length: total }).map((_, i) => (
         <div key={i} style={{
           height: 4, flex: 1, borderRadius: 99,
-          background: i < current ? "#1D4ED8" : "#E2E8F0",
+          background: i < current ? "#19789C" : "#E2E8F0",
           transition: "background 0.3s",
         }} />
       ))}
@@ -184,7 +184,7 @@ export default function GenerateSingle({ templates }) {
               <span style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 width: 22, height: 22, borderRadius: "50%",
-                background: templateId ? "#1D4ED8" : "#E2E8F0",
+                background: templateId ? "#19789C" : "#E2E8F0",
                 color: templateId ? "#fff" : "#94A3B8",
                 fontSize: 11, fontWeight: 800, marginRight: 8, flexShrink: 0,
               }}>1</span>
@@ -215,7 +215,7 @@ export default function GenerateSingle({ templates }) {
               <span style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 width: 22, height: 22, borderRadius: "50%",
-                background: fio.trim() ? "#1D4ED8" : "#E2E8F0",
+                background: fio.trim() ? "#19789C" : "#E2E8F0",
                 color: fio.trim() ? "#fff" : "#94A3B8",
                 fontSize: 11, fontWeight: 800, marginRight: 8, flexShrink: 0,
               }}>2</span>
@@ -252,12 +252,12 @@ export default function GenerateSingle({ templates }) {
         {extraKeys.length > 0 && (
           <div style={{
             marginBottom: 24, padding: 18,
-            background: "linear-gradient(135deg, #F0F7FF 0%, #F8FAFC 100%)",
-            border: "1px solid #BFDBFE", borderRadius: 14,
+            background: "linear-gradient(135deg, #F0FAFC 0%, #F8FAFC 100%)",
+            border: "1px solid #A9D9E7", borderRadius: 14,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 16 }}>📋</span>
-              <span style={{ fontWeight: 800, color: "#1D4ED8", fontSize: 15 }}>
+              <span style={{ fontWeight: 800, color: "#19789C", fontSize: 15 }}>
                 Данные для шаблона
               </span>
             </div>
@@ -272,7 +272,7 @@ export default function GenerateSingle({ templates }) {
                     fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 5,
                   }}>
                     <code style={{
-                      background: "#DBEAFE", color: "#1D4ED8", padding: "2px 7px",
+                      background: "#D1EEF5", color: "#19789C", padding: "2px 7px",
                       borderRadius: 5, fontFamily: "monospace", fontSize: 12,
                     }}>{`{${key}}`}</code>
                     {key}
@@ -330,7 +330,7 @@ export default function GenerateSingle({ templates }) {
         </p>
         <PdfPreviewPanel
           fileUrl={fileUrl} onDownload={handleDownload}
-          accentColor="#1D4ED8"
+          accentColor="#19789C"
           emptyText="Заполните форму слева и нажмите «Создать грамоту» — здесь появится предпросмотр"
           emptyIcon="📄"
         />

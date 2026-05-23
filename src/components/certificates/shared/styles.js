@@ -32,7 +32,7 @@ export const primaryBtn = (disabled) => ({
   padding: "16px",
   fontSize: 16,
   fontWeight: 700,
-  background: disabled ? "#CBD5E1" : "#1D4ED8",
+  background: disabled ? "#CBD5E1" : "#19789C",
   color: "#fff",
   border: "none",
   borderRadius: 12,
@@ -57,7 +57,7 @@ export const dangerBtn = {
   fontSize: 13,
 };
 
-export const sectionBox = (color = "#EFF6FF", border = "#BFDBFE") => ({
+export const sectionBox = (color = "#EAF7FA", border = "#A9D9E7") => ({
   background: color,
   padding: 20,
   borderRadius: 12,

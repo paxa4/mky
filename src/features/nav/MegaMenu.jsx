@@ -229,7 +229,7 @@ export default function MegaMenu({ open, onClose }) {
         }
 
         .m-card-blue {
-          background: #1d4ed8;
+          background: #19789C;
           color: #fff;
           box-shadow: 0 10px 26px rgba(29, 78, 216, 0.24);
         }

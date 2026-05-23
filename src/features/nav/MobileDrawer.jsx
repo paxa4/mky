@@ -39,7 +39,7 @@ export default function MobileDrawer({ open, onClose }) {
                 <div style={{ background: "#F8FAFC", borderTop: "1px solid #F1F5F9", borderBottom: "1px solid #F1F5F9" }}>
                   {item.sub.map((s, idx) => (
                     <div key={idx} style={{ padding: "12px 20px 12px 36px", fontSize: 14, color: "#475569", cursor: "pointer", borderBottom: "1px solid #F1F5F9" }}
-                      onMouseOver={e => e.currentTarget.style.color = "#1D4ED8"}
+                      onMouseOver={e => e.currentTarget.style.color = "#19789C"}
                       onMouseOut={e => e.currentTarget.style.color = "#475569"}
                     >{s}</div>
                   ))}

@@ -31,7 +31,7 @@ export const MOCK_USER = {
 };
 
 const LEVEL_COLORS = {
-  Муниципальный: { bg: "#EFF6FF", color: "#1D4ED8" },
+  Муниципальный: { bg: "#EAF7FA", color: "#19789C" },
   Региональный: { bg: "#F5F3FF", color: "#6D28D9" },
   Федеральный: { bg: "#ECFDF5", color: "#047857" },
 };
@@ -185,10 +185,10 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
     <div className="profile-page">
       <style>{`
         .profile-page {
-          --blue-950: #0B1F49;
-          --blue-900: #123C7C;
-          --blue-700: #1D4ED8;
-          --blue-600: #2563EB;
+          --blue-950: #0D3F54;
+          --blue-900: #12536E;
+          --blue-700: #19789C;
+          --blue-600: #19789C;
           --violet-600: #7C3AED;
           --violet-100: #F3EEFF;
           --slate-900: #0F172A;
@@ -202,9 +202,9 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           color: var(--slate-900);
           font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           background:
-            radial-gradient(circle at 11% 7%, rgba(37, 99, 235, 0.13), transparent 28rem),
+            radial-gradient(circle at 11% 7%, rgba(25, 120, 156, 0.13), transparent 28rem),
             radial-gradient(circle at 91% 4%, rgba(124, 58, 237, 0.13), transparent 26rem),
-            linear-gradient(180deg, #F8FBFF 0%, #F4F7FB 48%, #F8FAFC 100%);
+            linear-gradient(180deg, #F4FBFD 0%, #F4F7FB 48%, #F8FAFC 100%);
         }
         .profile-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
         .profile-topbar {
@@ -224,7 +224,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           width: 34px; height: 34px; border-radius: 12px;
           display: grid; place-items: center; color: white; font-weight: 800;
           background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
-          box-shadow: 0 12px 30px rgba(37, 99, 235, 0.24);
+          box-shadow: 0 12px 30px rgba(25, 120, 156, 0.24);
         }
         .topbar-spacer { flex: 1; }
         .profile-btn {
@@ -235,16 +235,16 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-btn:hover { transform: translateY(-1px); }
         .profile-btn:focus-visible, .ptab:focus-visible, .pinput:focus-visible {
-          outline: 3px solid rgba(37, 99, 235, 0.24);
+          outline: 3px solid rgba(25, 120, 156, 0.24);
           outline-offset: 3px;
         }
         .profile-btn--ghost {
-          color: var(--blue-900); background: #fff; border: 1px solid rgba(37, 99, 235, 0.18);
+          color: var(--blue-900); background: #fff; border: 1px solid rgba(25, 120, 156, 0.18);
           box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
         .profile-btn--primary {
           color: #fff; background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
-          box-shadow: 0 16px 34px rgba(37, 99, 235, 0.28);
+          box-shadow: 0 16px 34px rgba(25, 120, 156, 0.28);
         }
         .profile-btn--danger {
           color: #B91C1C; background: #fff; border: 1px solid rgba(248, 113, 113, 0.4);
@@ -261,7 +261,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           min-height: 220px; padding: 34px;
           border: 1px solid rgba(255,255,255,0.78); border-radius: 32px;
           background:
-            linear-gradient(135deg, rgba(11,31,73,0.95), rgba(29,78,216,0.92) 52%, rgba(124,58,237,0.86)),
+            linear-gradient(135deg, rgba(13,63,84,0.95), rgba(25,120,156,0.92) 52%, rgba(124,58,237,0.86)),
             radial-gradient(circle at 70% 35%, rgba(255,255,255,0.3), transparent 18rem);
           box-shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
         }
@@ -306,7 +306,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           font-size: 12px; font-weight: 800; border: 1px solid transparent;
         }
         .profile-tag--hero { color: #fff; background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.2); }
-        .profile-tag--blue { color: #1D4ED8; background: #EFF6FF; border-color: #DBEAFE; }
+        .profile-tag--blue { color: #19789C; background: #EAF7FA; border-color: #D1EEF5; }
         .profile-tag--violet { color: #6D28D9; background: #F5F3FF; border-color: #EDE9FE; }
         .profile-tag--green { color: #047857; background: #ECFDF5; border-color: #D1FAE5; }
         .profile-tag--gray { color: #475569; background: #F8FAFC; border-color: #E2E8F0; }
@@ -339,7 +339,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-card__icon {
           width: 36px; height: 36px; border-radius: 14px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EFF6FF;
+          color: var(--blue-700); background: #EAF7FA;
         }
         .ptabs-col { display: grid; gap: 6px; }
         .ptab {
@@ -350,7 +350,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .ptab:hover { color: var(--blue-900); background: #F8FAFC; transform: translateX(2px); }
         .ptab.active {
-          color: var(--blue-700); background: linear-gradient(135deg, #EFF6FF, #F5F3FF);
+          color: var(--blue-700); background: linear-gradient(135deg, #EAF7FA, #F5F3FF);
           box-shadow: inset 3px 0 0 var(--blue-700);
         }
         .ptab span {
@@ -394,7 +394,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .info-tile--wide { grid-column: 1 / -1; }
         .info-tile__icon {
           width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EFF6FF;
+          color: var(--blue-700); background: #EAF7FA;
         }
         .info-tile span { display: block; color: var(--slate-500); font-size: 12px; font-weight: 800; }
         .info-tile strong {
@@ -405,7 +405,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           background: #F8FAFC; color: var(--slate-900); font: inherit; font-size: 14px; font-weight: 700;
           transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
         }
-        .pinput:focus { background: #fff; border-color: #93C5FD; box-shadow: 0 0 0 4px rgba(147,197,253,.18); outline: none; }
+        .pinput:focus { background: #fff; border-color: #78C2D8; box-shadow: 0 0 0 4px rgba(25,120,156,.16); outline: none; }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
         .form-field label {
           display: block; margin-bottom: 7px; color: var(--slate-500); font-size: 11px; font-weight: 800;
@@ -416,7 +416,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .subjects-cloud { display: flex; flex-wrap: wrap; gap: 10px; }
         .subject-chip {
           display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 15px; border-radius: 999px;
-          color: var(--blue-900); background: linear-gradient(135deg, #EFF6FF, #F5F3FF);
+          color: var(--blue-900); background: linear-gradient(135deg, #EAF7FA, #F5F3FF);
           border: 1px solid rgba(37,99,235,.12); font-size: 13px; font-weight: 800;
         }
         .subject-chip::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--violet-600); }
@@ -428,7 +428,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .list-icon {
           width: 48px; height: 48px; border-radius: 17px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EFF6FF;
+          color: var(--blue-700); background: #EAF7FA;
         }
         .list-item h3 { margin: 0 0 5px; color: var(--slate-900); font-size: 14px; line-height: 1.3; }
         .list-item p { margin: 0; color: var(--slate-500); font-size: 13px; font-weight: 600; }
@@ -439,7 +439,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .empty-state span {
           width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EFF6FF;
+          color: var(--blue-700); background: #EAF7FA;
         }
         .empty-state p { margin: 0; font-size: 14px; font-weight: 700; }
         .security-note {

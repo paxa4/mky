@@ -212,7 +212,7 @@ export default function GenerateBatch({ templates }) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); dragCounter.current = 0; setDrag(false); pickFile(e.dataTransfer.files?.[0]); }}
             onClick={() => inputRef.current?.click()}
-            style={{ border: `2px dashed ${drag ? "#1D4ED8" : file ? "#059669" : "#CBD5E1"}`, borderRadius: 16, padding: "32px 24px", textAlign: "center", cursor: "pointer", background: drag ? "#EEF2FF" : file ? "#F0FDF4" : "#F8FAFC", transition: "all 0.15s", marginTop: 8 }}
+            style={{ border: `2px dashed ${drag ? "#19789C" : file ? "#059669" : "#CBD5E1"}`, borderRadius: 16, padding: "32px 24px", textAlign: "center", cursor: "pointer", background: drag ? "#EAF7FA" : file ? "#F0FDF4" : "#F8FAFC", transition: "all 0.15s", marginTop: 8 }}
           >
             <input ref={inputRef} type="file" accept=".xlsx,.xlsm" style={{ display: "none" }} onChange={(e) => pickFile(e.target.files?.[0])} />
             <div style={{ fontSize: 32, marginBottom: 10 }}>{file ? "✓" : drag ? "📂" : "📊"}</div>
@@ -286,10 +286,10 @@ export default function GenerateBatch({ templates }) {
 
         {/* Блок дополнительных переменных */}
         {extraKeys.length > 0 && (
-          <div style={{ marginBottom: 24, padding: 18, background: "linear-gradient(135deg, #F0F7FF 0%, #F8FAFC 100%)", border: "1px solid #BFDBFE", borderRadius: 14 }}>
+          <div style={{ marginBottom: 24, padding: 18, background: "linear-gradient(135deg, #F0FAFC 0%, #F8FAFC 100%)", border: "1px solid #A9D9E7", borderRadius: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 16 }}>📋</span>
-              <span style={{ fontWeight: 800, color: "#1D4ED8", fontSize: 15 }}>Данные для шаблона</span>
+              <span style={{ fontWeight: 800, color: "#19789C", fontSize: 15 }}>Данные для шаблона</span>
               <span style={{ fontSize: 11, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FECACA", borderRadius: 4, padding: "1px 7px", fontWeight: 700 }}>обязательно</span>
             </div>
             <p style={{ margin: "0 0 14px", fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
@@ -301,7 +301,7 @@ export default function GenerateBatch({ templates }) {
                 return (
                   <label key={key} style={{ display: "block" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
-                      <code style={{ background: "#DBEAFE", color: "#1D4ED8", padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", fontSize: 12 }}>{`{${key}}`}</code>
+                      <code style={{ background: "#D1EEF5", color: "#19789C", padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", fontSize: 12 }}>{`{${key}}`}</code>
                       {key}
                       <span style={{ color: "#EF4444" }}>*</span>
                     </span>
@@ -373,7 +373,7 @@ export default function GenerateBatch({ templates }) {
               { step: 4, title: "Нажмите «Скачать ZIP»", desc: "Получите архив с готовыми PDF — по одной грамоте на каждого участника." },
             ].map(({ step, title, desc }) => (
               <div key={step} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1D4ED8", color: "#fff", fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step}</div>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#19789C", color: "#fff", fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step}</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", marginBottom: 3 }}>{title}</div>
                   <div style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>{desc}</div>
@@ -388,7 +388,7 @@ export default function GenerateBatch({ templates }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "inherit" }}>
             <thead>
               <tr>
-                <th style={{ background: "#1D4ED8", color: "#fff", padding: "8px 12px", textAlign: "left", borderRadius: "6px 0 0 6px" }}>ФИО</th>
+                <th style={{ background: "#19789C", color: "#fff", padding: "8px 12px", textAlign: "left", borderRadius: "6px 0 0 6px" }}>ФИО</th>
                 <th style={{ background: "#E2E8F0", color: "#64748B", padding: "8px 12px", textAlign: "left" }}>Класс</th>
                 <th style={{ background: "#E2E8F0", color: "#64748B", padding: "8px 12px", textAlign: "left", borderRadius: "0 6px 6px 0" }}>Школа</th>
               </tr>

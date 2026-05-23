@@ -3,7 +3,7 @@ export default function AlertBanner({ type, children }) {
   const styles = {
     success: { bg: "#ECFDF5", color: "#059669", border: "#A7F3D0", icon: "✅" },
     error:   { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA", icon: "❌" },
-    info:    { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE", icon: "ℹ️" },
+    info:    { bg: "#EAF7FA", color: "#19789C", border: "#A9D9E7", icon: "ℹ️" },
     warning: { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A", icon: "⚠️" },
   };
   const s = styles[type] || styles.info;

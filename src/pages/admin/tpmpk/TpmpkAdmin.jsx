@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Footer from "../../../components/Footer.jsx";
+import { getAuthHeaders } from "../../../api.js";
 import { API_BASE } from "../../../constants/index.js";
 import Header from "../../../features/nav/Header.jsx";
 
@@ -221,10 +222,10 @@ function buildApiError(data) {
 async function fetchJson(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
+    headers: getAuthHeaders({
       "Content-Type": "application/json",
       ...(options.headers || {}),
-    },
+    }),
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
@@ -1148,7 +1149,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
         .tp-tab.active {
           background: #fff;
-          color: #1d4ed8;
+          color: #19789C;
           box-shadow: 0 10px 24px rgba(30, 64, 175, .08);
         }
 
@@ -1218,7 +1219,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           border-radius: 999px;
           border: 1px solid #dbeafe;
           background: #fff;
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 13px;
           font-weight: 850;
           box-shadow: 0 12px 30px rgba(30, 64, 175, .07);
@@ -1294,9 +1295,9 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-side-tabs .tp-tab.active {
-          color: #1d4ed8;
+          color: #19789C;
           background: linear-gradient(135deg, #eff6ff, #f5f3ff);
-          box-shadow: inset 3px 0 0 #1d4ed8;
+          box-shadow: inset 3px 0 0 #19789C;
         }
 
         .tp-tab-icon {
@@ -1404,12 +1405,12 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
         .tp-link-btn {
           background: linear-gradient(135deg, #eff6ff, #ecfeff);
-          color: #1d4ed8;
+          color: #19789C;
           box-shadow: inset 0 0 0 1px #dbeafe;
         }
 
         .tp-primary {
-          background: linear-gradient(135deg, #1d4ed8, #0f766e);
+          background: linear-gradient(135deg, #19789C, #0f766e);
           color: #fff;
           box-shadow: 0 14px 28px rgba(29, 78, 216, .18);
         }
@@ -1469,7 +1470,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-stat small {
-          color: #1d4ed8;
+          color: #19789C;
           font-weight: 800;
         }
 
@@ -1492,7 +1493,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-help-card strong {
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 14px;
         }
 
@@ -1547,7 +1548,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         .tp-day-group-head span {
           display: block;
           margin-top: 4px;
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 13px;
           font-weight: 900;
         }
@@ -1585,7 +1586,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
         .tp-record-time,
         .tp-slot-time {
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 20px;
           font-weight: 950;
         }
@@ -1597,7 +1598,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-record-time strong {
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 20px;
         }
 
@@ -1632,7 +1633,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           padding: 7px 10px;
           border-radius: 999px;
           background: #eff6ff;
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 12px;
           font-weight: 950;
           white-space: nowrap;
@@ -1678,9 +1679,9 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-datebar button.active {
-          background: #1d4ed8;
+          background: #19789C;
           color: #fff;
-          border-color: #1d4ed8;
+          border-color: #19789C;
         }
 
         .tp-datebar strong {
@@ -1700,7 +1701,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           border: 1px solid #bfdbfe;
           border-radius: 8px;
           background: #fff;
-          color: #1d4ed8;
+          color: #19789C;
           display: flex;
           align-items: center;
           gap: 8px;
@@ -1908,7 +1909,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           border: 1px solid #bfdbfe;
           border-radius: 8px;
           background: #fff;
-          color: #1d4ed8;
+          color: #19789C;
           font-family: inherit;
           font-weight: 950;
           cursor: pointer;
@@ -1921,7 +1922,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-manual-slot.active {
-          background: linear-gradient(135deg, #1d4ed8, #0f766e);
+          background: linear-gradient(135deg, #19789C, #0f766e);
           color: #fff;
           border-color: transparent;
           box-shadow: 0 12px 24px rgba(29, 78, 216, .18);
@@ -2039,7 +2040,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
         }
 
         .tp-switch input:checked + span {
-          background: linear-gradient(135deg, #1d4ed8, #0f766e);
+          background: linear-gradient(135deg, #19789C, #0f766e);
           box-shadow: 0 8px 18px rgba(29, 78, 216, .20);
         }
 
@@ -2085,7 +2086,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           padding: 12px 14px;
           border-radius: 8px;
           background: #eff6ff;
-          color: #1d4ed8;
+          color: #19789C;
           font-weight: 850;
         }
 
@@ -2276,7 +2277,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
 
         .tp-secondary {
           background: #fff;
-          color: #1d4ed8;
+          color: #19789C;
           border-color: #bfdbfe;
         }
 
@@ -2306,7 +2307,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
           border: 1px solid #bfdbfe;
           border-radius: 8px;
           background: rgba(255, 255, 255, .94);
-          color: #1d4ed8;
+          color: #19789C;
           font-size: 13px;
           font-weight: 900;
           box-shadow: 0 14px 30px rgba(30, 64, 175, .10);

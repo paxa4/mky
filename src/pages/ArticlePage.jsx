@@ -3,6 +3,7 @@ import Header from "../features/nav/Header.jsx";
 import Footer from "../components/Footer.jsx";
 import Badge from "../components/Badge.jsx";
 import { BlockPreview } from "../features/admin/BlockEditor.jsx";
+import { resolveAssetUrl } from "../utils/assetUrl.js";
 
 function getDate(article) {
   const raw = article?.dateSortValue || article?.date || "";
@@ -44,7 +45,7 @@ export default function ArticlePage({
   onOpenAuthor,
 }) {
   const hasBlocks = article.blocks && article.blocks.length > 0;
-  const heroImage = article.cover_image_url || article.image;
+  const heroImage = resolveAssetUrl(article.cover_image_url || article.image);
   const breadcrumbs = [
     { label: "Главная", path: "/" },
     article.parentLabel && article.parentPath ? { label: article.parentLabel, path: article.parentPath } : null,
@@ -109,7 +110,7 @@ export default function ArticlePage({
                 <button
                   type="button"
                   onClick={() => onOpenAuthor?.(article)}
-                  style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 13px/1.4 inherit", padding: 0, cursor: "pointer" }}
+                  style={{ border: 0, background: "transparent", color: "#19789C", font: "700 13px/1.4 inherit", padding: 0, cursor: "pointer" }}
                 >
                   {article.author}
                 </button>
@@ -129,7 +130,7 @@ export default function ArticlePage({
               <section style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid #E2E8F0", display: "grid", gap: 10 }}>
                 <strong style={{ color: "#0F172A" }}>Файлы к статье</strong>
                 {article.attachments.map((file, index) => (
-                  <a key={`${file.url || file.name}-${index}`} href={file.url} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 700, overflowWrap: "anywhere" }}>
+                  <a key={`${file.url || file.name}-${index}`} href={resolveAssetUrl(file.url)} target="_blank" rel="noreferrer" style={{ color: "#19789C", fontWeight: 700, overflowWrap: "anywhere" }}>
                     {file.name || "Документ"}{file.type ? ` · ${file.type}` : ""}
                   </a>
                 ))}

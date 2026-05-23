@@ -1,198 +1,99 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { EVENTS } from "./eventsData.js";
 
-const EVENTS_PER_PAGE = 8;
+const DIRECTIONS = [
+  { title: "ГИА", to: "/noko/gia-9/" },
+  { title: "ВСОШ", to: "/konkursy/students/vsosh/" },
+  { title: "Конкурсы и конференции для педагогов", to: "/konkursy/teachers/" },
+  { title: "Олимпиады и конкурсы для учащихся", to: "/konkursy/students/" },
+  { title: "КПК", to: "/deyatelnost/povyshenie-kvalifikatsii/" },
+  { title: "Инновационная деятельность", to: "/deyatelnost/innovacii/" },
+  { title: "Методические материалы", to: "/metodika/rekomendacii/" },
+  { title: "Воспитательное пространство", to: "/deyatelnost/vospitanie/" },
+  { title: "Муниципальный семейный клуб «Фамилия»", to: "/deyatelnost/vospitanie/" },
+];
 
-function fallbackEvents(onOpenArticle) {
-  return EVENTS.map((event) => ({
-    ...event,
-    onClick: () => onOpenArticle?.({ ...event, id: `event-${event.id}`, excerpt: "", author: "Редакция ИМЦРО" }),
-  }));
-}
-
-export default function EventsSection({ eventsNews = [], onOpenArticle, onOpenAuthor }) {
-  const sectionRef = useRef(null);
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const allItems = useMemo(() => {
-    if (eventsNews.length) {
-      return eventsNews.map((news) => ({
-        id: news.id,
-        title: news.title,
-        date: news.date,
-        category: news.category,
-        image: news.image,
-        author: news.author,
-        is_pinned: news.is_pinned,
-        onClick: () => onOpenArticle?.(news),
-        onAuthorClick: () => onOpenAuthor?.(news),
-      }));
-    }
-    return fallbackEvents(onOpenArticle);
-  }, [eventsNews, onOpenArticle, onOpenAuthor]);
-
-  const pageCount = Math.max(1, Math.ceil(allItems.length / EVENTS_PER_PAGE));
-
-  useEffect(() => {
-    setCurrentPage((prev) => Math.min(prev, pageCount));
-  }, [pageCount]);
-
-  const pageStart = (currentPage - 1) * EVENTS_PER_PAGE;
-  const items = allItems.slice(pageStart, pageStart + EVENTS_PER_PAGE);
-
-  function switchPage(nextPage) {
-    setCurrentPage(nextPage);
-    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
+export default function EventsSection() {
   return (
-    <section
-      ref={sectionRef}
-      style={{ position: "relative", overflow: "hidden", background: "linear-gradient(145deg, #1E40AF 0%, #0284C7 100%)", padding: "72px 24px" }}
-    >
+    <section className="directions-band">
       <style>{`
-        .events-container { max-width: 1200px; margin: 0 auto; width: 100%; }
-        .events-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
-        .events-title { font-size: clamp(24px, 6vw, 36px); font-weight: 800; color: #fff; letter-spacing: 0; margin: 0; }
-        .events-all-link {
-          height: 40px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.38);
-          background: rgba(255,255,255,.14);
+        .directions-band {
+          background: #EAF7FA;
+          padding: 34px 24px 46px;
+        }
+        .directions-panel {
+          max-width: 1200px;
+          margin: 0 auto;
+          border-radius: 24px;
+          background:
+            radial-gradient(circle at 88% 12%, rgba(255,255,255,.22), transparent 24rem),
+            linear-gradient(135deg, #19789C 0%, #145F7D 100%);
           color: #fff;
-          text-decoration: none;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 0 14px;
-          font: 750 13px/1 inherit;
-          backdrop-filter: blur(10px);
-          transition: transform .18s ease, background .18s ease, border-color .18s ease;
+          padding: 34px;
+          box-shadow: 0 18px 38px rgba(25, 120, 156, .2);
         }
-        .events-all-link:hover {
-          transform: translateY(-1px);
-          background: rgba(255,255,255,.22);
-          border-color: rgba(255,255,255,.55);
+        .directions-top {
+          margin-bottom: 26px;
         }
-        .events-all-link svg { width: 16px; height: 16px; }
-        .events-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-        .event-card {
-          background: #fff;
-          border-radius: 12px;
-          overflow: hidden;
+        .directions-kicker {
+          margin: 0 0 8px;
+          color: rgba(255,255,255,.78);
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        .directions-title {
+          margin: 0;
+          max-width: 660px;
+          color: #fff;
+          font-size: 30px;
+          line-height: 1.12;
+          font-weight: 950;
+        }
+        .directions-list {
           display: flex;
-          flex-direction: column;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-          border: 1px solid rgba(255, 255, 255, 0.4);
-          transition: transform 0.25s, box-shadow 0.25s;
-          cursor: pointer;
+          flex-wrap: wrap;
+          gap: 10px 13px;
         }
-        .event-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(0,0,0,0.15); }
-        .event-card-top { background-size: cover; background-position: center; height: 160px; border-bottom: 1px solid #E2E8F0; }
-        .event-card-bottom { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-        .events-pagination { margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
-        .events-page-btn {
-          min-width: 36px;
-          height: 36px;
-          border: 1px solid rgba(255,255,255,.35);
-          border-radius: 10px;
-          background: rgba(255,255,255,.14);
+        .directions-link {
           color: #fff;
-          font: 700 13px/1 inherit;
-          cursor: pointer;
-          padding: 0 10px;
-          transition: all .16s ease;
-          backdrop-filter: blur(8px);
+          background: rgba(255,255,255,.13);
+          border: 1px solid rgba(255,255,255,.28);
+          border-radius: 999px;
+          padding: 9px 13px;
+          font-size: 14px;
+          line-height: 1.25;
+          font-weight: 850;
+          text-decoration: none;
+          transition: background .16s ease, border-color .16s ease, transform .16s ease;
         }
-        .events-page-btn:hover:not(:disabled) {
-          background: rgba(255,255,255,.26);
-          border-color: rgba(255,255,255,.65);
+        .directions-link:hover {
+          background: rgba(255,255,255,.22);
+          border-color: rgba(255,255,255,.48);
+          transform: translateY(-1px);
         }
-        .events-page-btn:disabled { opacity: .45; cursor: default; }
-        .events-page-btn.active {
-          background: #fff;
-          border-color: #fff;
-          color: #1E40AF;
+        @media (max-width: 760px) {
+          .directions-panel { padding: 24px; border-radius: 14px; }
+          .directions-title { font-size: 24px; }
+          .directions-link { border-radius: 8px; width: 100%; }
         }
       `}</style>
-      <div className="events-container">
-        <div className="events-head">
-          <h2 className="events-title">Мероприятия / События</h2>
-          <Link className="events-all-link" to="/deyatelnost/">
-            <span>Все мероприятия</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 12h14" />
-              <path d="m13 5 7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
 
-        <div className="events-grid">
-          {items.map((event) => (
-            <article key={event.id} className="event-card" onClick={event.onClick}>
-              <div className="event-card-top" style={{ backgroundImage: `url(${event.image})` }} />
-              <div className="event-card-bottom">
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#EFF6FF", padding: "4px 10px", borderRadius: 12 }}>{event.category || "Событие"}</span>
-                  <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{event.date}</span>
-                </div>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", lineHeight: 1.35, margin: 0 }}>
-                  {event.is_pinned ? "📌 " : ""}
-                  {event.title}
-                </h3>
-                {event.author && (
-                  <button
-                    type="button"
-                    onClick={(clickEvent) => {
-                      clickEvent.stopPropagation();
-                      event.onAuthorClick?.();
-                    }}
-                    style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer", textAlign: "left" }}
-                  >
-                    {event.author}
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-
-        {pageCount > 1 && (
-          <div className="events-pagination" aria-label="Пагинация мероприятий">
-            <button
-              type="button"
-              className="events-page-btn"
-              onClick={() => switchPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              aria-label="Предыдущая страница"
-            >
-              ←
-            </button>
-
-            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                className={`events-page-btn${page === currentPage ? " active" : ""}`}
-                onClick={() => switchPage(page)}
-                aria-current={page === currentPage ? "page" : undefined}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              className="events-page-btn"
-              onClick={() => switchPage(Math.min(pageCount, currentPage + 1))}
-              disabled={currentPage === pageCount}
-              aria-label="Следующая страница"
-            >
-              →
-            </button>
+      <div className="directions-panel">
+        <div className="directions-top">
+          <div>
+            <p className="directions-kicker">Направления</p>
+            <h2 className="directions-title">Мероприятия, конкурсы, олимпиады и методическая поддержка</h2>
           </div>
-        )}
+        </div>
+
+        <nav className="directions-list" aria-label="Разделы мероприятий и методической работы">
+          {DIRECTIONS.map((item) => (
+            <Link className="directions-link" key={item.title} to={item.to}>
+              {item.title}
+            </Link>
+          ))}
+        </nav>
       </div>
     </section>
   );

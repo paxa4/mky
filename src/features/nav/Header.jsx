@@ -5,13 +5,15 @@ import MegaMenu from "./MegaMenu.jsx";
 
 const MAIN_NAV_ITEMS = [
   { label: "Главная", href: "/" },
-  { label: "Об организации", href: "/sveden/" },
+  { label: "Сведения", href: "/sveden/" },
   { label: "ТПМПК", href: "/tpmpk/" },
   { label: "Дом учителя", href: "/dom-uchitelya/" },
   { label: "Методика", href: "/metodika/" },
-  { label: "НОКО", href: "/noko/" },
-  { label: "Олимпиады и конкурсы", href: "/konkursy/" },
-  { label: "Новости и события", href: "/novosti/" },
+  { label: "ГИА", href: "/noko/" },
+  { label: "Конкурсы", href: "/konkursy/" },
+  { label: "Новости", href: "/novosti/" },
+  { label: "Безопасность", href: "/sveden/document/" },
+  { label: "Музей", href: "/deyatelnost/muzey/" },
 ];
 
 function normalizePath(pathname) {
@@ -214,15 +216,15 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-nav-link:hover {
-          color: #0b63ce;
-          background: #f3f8ff;
-          border-color: #d7e8ff;
+          color: #19789C;
+          background: #EAF7FA;
+          border-color: #A9D9E7;
         }
 
         .header-nav-link.is-active {
-          color: #0b63ce;
-          background: #eef5ff;
-          border-color: #c9defb;
+          color: #19789C;
+          background: #EAF7FA;
+          border-color: #A9D9E7;
         }
 
         .header-search-panel {
@@ -233,10 +235,10 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           align-items: center;
           gap: 10px;
           padding: 0 10px 0 14px;
-          border: 1px solid #9dc5f4;
+          border: 1px solid #78C2D8;
           border-radius: 12px;
           background: #fff;
-          box-shadow: 0 10px 24px rgba(11, 99, 206, 0.12);
+          box-shadow: 0 10px 24px rgba(25, 120, 156, 0.14);
           opacity: 0;
           visibility: hidden;
           pointer-events: none;
@@ -253,7 +255,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-search-panel svg {
-          color: #0b63ce;
+          color: #19789C;
           flex: 0 0 auto;
         }
 
@@ -294,7 +296,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           width: 30px;
           height: 30px;
           flex-basis: 30px;
-          background: #eef5ff;
+          background: #EAF7FA;
         }
 
         .header-icon-btn:hover,
@@ -303,13 +305,13 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-search-btn.active,
         .header-menu-btn:hover,
         .header-search-close:hover {
-          border-color: #9dc5f4;
-          background: #f5f9ff;
-          color: #0b63ce;
+          border-color: #78C2D8;
+          background: #EAF7FA;
+          color: #19789C;
         }
 
         .header-search-btn.active {
-          box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+          box-shadow: 0 0 0 3px rgba(25, 120, 156, 0.14);
         }
 
         .header-actions {
@@ -343,8 +345,8 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-register-btn {
-          border-color: #0b63ce;
-          background: #0b63ce;
+          border-color: #19789C;
+          background: #19789C;
           color: #fff;
         }
 
@@ -352,14 +354,14 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-tpmpk-btn:hover,
         .header-profile-btn:hover,
         .header-auth-btn:hover {
-          border-color: #9dc5f4;
-          background: #f5f9ff;
-          color: #0b63ce;
+          border-color: #78C2D8;
+          background: #EAF7FA;
+          color: #19789C;
         }
 
         .header-register-btn:hover {
-          background: #084fa7;
-          border-color: #084fa7;
+          background: #145F7D;
+          border-color: #145F7D;
         }
 
         .header-avatar {
@@ -369,7 +371,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #0b63ce, #7c3aed);
+          background: linear-gradient(135deg, #19789C, #7c3aed);
           color: #fff;
           font-size: 11px;
           font-weight: 900;

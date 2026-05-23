@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { AUTH_STORAGE_KEY } from "../../auth.js";
 import { authFetch } from "../../api.js";
+import {
+  backendArticleAttachments,
+  backendArticleBlocks,
+  resolveArticleAttachments,
+  resolveArticleBlocks,
+  resolveAssetUrl,
+  toBackendAssetUrl,
+} from "../../utils/assetUrl.js";
 import { buildPendingAttachments } from "./articleAttachments.js";
 import { generateSlug, genId } from "./adminStore.js";
 import {
@@ -124,17 +132,19 @@ function parseBodyBlocks(article) {
 }
 
 function normalizeArticle(article, defaultScope) {
-  const blocks = parseBodyBlocks(article);
+  const blocks = resolveArticleBlocks(parseBodyBlocks(article));
   const firstParagraph = blocks.find((block) => block.type === "paragraph");
   const firstImage = blocks.find((block) => block.type === "image");
+  const coverUrl = resolveAssetUrl(article.cover_image_url ?? article.image ?? firstImage?.data?.url ?? "");
   return {
     ...EMPTY_ARTICLE,
     ...article,
     lead: article.lead ?? article.excerpt ?? "",
     blocks,
     body: typeof article.body === "string" ? article.body : JSON.stringify(blocks),
-    attachments: Array.isArray(article.attachments) ? article.attachments : [],
-    cover_image_url: article.cover_image_url ?? article.image ?? firstImage?.data?.url ?? "",
+    attachments: resolveArticleAttachments(article.attachments || []),
+    image: resolveAssetUrl(article.image ?? article.cover_image_url ?? firstImage?.data?.url ?? ""),
+    cover_image_url: coverUrl,
     published_at: toDateInputValue(article.published_at ?? article.publishedAt),
     publishing_scope: article.publishing_scope || defaultScope,
     tags: Array.isArray(article.tags) ? article.tags : [],
@@ -147,6 +157,24 @@ function normalizeArticle(article, defaultScope) {
     duplicate_to_main: Boolean(article.duplicate_to_main || isHomePlacement(article)),
     duplicate_to_events: Boolean(article.duplicate_to_events),
     _firstParagraph: firstParagraph?.data?.html || "",
+  };
+}
+
+function persistedAttachments(attachments) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .filter((item) => item?.url && !item.uploading)
+    .map(({ uploading, _uploadId, ...item }) => item);
+}
+
+function restoreDraftForm(form) {
+  if (!form || typeof form !== "object") return form;
+  return {
+    ...form,
+    blocks: resolveArticleBlocks((form.blocks || []).map(normalizeBlock)),
+    attachments: resolveArticleAttachments(persistedAttachments(form.attachments || [])),
+    cover_image_url: resolveAssetUrl(form.cover_image_url || ""),
+    image: resolveAssetUrl(form.image || form.cover_image_url || ""),
   };
 }
 
@@ -235,8 +263,8 @@ function makeUniqueSlug(value, articles = [], currentId = null) {
 
 function toPayload(form, nextStatus = form.status, scheduleEnabled = Boolean(form.published_at), articles = [], currentId = null) {
   const lead = form.lead.trim();
-  const cover = form.cover_image_url.trim();
-  const blocks = (form.blocks || []).map(normalizeBlock);
+  const cover = toBackendAssetUrl(form.cover_image_url.trim());
+  const blocks = backendArticleBlocks((form.blocks || []).map(normalizeBlock));
   const publishedAt = nextStatus === "published"
     ? (scheduleEnabled ? fromDateInputValue(form.published_at) : new Date().toISOString())
     : fromDateInputValue(form.published_at);
@@ -255,7 +283,7 @@ function toPayload(form, nextStatus = form.status, scheduleEnabled = Boolean(for
     is_pinned: Boolean(form.is_pinned),
     duplicate_to_main: Boolean(form.duplicate_to_main),
     duplicate_to_events: Boolean(form.duplicate_to_events),
-    attachments: form.attachments || [],
+    attachments: backendArticleAttachments(form.attachments || []),
     publishing_scope: form.publishing_scope,
     tags: form.tags || [],
     categories: form.categories || [],
@@ -527,7 +555,7 @@ function BlockPreview({ block }) {
   if (block.type === "image") {
     return (
       <figure className="preview-image">
-        {block.data.url ? <img src={block.data.url} alt={block.data.caption || ""} /> : <div>Изображение не загружено</div>}
+        {block.data.url ? <img src={resolveAssetUrl(block.data.url)} alt={block.data.caption || ""} /> : <div>Изображение не загружено</div>}
         {block.data.caption && <figcaption>{block.data.caption}</figcaption>}
       </figure>
     );
@@ -536,7 +564,7 @@ function BlockPreview({ block }) {
   return null;
 }
 
-function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadImage, moving, dragging, dragOver, onDragStartBlock, onDragOverBlock, onDragEndBlock }) {
+function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadImage, moving, dragging, dragOver, onDragStartBlock, onDragOverBlock, onDragEndBlock, onAutoScroll }) {
   const updateData = (data) => onChange({ ...block, data: { ...block.data, ...data } });
   const handleImageFile = async (file) => {
     if (!file) return;
@@ -549,6 +577,7 @@ function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadIm
       className={`block-card${moving ? " is-moving" : ""}${dragging ? " is-dragging" : ""}${dragOver ? " is-drag-over" : ""}`}
       onDragOver={(event) => {
         event.preventDefault();
+        onAutoScroll?.(event.clientY);
         const rect = event.currentTarget.getBoundingClientRect();
         const placement = event.clientY > rect.top + rect.height / 2 ? "after" : "before";
         onDragOverBlock(block.id, placement);
@@ -644,7 +673,7 @@ function BlockEditor({ block, onChange, onRemove, onMove, index, count, uploadIm
               handleImageFile(event.dataTransfer.files?.[0]);
             }}
           >
-            {block.data.url ? <img src={block.data.url} alt="" /> : <div>Перетащите изображение сюда</div>}
+            {block.data.url ? <img src={resolveAssetUrl(block.data.url)} alt="" /> : <div>Перетащите изображение сюда</div>}
             <label>
               Загрузить изображение
               <input type="file" accept="image/*" onChange={(event) => handleImageFile(event.target.files?.[0])} />
@@ -665,6 +694,15 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
   const [draggingId, setDraggingId] = useState("");
   const [dragOverId, setDragOverId] = useState("");
   const lastHoverRef = useRef("");
+  const dragPointerYRef = useRef(null);
+  useEffect(() => {
+    if (!pickerOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setPickerOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [pickerOpen]);
   const addBlock = (type) => {
     onChange([...blocks, defaultBlock(type)]);
     setPickerOpen(false);
@@ -695,6 +733,43 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
     window.setTimeout(() => setMovingId(""), 260);
     onChange(next);
   };
+  const autoScrollPage = useCallback((clientY) => {
+    if (!draggingId || !Number.isFinite(clientY)) return;
+    const edgeSize = 96;
+    const maxScrollStep = 34;
+    const topDistance = Math.max(0, edgeSize - clientY);
+    const bottomDistance = Math.max(0, edgeSize - (window.innerHeight - clientY));
+    const direction = topDistance > 0 ? -1 : bottomDistance > 0 ? 1 : 0;
+    if (!direction) return;
+    const intensity = (direction < 0 ? topDistance : bottomDistance) / edgeSize;
+    const scrollStep = Math.max(10, Math.round(maxScrollStep * intensity));
+    window.scrollBy({ top: direction * scrollStep, behavior: "auto" });
+  }, [draggingId]);
+  const handleAutoScroll = useCallback((clientY) => {
+    dragPointerYRef.current = clientY;
+    autoScrollPage(clientY);
+  }, [autoScrollPage]);
+  useEffect(() => {
+    if (!draggingId) {
+      dragPointerYRef.current = null;
+      return undefined;
+    }
+    let frameId = 0;
+    const handleWindowDragOver = (event) => {
+      dragPointerYRef.current = event.clientY;
+    };
+    const tick = () => {
+      if (dragPointerYRef.current !== null) autoScrollPage(dragPointerYRef.current);
+      frameId = window.requestAnimationFrame(tick);
+    };
+    window.addEventListener("dragover", handleWindowDragOver);
+    frameId = window.requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.cancelAnimationFrame(frameId);
+      dragPointerYRef.current = null;
+    };
+  }, [autoScrollPage, draggingId]);
   const handleDragOverBlock = (targetId, placement) => {
     if (!draggingId || draggingId === targetId) return;
     const hoverKey = `${draggingId}:${targetId}:${placement}`;
@@ -719,7 +794,10 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
   return (
     <section
       className="block-workspace"
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={(event) => {
+        event.preventDefault();
+        handleAutoScroll(event.clientY);
+      }}
       onDrop={(event) => {
         if (event.dataTransfer.files?.length) {
           event.preventDefault();
@@ -732,20 +810,31 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
           <span>Тело статьи</span>
           <strong>{blocks.length} блоков</strong>
         </div>
-        <button type="button" onClick={() => setPickerOpen((value) => !value)}>Добавить блок</button>
       </div>
       <InfoNote title="Работа с блоками">
         Добавьте нужный тип блока, заполните поля и меняйте порядок стрелками или перетаскиванием за значок «::». Удаление блока нужно подтвердить.
       </InfoNote>
       {pickerOpen && (
-        <div className="block-picker">
-          {BLOCK_TYPES.map((blockType) => (
-            <button type="button" key={blockType.type} onClick={() => addBlock(blockType.type)}>
-              <span>{blockType.icon}</span>
-              <strong>{blockType.label}</strong>
-              <small>{blockType.hint}</small>
-            </button>
-          ))}
+        <div className="block-picker-modal" role="dialog" aria-modal="true" aria-labelledby="block-picker-title">
+          <button type="button" className="block-picker-backdrop" aria-label="Закрыть выбор блока" onClick={() => setPickerOpen(false)} />
+          <div className="block-picker-panel">
+            <div className="block-picker-head">
+              <div>
+                <span>Новый блок</span>
+                <h3 id="block-picker-title">Выберите тип блока</h3>
+              </div>
+              <button type="button" onClick={() => setPickerOpen(false)} aria-label="Закрыть">×</button>
+            </div>
+            <div className="block-picker">
+              {BLOCK_TYPES.map((blockType) => (
+                <button type="button" key={blockType.type} onClick={() => addBlock(blockType.type)}>
+                  <span>{blockType.icon}</span>
+                  <strong>{blockType.label}</strong>
+                  <small>{blockType.hint}</small>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
       {!blocks.length && (
@@ -774,8 +863,12 @@ function BlockWorkspace({ blocks, onChange, uploadImage }) {
           onDragStartBlock={setDraggingId}
           onDragOverBlock={handleDragOverBlock}
           onDragEndBlock={endBlockDrag}
+          onAutoScroll={handleAutoScroll}
         />
       ))}
+      <div className="block-bottom-actions">
+        <button type="button" className="block-add-button" onClick={() => setPickerOpen(true)}>Добавить блок</button>
+      </div>
     </section>
   );
 }
@@ -801,7 +894,7 @@ function ArticlePreview({ article, expanded = false }) {
   return (
     <aside className={expanded ? "article-preview expanded" : "article-preview"} aria-label="Предпросмотр статьи">
       <section className="article-preview-card">
-        {article.cover_image_url ? <img src={article.cover_image_url} alt="" /> : <div className="article-preview-image">Обложка</div>}
+        {article.cover_image_url ? <img src={resolveAssetUrl(article.cover_image_url)} alt="" /> : <div className="article-preview-image">Обложка</div>}
         <div className="article-preview-meta">
           <span>{SCOPE_LABELS[article.publishing_scope]}</span>
           <span>{date}</span>
@@ -819,7 +912,7 @@ function ArticlePreview({ article, expanded = false }) {
           <div className="article-attachments-preview">
             <strong>Файлы к статье</strong>
             {article.attachments.map((file) => (
-              <a key={file.url || file.name} href={file.url} target="_blank" rel="noreferrer">
+              <a key={file.url || file.name} href={resolveAssetUrl(file.url)} target="_blank" rel="noreferrer">
                 {file.name || "Документ"}{file.type ? ` · ${file.type}` : ""}
               </a>
             ))}
@@ -862,7 +955,7 @@ function ArticlePreviewV2({ article, expanded = false }) {
         </nav>
         {article.cover_image_url ? (
           <div className="article-preview-hero">
-            <img src={article.cover_image_url} alt="" />
+            <img src={resolveAssetUrl(article.cover_image_url)} alt="" />
             {article.is_pinned && (
               <span className="article-preview-pin" aria-label="Закреплённая статья">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -892,7 +985,7 @@ function ArticlePreviewV2({ article, expanded = false }) {
             <div className="article-attachments-preview">
               <strong>Файлы к статье</strong>
               {article.attachments.map((file) => (
-                <a key={file.url || file.name} href={file.url} target="_blank" rel="noreferrer">
+                <a key={file.url || file.name} href={resolveAssetUrl(file.url)} target="_blank" rel="noreferrer">
                   {file.name || "Документ"}{file.type ? ` · ${file.type}` : ""}
                 </a>
               ))}
@@ -1004,7 +1097,7 @@ function ArticleForm({
     try {
       const draft = JSON.parse(window.localStorage.getItem(draftKey) || "{}");
       if (draft.form) {
-        setForm(draft.form);
+        setForm(restoreDraftForm(draft.form));
         setDraftNotice("");
       }
     } catch {
@@ -1035,19 +1128,28 @@ function ArticleForm({
   const addAttachmentFiles = async (filesInput) => {
     const files = Array.from(filesInput || []);
     if (!files.length) return;
-    const pending = buildPendingAttachments(files, apiMode);
+    const pending = buildPendingAttachments(files, apiMode).map((item) => (
+      apiMode ? { ...item, _uploadId: genId() } : item
+    ));
     setForm((current) => ({ ...current, attachments: [...(current.attachments || []), ...pending] }));
     if (!apiMode) {
       return;
     }
-    const uploaded = [];
-    for (const file of files) {
+    const uploadedById = new Map();
+    for (const [index, file] of files.entries()) {
       const item = await uploadAttachment(file);
-      if (item?.url) uploaded.push(item);
+      if (item?.url) {
+        uploadedById.set(pending[index]._uploadId, resolveArticleAttachments([{ ...item, uploading: false }])[0]);
+      }
     }
+    const pendingIds = new Set(pending.map((item) => item._uploadId));
     setForm((current) => ({
       ...current,
-      attachments: [...(current.attachments || []).filter((item) => !item.uploading), ...uploaded],
+      attachments: (current.attachments || []).flatMap((item) => {
+        if (!pendingIds.has(item?._uploadId)) return [item];
+        const uploaded = uploadedById.get(item._uploadId);
+        return uploaded ? [uploaded] : [];
+      }),
     }));
   };
   const handleAttachmentUpload = async (event) => {
@@ -1067,12 +1169,17 @@ function ArticleForm({
     }));
   };
 
+  const attachmentUploadPending = useMemo(
+    () => (form.attachments || []).some((item) => item?.uploading),
+    [form.attachments],
+  );
+
   const errors = useMemo(() => {
     const list = [];
     const hasText = plainTextFromBlocks(form.blocks).length > 0 || form.blocks.some((block) => block.type === "image" && block.data.url);
+    if (attachmentUploadPending) list.push("Дождитесь окончания загрузки документов.");
     if (!form.title.trim()) list.push("Заполните заголовок.");
     if (!form.slug.trim()) list.push("Заполните slug.");
-    if (!form.lead.trim()) list.push("Добавьте лид/анонс.");
     if (!hasText) list.push("Добавьте хотя бы один содержательный блок.");
     if (!allowedScopes.includes(form.publishing_scope)) list.push("Выберите допустимую область публикации.");
     if (!canDuplicateMain && form.duplicate_to_main) list.push("Дублирование на главную доступно только admin, methodist и metodist_editor.");
@@ -1105,10 +1212,10 @@ function ArticleForm({
       }
     }
     return list;
-  }, [allowedScopes, allowedSubjects, article?.id, articles, canDuplicateMain, form, isDomuMode, role, rootSection]);
+  }, [allowedScopes, allowedSubjects, article?.id, articles, attachmentUploadPending, canDuplicateMain, form, isDomuMode, role, rootSection]);
 
   const handleSave = async (nextStatus) => {
-    if (errors.length) return;
+    if (errors.length || attachmentUploadPending) return;
     setSaving(true);
     try {
       const nextForm = {
@@ -1180,7 +1287,7 @@ function ArticleForm({
           </section>
 
           <section className="article-panel">
-            <label className="article-label" htmlFor="article-lead">Лид</label>
+            <label className="article-label" htmlFor="article-lead">Лид <span>необязательно</span></label>
             <textarea id="article-lead" className="article-lead-input" rows={3} value={form.lead} onChange={(event) => set("lead", event.target.value)} placeholder="Короткий анонс для карточки и SEO-превью" />
           </section>
 
@@ -1341,7 +1448,7 @@ function ArticleForm({
               <input className="article-file" type="file" accept="image/*" onChange={handleCoverUpload} />
               {form.cover_image_url ? (
                 <>
-                  <img className="article-cover-preview" src={form.cover_image_url} alt="" />
+                  <img className="article-cover-preview" src={resolveAssetUrl(form.cover_image_url)} alt="" />
                   <span className="article-cover-overlay">Перетащите новое изображение или нажмите для замены</span>
                 </>
               ) : (
@@ -1392,7 +1499,7 @@ function ArticleForm({
             <div className="article-attachment-list">
               {(form.attachments || []).map((file, index) => (
                 <div className="article-attachment-item" key={`${file.url || file.name}-${index}`}>
-                  <a href={file.url || undefined} target="_blank" rel="noreferrer">{file.name || "Документ"}</a>
+                  <a href={resolveAssetUrl(file.url) || undefined} target="_blank" rel="noreferrer">{file.name || "Документ"}</a>
                   <span>{file.uploading ? "Загрузка..." : file.type || "Файл"}</span>
                   <button type="button" onClick={() => removeAttachment(index)} aria-label="Удалить файл">×</button>
                 </div>
@@ -1675,7 +1782,7 @@ export default function ArticlesModule({
       return "";
     }
     const data = await response.json();
-    return `${API_BASE}${data.url}`;
+    return data.url || "";
   };
 
   const uploadAttachment = async (file) => {
@@ -1688,7 +1795,7 @@ export default function ArticlesModule({
       return null;
     }
     const data = await response.json();
-    return { ...data, url: `${API_BASE}${data.url}` };
+    return { ...data, url: data.url || "" };
   };
 
   return (
@@ -1728,7 +1835,7 @@ const ARTICLE_CSS = `
 .articles-module { color: #0f172a; }
 .article-btn, .article-row-actions button { min-height: 40px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
 .article-btn:disabled { opacity: .55; cursor: not-allowed; }
-.article-btn-primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.article-btn-primary { background: #19789C; border-color: #19789C; color: #fff; }
 .article-btn-muted { background: #fff; color: #475569; }
 .article-editor-topbar, .article-list-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
 .article-editor-title { flex: 1; min-width: 220px; }
@@ -1739,28 +1846,39 @@ const ARTICLE_CSS = `
 .article-panel, .block-workspace { border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; padding: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .05); }
 .article-panel-compact { padding: 16px; }
 .article-info-note { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; margin: 0 0 12px; padding: 11px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #f8fbff; color: #334155; }
-.article-info-note strong { display: block; color: #1d4ed8; font-size: 13px; line-height: 1.25; }
+.article-info-note strong { display: block; color: #19789C; font-size: 13px; line-height: 1.25; }
 .article-info-note p { margin: 3px 0 0; color: #475569; font-size: 12px; line-height: 1.45; font-weight: 760; }
-.article-info-icon { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: #dbeafe; color: #1d4ed8; font-size: 13px; font-weight: 950; }
+.article-info-icon { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: #dbeafe; color: #19789C; font-size: 13px; font-weight: 950; }
 .article-label { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 9px; }
+.article-label span { color: #94a3b8; font-weight: 800; letter-spacing: 0; text-transform: none; }
 .article-title-input { width: 100%; border: 0; outline: 0; background: transparent; color: #0f172a; font: inherit; font-size: clamp(24px, 5vw, 38px); font-weight: 900; line-height: 1.05; }
 .article-slug-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 13px; font-weight: 800; flex-wrap: wrap; }
 .article-slug-row input { flex: 1; min-width: 180px; border: 0; outline: 0; background: transparent; color: #475569; font: inherit; }
-.article-slug-row button, .block-toolbar button, .mini-add { min-height: 34px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; padding: 0 10px; }
+.article-slug-row button { min-height: 34px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #19789C; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; padding: 0 10px; }
+.mini-add { width: fit-content; min-height: 34px; border: 1px solid #bbf7d0; border-radius: 8px; background: #f0fdf4; color: #047857; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; padding: 0 10px; }
 .article-lead-input { width: 100%; resize: vertical; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f172a; padding: 12px; font: inherit; font-size: 15px; line-height: 1.6; }
 .article-select, .article-stack-label input, .article-stack-label select, .block-body input, .block-body select { width: 100%; min-height: 42px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f172a; padding: 0 12px; font: inherit; font-size: 14px; }
-.article-select:focus, .article-stack-label input:focus, .article-stack-label select:focus, .article-lead-input:focus, .block-body input:focus, .block-body select:focus, .block-rich-area:focus { outline: 3px solid rgba(29, 78, 216, .18); border-color: #1d4ed8; }
+.article-select:focus, .article-stack-label input:focus, .article-stack-label select:focus, .article-lead-input:focus, .block-body input:focus, .block-body select:focus, .block-rich-area:focus { outline: 3px solid rgba(29, 78, 216, .18); border-color: #19789C; }
 .article-stack-label { display: grid; gap: 7px; margin-top: 12px; color: #475569; font-size: 13px; font-weight: 800; }
 .article-check { display: flex; align-items: center; gap: 9px; min-height: 38px; margin-top: 12px; font-weight: 800; color: #334155; }
-.article-check.compact { width: fit-content; margin: 0 0 10px; min-height: 32px; padding: 4px 10px 4px 6px; border: 1px solid #dbeafe; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 12px; cursor: pointer; }
-.article-check.compact input { width: 16px; height: 16px; accent-color: #1d4ed8; }
+.article-check.compact { width: fit-content; margin: 0 0 10px; min-height: 32px; padding: 4px 10px 4px 6px; border: 1px solid #dbeafe; border-radius: 999px; background: #eff6ff; color: #19789C; font-size: 12px; cursor: pointer; }
+.article-check.compact input { width: 16px; height: 16px; accent-color: #19789C; }
 .block-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .block-toolbar div { flex: 1; display: grid; gap: 2px; }
 .block-toolbar span { color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
 .block-toolbar strong { color: #0f172a; font-size: 18px; }
-.block-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.block-bottom-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
+.block-add-button { min-height: 40px; border: 1px solid #19789C; border-radius: 8px; background: #19789C; color: #fff; font: inherit; font-size: 13px; font-weight: 900; cursor: pointer; padding: 0 16px; box-shadow: 0 10px 22px rgba(29, 78, 216, .18); }
+.block-picker-modal { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 18px; }
+.block-picker-backdrop { position: absolute; inset: 0; border: 0; background: rgba(15, 23, 42, .55); cursor: pointer; }
+.block-picker-panel { position: relative; width: min(760px, 100%); max-height: min(720px, 92vh); overflow: auto; border-radius: 8px; background: #fff; padding: 18px; box-shadow: 0 28px 80px rgba(15, 23, 42, .28); }
+.block-picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.block-picker-head span { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.block-picker-head h3 { margin: 0; color: #0f172a; font-size: 22px; line-height: 1.15; }
+.block-picker-head button { width: 34px; height: 34px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; cursor: pointer; font: inherit; font-size: 20px; line-height: 1; }
+.block-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .block-picker button { min-height: 82px; border: 1px solid #dbe6f5; border-radius: 8px; background: #f8fafc; display: grid; align-content: center; gap: 3px; text-align: left; padding: 12px; cursor: pointer; font: inherit; }
-.block-picker span { color: #1d4ed8; font-weight: 900; }
+.block-picker span { color: #19789C; font-weight: 900; }
 .block-picker strong { color: #0f172a; font-size: 13px; }
 .block-picker small { color: #64748b; font-size: 12px; }
 .block-empty { width: 100%; border: 1.5px dashed #bfdbfe; border-radius: 8px; background: #f8fbff; color: #475569; padding: 28px; display: grid; gap: 6px; text-align: center; margin-bottom: 12px; cursor: pointer; font: inherit; transition: transform .18s ease, background .18s ease, border-color .18s ease; }
@@ -1768,7 +1886,7 @@ const ARTICLE_CSS = `
 .block-card { border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; margin-bottom: 10px; overflow: hidden; transition: transform .24s cubic-bezier(.2,.8,.2,1), box-shadow .24s ease, border-color .24s ease; }
 .block-card.is-moving { animation: block-reorder .26s cubic-bezier(.2,.8,.2,1); border-color: #93c5fd; box-shadow: 0 14px 30px rgba(29, 78, 216, .12); }
 .block-card.is-dragging { opacity: .62; transform: scale(.985); box-shadow: 0 18px 36px rgba(15, 23, 42, .18); }
-.block-card.is-drag-over { border-color: #1d4ed8; box-shadow: inset 0 0 0 2px rgba(29,78,216,.12); }
+.block-card.is-drag-over { border-color: #19789C; box-shadow: inset 0 0 0 2px rgba(25,120,156,.12); }
 .block-card.is-dragging:active { transform: scale(.985); }
 @keyframes block-reorder {
   0% { transform: translateY(10px) scale(.99); opacity: .74; }
@@ -1785,12 +1903,12 @@ const ARTICLE_CSS = `
 .block-grid-compact { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
 .align-control { width: fit-content; display: inline-flex; gap: 4px; padding: 4px; border: 1px solid #dbe6f5; border-radius: 8px; background: #f8fafc; }
 .align-control button { width: 31px; height: 29px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #475569; font: inherit; font-weight: 900; cursor: pointer; }
-.align-control button:hover, .align-control button.is-active { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.align-control button:hover, .align-control button.is-active { border-color: #bfdbfe; background: #eff6ff; color: #19789C; }
 .block-rich { border: 1.5px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; }
 .block-rich-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
 .block-rich-toolbar button { width: 32px; height: 30px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #334155; font: inherit; font-weight: 900; cursor: pointer; }
 .font-size-control { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; padding-left: 8px; border-left: 1px solid #e2e8f0; }
-.font-size-control input[type="range"] { width: 116px; accent-color: #1d4ed8; }
+.font-size-control input[type="range"] { width: 116px; accent-color: #19789C; }
 .font-size-control input[type="number"] { width: 56px; height: 30px; min-height: 30px; padding: 0 6px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #0f172a; font: inherit; font-size: 12px; font-weight: 900; }
 .font-size-status { min-width: 86px; color: #64748b; font-size: 11px; font-weight: 900; }
 .block-rich-area { min-height: 96px; padding: 12px; line-height: 1.45; outline: 0; overflow-wrap: anywhere; user-select: text; }
@@ -1801,7 +1919,7 @@ const ARTICLE_CSS = `
 .image-drop { display: grid; gap: 10px; border: 1.5px dashed #bfdbfe; border-radius: 8px; background: #f8fbff; padding: 12px; }
 .image-drop img { width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px; }
 .image-drop div { min-height: 150px; display: grid; place-items: center; color: #64748b; font-weight: 800; }
-.image-drop label { width: fit-content; min-height: 36px; display: inline-flex; align-items: center; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; padding: 0 12px; cursor: pointer; font-size: 13px; font-weight: 900; }
+.image-drop label { width: fit-content; min-height: 36px; display: inline-flex; align-items: center; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #19789C; padding: 0 12px; cursor: pointer; font-size: 13px; font-weight: 900; }
 .image-drop label input { display: none; }
 .divider-editor { color: #64748b; font-size: 13px; padding: 10px 0; }
 .article-preview { display: grid; gap: 12px; position: static; min-width: 0; }
@@ -1819,7 +1937,7 @@ const ARTICLE_CSS = `
 .article-preview-content-card { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 22px; }
 .article-cover-preview { aspect-ratio: 16 / 9; margin-bottom: 0; }
 .article-cover-drop { position: relative; min-height: 156px; display: grid; place-items: center; gap: 7px; text-align: center; border: 1.5px dashed #bfdbfe; border-radius: 8px; background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%); color: #334155; padding: 18px; cursor: pointer; margin-bottom: 12px; overflow: hidden; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
-.article-cover-drop:hover, .article-cover-drop.is-active { transform: translateY(-1px); border-color: #1d4ed8; background: #eff6ff; box-shadow: 0 14px 30px rgba(29, 78, 216, .12); }
+.article-cover-drop:hover, .article-cover-drop.is-active { transform: translateY(-1px); border-color: #19789C; background: #eff6ff; box-shadow: 0 14px 30px rgba(29, 78, 216, .12); }
 .article-cover-drop.has-image { padding: 0; border-style: solid; background: #e2e8f0; }
 .article-cover-drop.has-image .article-cover-preview { width: 100%; height: 100%; min-height: 156px; border-radius: 8px; object-fit: cover; display: block; }
 .article-cover-overlay { position: absolute; inset: auto 10px 10px; border-radius: 8px; background: rgba(15, 23, 42, .76); color: #fff; padding: 9px 10px; font-size: 12px; font-weight: 900; line-height: 1.35; backdrop-filter: blur(10px); }
@@ -1831,8 +1949,8 @@ const ARTICLE_CSS = `
 .block-preview-stack { display: grid; gap: 14px; line-height: 1.7; color: #1f2937; overflow-wrap: anywhere; }
 .preview-heading { margin: 12px 0 2px; line-height: 1.2; color: #0f172a; }
 .preview-paragraph { color: #334155; line-height: 1.75; }
-.preview-paragraph a { color: #1d4ed8; }
-.preview-quote { border-left: 4px solid #1d4ed8; background: #eff6ff; color: #1e3a8a; padding: 14px 16px; margin: 0; border-radius: 0 8px 8px 0; }
+.preview-paragraph a { color: #19789C; }
+.preview-quote { border-left: 4px solid #19789C; background: #eff6ff; color: #1e3a8a; padding: 14px 16px; margin: 0; border-radius: 0 8px 8px 0; }
 .preview-quote cite { display: block; margin-top: 8px; color: #64748b; font-size: 13px; }
 .preview-list-block { display: grid; gap: 8px; }
 .preview-list-title { margin: 0; color: #334155; font-size: 15px; line-height: 1.8; font-weight: 400; }
@@ -1848,7 +1966,7 @@ const ARTICLE_CSS = `
 .seo-preview p, .feed-preview p { margin: 6px 0 0; color: #4b5563; line-height: 1.5; }
 .article-chipbox { min-height: 42px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 6px 8px; }
 .article-chipbox input { min-width: 110px; flex: 1; border: 0; outline: 0; background: transparent; font: inherit; }
-.article-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: #dbeafe; color: #1d4ed8; padding: 4px 8px; font-size: 12px; font-weight: 900; }
+.article-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: #dbeafe; color: #19789C; padding: 4px 8px; font-size: 12px; font-weight: 900; }
 .article-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-weight: 900; }
 .article-ok { border: 1px solid #bbf7d0; background: #f0fdf4; color: #047857; border-radius: 8px; padding: 12px; font-size: 13px; font-weight: 800; line-height: 1.5; }
 .article-errors { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; border-radius: 8px; padding: 12px; font-size: 13px; font-weight: 800; line-height: 1.5; }
@@ -1857,14 +1975,14 @@ const ARTICLE_CSS = `
 .article-draft-banner button { border: 1px solid #f59e0b; background: #fff; border-radius: 8px; min-height: 34px; padding: 0 10px; color: #92400e; font: inherit; font-weight: 900; cursor: pointer; }
 .article-file { display: none; }
 .article-file-drop { min-height: 132px; display: grid; place-items: center; gap: 7px; text-align: center; border: 1.5px dashed #bfdbfe; border-radius: 8px; background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%); color: #334155; padding: 18px; cursor: pointer; margin-bottom: 12px; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
-.article-file-drop:hover, .article-file-drop.is-active { transform: translateY(-1px); border-color: #1d4ed8; background: #eff6ff; box-shadow: 0 14px 30px rgba(29, 78, 216, .12); }
-.article-file-drop-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 999px; background: #dbeafe; color: #1d4ed8; }
+.article-file-drop:hover, .article-file-drop.is-active { transform: translateY(-1px); border-color: #19789C; background: #eff6ff; box-shadow: 0 14px 30px rgba(29, 78, 216, .12); }
+.article-file-drop-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 999px; background: #dbeafe; color: #19789C; }
 .article-file-drop-icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .article-file-drop strong { font-size: 14px; line-height: 1.25; color: #0f172a; }
 .article-file-drop small { color: #64748b; font-size: 12px; font-weight: 800; line-height: 1.35; }
 .article-attachment-list, .article-attachments-preview { display: grid; gap: 8px; }
 .article-attachment-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 8px 10px; }
-.article-attachment-item a, .article-attachments-preview a { color: #1d4ed8; font-weight: 800; overflow-wrap: anywhere; }
+.article-attachment-item a, .article-attachments-preview a { color: #19789C; font-weight: 800; overflow-wrap: anywhere; }
 .article-attachment-item span { color: #64748b; font-size: 12px; font-weight: 900; }
 .article-attachment-item button { width: 30px; height: 30px; border: 1px solid #fecaca; border-radius: 7px; background: #fef2f2; color: #b91c1c; cursor: pointer; font-size: 18px; line-height: 1; }
 .article-attachments-preview { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
@@ -1891,7 +2009,7 @@ const ARTICLE_CSS = `
 .article-filters input:focus, .article-filters select:focus {
   background-color: #fff;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.1);
 }
 .article-reset-btn {
   background: none;

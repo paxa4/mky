@@ -3,7 +3,7 @@ export const EVENTS = [
     id: 1,
     title: "Урок в формате ФГОС 2.0",
     theme: "ФГОС",
-    color: "#2563EB",
+    color: "#19789C",
     date: "12 Апреля 2025",
     category: "Методика",
     image: "/images/news1.jpg"

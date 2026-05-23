@@ -1,7 +1,7 @@
 /** Панель предпросмотра PDF: iframe + кнопка скачивания */
 import { API_BASE } from "../../../constants/index.js";
 
-export default function PdfPreviewPanel({ fileUrl, onDownload, accentColor = "#1D4ED8", emptyText, emptyIcon = "PDF" }) {
+export default function PdfPreviewPanel({ fileUrl, onDownload, accentColor = "#19789C", emptyText, emptyIcon = "PDF" }) {
   const fullUrl = fileUrl ? `${API_BASE}${fileUrl}` : null;
 
   if (!fullUrl) {

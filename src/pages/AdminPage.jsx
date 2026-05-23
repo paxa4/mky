@@ -48,17 +48,17 @@ function IssueModule({ templates }) {
               borderRadius: 8,
               fontWeight: 600,
               cursor: "pointer",
-              border: subTab === key ? "2px solid #1D4ED8" : "2px solid #E2E8F0",
+              border: subTab === key ? "2px solid #19789C" : "2px solid #E2E8F0",
               fontSize: 14,
               textAlign: "left",
               background: subTab === key ? "rgba(239, 246, 255, 0.9)" : "rgba(255,255,255,0.8)",
-              color: subTab === key ? "#1D4ED8" : "#475569",
+              color: subTab === key ? "#19789C" : "#475569",
               transition: "all 0.2s",
               fontFamily: "inherit",
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 12, color: subTab === key ? "#3B82F6" : "#94A3B8", lineHeight: 1.5, fontWeight: 400 }}>
+            <div style={{ fontSize: 12, color: subTab === key ? "#2E9ABA" : "#94A3B8", lineHeight: 1.5, fontWeight: 400 }}>
               {hint}
             </div>
           </button>
@@ -131,7 +131,7 @@ export default function AdminPage({
   }, [location.pathname, navigate]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #EFF6FF 100%)", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #EAF7FA 100%)", display: "flex", flexDirection: "column" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <Header
@@ -157,7 +157,7 @@ export default function AdminPage({
                   borderRadius: 6,
                   fontSize: 14,
                   background: activeModule === key ? "#fff" : "transparent",
-                  color: activeModule === key ? "#1D4ED8" : "#64748B",
+                  color: activeModule === key ? "#19789C" : "#64748B",
                   transition: "all 0.2s",
                   fontFamily: "inherit",
                 }}
@@ -173,7 +173,7 @@ export default function AdminPage({
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "40px 24px 64px" }}>
           {loadingTemplates ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 16 }}>
-              <div style={{ width: 44, height: 44, border: "3px solid #E2E8F0", borderTop: "3px solid #1D4ED8", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div style={{ width: 44, height: 44, border: "3px solid #E2E8F0", borderTop: "3px solid #19789C", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               <div style={{ color: "#94A3B8", fontSize: 15, fontWeight: 500 }}>Загрузка данных...</div>
             </div>
           ) : (

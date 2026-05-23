@@ -45,6 +45,7 @@ import SostavPage from "./pages/tpmpk/SostavPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import { API_BASE } from "./constants/index.js";
 import { apiMe, authFetch, AUTH_SESSION_EXPIRED_EVENT } from "./api.js";
+import { resolveArticleAttachments, resolveArticleBlocks, resolveAssetUrl } from "./utils/assetUrl.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -80,16 +81,16 @@ const CATEGORY_STYLE = {
   "Курсы": { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" },
   "Достижения": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
   "Новости": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
-  "Проекты": { categoryColor: "#2563EB", categoryBg: "#EFF6FF" },
+  "Проекты": { categoryColor: "#19789C", categoryBg: "#EAF7FA" },
   "Семинары": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
   "События": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
 };
 
 CATEGORY_STYLE["Дом учителя"] = { categoryColor: "#047857", categoryBg: "#ECFDF5" };
-CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#1D4ED8", categoryBg: "#EFF6FF" };
+CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#19789C", categoryBg: "#EAF7FA" };
 CATEGORY_STYLE["НОКО"] = { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" };
 CATEGORY_STYLE["Олимпиады и конкурсы"] = { categoryColor: "#B45309", categoryBg: "#FEF3C7" };
-CATEGORY_STYLE["Деятельность"] = { categoryColor: "#0369A1", categoryBg: "#E0F2FE" };
+CATEGORY_STYLE["Деятельность"] = { categoryColor: "#19789C", categoryBg: "#EAF7FA" };
 CATEGORY_STYLE["Архив"] = { categoryColor: "#374151", categoryBg: "#F3F4F6" };
 
 const DEFAULT_CATEGORIES = [
@@ -108,6 +109,7 @@ const FALLBACK_IMAGES = [
   "/images/news4.jpg",
 ];
 const ARTICLES_STORAGE_KEY = "mky_articles";
+const PUBLIC_HUB_KINDS = ["methodika", "noko", "konkursy", "deyatelnost", "archiv"];
 
 function simpleSlug(value) {
   return String(value || "")
@@ -125,10 +127,6 @@ function getAuthorLabel(item) {
 function getAuthorKey(item) {
   if (item.author_id) return `id-${item.author_id}`;
   return `name-${simpleSlug(getAuthorLabel(item) || "author")}`;
-}
-
-function stripMkyPrefix(path) {
-  return typeof path === "string" ? path.replace(new RegExp("^/" + "mky" + "(?=/)"), "") : path;
 }
 
 function hasStoredArticleApiToken() {
@@ -208,6 +206,13 @@ function mergeNewsItems(...groups) {
   return sortNewsByDateDesc([...map.values()]);
 }
 
+async function fetchArticleItems(path) {
+  const response = await fetch(`${API_BASE}${path}`);
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => ({}));
+  return Array.isArray(data.items) ? data.items : [];
+}
+
 function articleToNewsItem(article) {
   const catObj = DEFAULT_CATEGORIES.find((category) => article.categories?.includes(category.id));
   const catName = resolveArticleSectionLabel(article) || catObj?.name || "Новости";
@@ -217,7 +222,11 @@ function articleToNewsItem(article) {
   const paraBlock = article.blocks?.find((block) => block.type === "paragraph");
   const imgBlock = article.blocks?.find((block) => block.type === "image" || block.type === "imagetext");
   const excerpt = article.lead || heroBlock?.data?.intro || article.excerpt || paraBlock?.data?.text || "";
-  const image = stripMkyPrefix(article.cover_image_url || imgBlock?.data?.url || article.image) || FALLBACK_IMAGES[(article.id - 1) % FALLBACK_IMAGES.length];
+  const numericId = Number(article.id || article.articleId || 1);
+  const fallbackIndex = Number.isFinite(numericId) ? Math.max(0, (numericId - 1) % FALLBACK_IMAGES.length) : 0;
+  const blocks = resolveArticleBlocks(article.blocks || []);
+  const attachments = resolveArticleAttachments(article.attachments || []);
+  const image = resolveAssetUrl(article.cover_image_url || imgBlock?.data?.url || article.image) || FALLBACK_IMAGES[fallbackIndex];
 
   return {
     id: article.slug || `admin-${article.id}`,
@@ -230,13 +239,13 @@ function articleToNewsItem(article) {
     categoryBg: style.categoryBg,
     title: article.title,
     excerpt: String(excerpt).slice(0, 220),
-    image: stripMkyPrefix(image),
+    image: resolveAssetUrl(image),
     is_pinned: Boolean(article.is_pinned),
     body: article.body || "",
     lead: article.lead || article.excerpt || "",
-    cover_image_url: stripMkyPrefix(article.cover_image_url || image),
-    blocks: article.blocks || [],
-    attachments: article.attachments || [],
+    cover_image_url: resolveAssetUrl(article.cover_image_url || image),
+    blocks,
+    attachments,
     author: getAuthorLabel(article),
     author_id: article.author_id || null,
     author_name: article.author_name || article.full_name || article.fullName || "",
@@ -274,6 +283,10 @@ function apiArticleToNewsItem(article) {
 function apiArticleToLocalArticle(article) {
   return {
     ...article,
+    image: resolveAssetUrl(article.image || article.cover_image_url || ""),
+    cover_image_url: resolveAssetUrl(article.cover_image_url || article.image || ""),
+    blocks: resolveArticleBlocks(article.blocks || []),
+    attachments: resolveArticleAttachments(article.attachments || []),
     createdAt: article.createdAt || article.created_at || "",
     updatedAt: article.updatedAt || article.published_at || article.updated_at || article.created_at || "",
     publishedAt: article.publishedAt || article.published_at || "",
@@ -296,8 +309,10 @@ function AppRoutes() {
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [articles, setArticles] = useState(() => getStoredArticles());
   const [apiCommonNews, setApiCommonNews] = useState([]);
+  const [apiSectionNews, setApiSectionNews] = useState([]);
   const [apiDomuNews, setApiDomuNews] = useState([]);
   const [apiEventsNews, setApiEventsNews] = useState([]);
+  const [apiHubNews, setApiHubNews] = useState([]);
 
   const currentUserFullName = useMemo(() => {
     const fio = [currentUser?.lastName, currentUser?.firstName, currentUser?.middleName].filter(Boolean).join(" ");
@@ -349,31 +364,24 @@ function AppRoutes() {
   }, []);
 
   const loadPublicNews = useCallback(async () => {
-    try {
-      const [commonRes, domuRes, eventsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/news/`),
-        fetch(`${API_BASE}/api/dom-uchitelya/news/`),
-        fetch(`${API_BASE}/api/events/`),
-      ]);
-      if (commonRes.ok) {
-        const data = await commonRes.json();
-        setApiCommonNews((data.items || []).map(apiArticleToNewsItem));
-      }
-      if (domuRes.ok) {
-        const data = await domuRes.json();
-        setApiDomuNews((data.items || []).map(apiArticleToNewsItem));
-      }
-      if (eventsRes.ok) {
-        const data = await eventsRes.json();
-        setApiEventsNews((data.items || []).map(apiArticleToNewsItem));
-      }
-    } catch {
-      setApiCommonNews([]);
-      setApiDomuNews([]);
-      setApiEventsNews([]);
+    const shouldLoadAdminArticles = hasStoredArticleApiToken();
+    const publicRequests = await Promise.allSettled([
+      fetchArticleItems("/api/news/?limit=100"),
+      fetchArticleItems("/api/news/?limit=100&include_sections=true"),
+      fetchArticleItems("/api/dom-uchitelya/news/?limit=100"),
+      fetchArticleItems("/api/events/?limit=100"),
+      Promise.all(PUBLIC_HUB_KINDS.map((hub) => fetchArticleItems(`/api/hub/news/?hub=${hub}&limit=100`))),
+    ]);
+
+    if (publicRequests[0].status === "fulfilled") setApiCommonNews(publicRequests[0].value.map(apiArticleToNewsItem));
+    if (publicRequests[1].status === "fulfilled") setApiSectionNews(publicRequests[1].value.map(apiArticleToNewsItem));
+    if (publicRequests[2].status === "fulfilled") setApiDomuNews(publicRequests[2].value.map(apiArticleToNewsItem));
+    if (publicRequests[3].status === "fulfilled") setApiEventsNews(publicRequests[3].value.map(apiArticleToNewsItem));
+    if (publicRequests[4].status === "fulfilled") {
+      setApiHubNews(publicRequests[4].value.flat().map(apiArticleToNewsItem));
     }
 
-    if (hasStoredArticleApiToken()) {
+    if (shouldLoadAdminArticles && hasStoredArticleApiToken()) {
       try {
         const responses = await Promise.allSettled([
           authFetch(`${API_BASE}/api/admin/news/`),
@@ -385,9 +393,13 @@ function AppRoutes() {
           const data = await result.value.json().catch(() => ({}));
           items.push(...(data.items || []));
         }
-        setArticles(items.map(apiArticleToLocalArticle));
+        if (hasStoredArticleApiToken()) {
+          setArticles(items.map(apiArticleToLocalArticle));
+        }
       } catch {
-        setArticles([]);
+        if (hasStoredArticleApiToken()) {
+          setArticles([]);
+        }
       }
     }
   }, []);
@@ -447,8 +459,8 @@ function AppRoutes() {
     [apiCommonNews, localMainNews],
   );
   const sectionNews = useMemo(
-    () => mergeNewsItems(apiCommonNews, localSectionNews),
-    [apiCommonNews, localSectionNews],
+    () => mergeNewsItems(apiSectionNews, apiHubNews, localSectionNews),
+    [apiSectionNews, apiHubNews, localSectionNews],
   );
   const eventsNews = useMemo(
     () => mergeNewsItems(apiEventsNews, localEventsNews),
@@ -569,15 +581,17 @@ function AppRoutes() {
     storeUser(user);
     setCurrentUser(user);
     if (user?.access_token) setArticles([]);
+    void loadPublicNews();
     navigate("/profile", { replace: true });
-  }, [navigate]);
+  }, [loadPublicNews, navigate]);
 
   const handleLogout = useCallback(() => {
     clearStoredUser();
     setCurrentUser(null);
     setArticles(getStoredArticles());
+    void loadPublicNews();
     navigate("/auth?tab=login", { replace: true });
-  }, [navigate]);
+  }, [loadPublicNews, navigate]);
 
   const adminTarget = canAccessAdmin(currentUser)
     ? "/admin"

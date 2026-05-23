@@ -77,7 +77,7 @@ export default function UpdatePanel({ status, onRun }) {
           type="button"
           disabled={disabled}
           onClick={runIncremental}
-          style={actionBtn({ bg: "#1D4ED8", disabled })}
+          style={actionBtn({ bg: "#19789C", disabled })}
         >
           <div style={{ fontSize: 15, marginBottom: 4 }}>Обновить индекс</div>
           <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9 }}>

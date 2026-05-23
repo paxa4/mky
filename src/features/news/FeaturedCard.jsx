@@ -67,7 +67,7 @@ export default function FeaturedCard({ news, onClick, onAuthorClick }) {
         <p style={{ fontSize: 14, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, margin: "0 0 16px" }}>
           {news.excerpt}
         </p>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#93C5FD" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#78C2D8" }}>
           Читать далее
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <path d="M2.5 6.5h8M7.5 3.5l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -80,7 +80,7 @@ export default function FeaturedCard({ news, onClick, onAuthorClick }) {
               event.stopPropagation();
               onAuthorClick?.(news);
             }}
-            style={{ marginTop: 10, border: 0, background: "transparent", color: "#BFDBFE", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer" }}
+            style={{ marginTop: 10, border: 0, background: "transparent", color: "#A9D9E7", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer" }}
           >
             {news.author}
           </button>

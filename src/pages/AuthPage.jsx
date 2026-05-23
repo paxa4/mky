@@ -81,8 +81,8 @@ export default function AuthPage({ onLogin }) {
           color: #0F172A;
           background:
             radial-gradient(circle at 84% 6%, rgba(124, 58, 237, 0.16), transparent 28rem),
-            radial-gradient(circle at 10% 18%, rgba(37, 99, 235, 0.18), transparent 30rem),
-            linear-gradient(135deg, #FFFFFF 0%, #EFF6FF 100%);
+            radial-gradient(circle at 10% 18%, rgba(25, 120, 156, 0.18), transparent 30rem),
+            linear-gradient(135deg, #FFFFFF 0%, #EAF7FA 100%);
         }
         .auth-top {
           position: relative;
@@ -112,7 +112,7 @@ export default function AuthPage({ onLogin }) {
           cursor: pointer;
           transition: all .18s ease;
         }
-        .back-btn:hover { border-color: #93C5FD; color: #1D4ED8; transform: translateY(-1px); }
+        .back-btn:hover { border-color: #78C2D8; color: #19789C; transform: translateY(-1px); }
         .auth-logo { height: 46px; object-fit: contain; cursor: pointer; }
         .auth-content {
           position: relative;
@@ -127,8 +127,8 @@ export default function AuthPage({ onLogin }) {
         .auth-icon {
           width: 66px; height: 66px; border-radius: 22px;
           display: grid; place-items: center; margin: 0 auto 18px;
-          color: #1D4ED8; background: linear-gradient(135deg, #DBEAFE, #F5F3FF);
-          box-shadow: 0 18px 40px rgba(37, 99, 235, 0.13);
+          color: #19789C; background: linear-gradient(135deg, #D1EEF5, #F5F3FF);
+          box-shadow: 0 18px 40px rgba(25, 120, 156, 0.13);
         }
         .auth-intro h1 { margin: 0 0 8px; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; letter-spacing: -0.045em; }
         .auth-intro p { margin: 0; color: #64748B; font-size: 15px; line-height: 1.6; }
@@ -147,7 +147,7 @@ export default function AuthPage({ onLogin }) {
           flex: 1; min-height: 44px; border: 0; border-radius: 13px; background: transparent;
           color: #64748B; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
         }
-        .tab-btn.active { background: #fff; color: #1D4ED8; box-shadow: 0 8px 20px rgba(15,23,42,.06); }
+        .tab-btn.active { background: #fff; color: #19789C; box-shadow: 0 8px 20px rgba(15,23,42,.06); }
         .auth-form { display: grid; gap: 18px; }
         .auth-field label {
           display: block; margin-bottom: 8px; color: #475569; font-size: 13px; font-weight: 800;
@@ -160,7 +160,7 @@ export default function AuthPage({ onLogin }) {
           transition: all .2s ease;
         }
         .auth-input:focus {
-          border-color: #3B82F6; background: #fff; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+          border-color: #2E9ABA; background: #fff; box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.16);
         }
         .password-box { position: relative; }
         .password-box .auth-input { padding-right: 48px; }
@@ -172,12 +172,12 @@ export default function AuthPage({ onLogin }) {
         .show-btn:hover { background: #F1F5F9; }
         .auth-btn {
           width: 100%; min-height: 52px; border: none; border-radius: 16px;
-          color: #fff; background: linear-gradient(135deg, #1D4ED8, #7C3AED);
+          color: #fff; background: linear-gradient(135deg, #19789C, #7C3AED);
           font: inherit; font-size: 16px; font-weight: 800; cursor: pointer;
           box-shadow: 0 16px 36px rgba(29, 78, 216, 0.28);
           transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
         }
-        .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 20px 46px rgba(29,78,216,.34); }
+        .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 20px 46px rgba(25,120,156,.34); }
         .auth-btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
         .auth-error {
           padding: 12px 14px; border-radius: 15px; color: #B91C1C; background: #FEF2F2;
