@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
-import { formatArticleDate } from "../../utils/articleMeta.js";
 
 function PinnedBadge() {
   return (
@@ -62,7 +61,7 @@ export default function NewsCard({ news, horizontal = false, onClick, onAuthorCl
       <div style={{ padding: "18px 20px 22px", flex: 1, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Badge label={news.category} color={news.categoryColor} bg={news.categoryBg} />
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatArticleDate(news.dateSortValue || news.date)}</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{news.date}</span>
         </div>
         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", lineHeight: 1.45, margin: "0 0 8px", flex: 1 }}>
           {news.title}

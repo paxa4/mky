@@ -44,7 +44,6 @@ import NpaPage from "./pages/tpmpk/NpaPage.jsx";
 import SostavPage from "./pages/tpmpk/SostavPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import { API_BASE } from "./constants/index.js";
-import { getArticleAuthorLabel } from "./utils/articleMeta.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -140,10 +139,16 @@ function simpleSlug(value) {
 }
 
 function getAuthorLabel(item) {
-  return getArticleAuthorLabel(item, "Редакция ИМЦРО");
+  const fio = [
+    item.last_name || item.lastName,
+    item.first_name || item.firstName,
+    item.middle_name || item.middleName,
+  ].filter(Boolean).join(" ");
+  return item.author_full_name || item.full_name || item.fullName || fio || item.author_name || item.author || (item.author_id ? `Автор #${item.author_id}` : "Редакция ИМЦРО");
 }
 
 function getAuthorKey(item) {
+  if (item.author_key) return item.author_key;
   if (item.author_id) return `id-${item.author_id}`;
   return `name-${simpleSlug(getAuthorLabel(item) || "author")}`;
 }
@@ -210,7 +215,7 @@ function articleToNewsItem(article) {
     id: article.slug || `admin-${article.id}`,
     articleId: article.id,
     slug: article.slug,
-    date: article.publishedAt || article.published_at || article.updatedAt || article.createdAt || "",
+    date: article.updatedAt || article.createdAt || "",
     dateSortValue: article.publishedAt || article.published_at || article.updatedAt || article.createdAt || "",
     category: catName,
     categoryColor: style.categoryColor,
@@ -226,7 +231,12 @@ function articleToNewsItem(article) {
     attachments: article.attachments || [],
     author: getAuthorLabel(article),
     author_id: article.author_id || null,
-    author_name: getAuthorLabel(article),
+    author_name: article.author_name || article.author_full_name || article.full_name || article.fullName || "",
+    author_full_name: article.author_full_name || article.full_name || article.fullName || "",
+    author_first_name: article.author_first_name || article.first_name || article.firstName || "",
+    author_last_name: article.author_last_name || article.last_name || article.lastName || "",
+    author_middle_name: article.author_middle_name || article.middle_name || article.middleName || "",
+    author_key: article.author_key || "",
     authorKey: getAuthorKey(article),
     parentLabel: location.parentLabel,
     parentPath: location.parentPath,
@@ -251,9 +261,14 @@ function apiArticleToNewsItem(article) {
     createdAt: article.created_at,
     updatedAt: article.published_at || article.updated_at || article.created_at,
     publishedAt: article.published_at,
-    author: getArticleAuthorLabel(article, ""),
-    author_name: getArticleAuthorLabel(article, ""),
-    full_name: article.full_name || "",
+    author: article.author_full_name || article.full_name || article.author_name || "",
+    author_name: article.author_name || article.author_full_name || article.full_name || "",
+    author_full_name: article.author_full_name || article.author_name || "",
+    full_name: article.author_full_name || article.full_name || article.author_name || "",
+    first_name: article.author_first_name || "",
+    last_name: article.author_last_name || "",
+    middle_name: article.author_middle_name || "",
+    author_key: article.author_key || "",
     author_id: article.author_id || null,
   });
 }

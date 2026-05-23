@@ -4,7 +4,10 @@ import {
   canAccessAdmin,
   canAccessDomuAdmin,
   canAccessTpmpkAdmin,
+  canManageUsers,
   getRoleLabel,
+  getUserPermissions,
+  hasPermission,
   mergeTestUserProfile,
   TEST_CREDENTIALS,
   TEST_USERS,
@@ -40,6 +43,15 @@ assert.equal(canAccessDomuAdmin(TEST_USERS.user), false);
 assert.equal(canAccessDomuAdmin(TEST_USERS.domu_editor), true);
 assert.equal(canAccessDomuAdmin(TEST_USERS.methodist), true);
 assert.equal(canAccessDomuAdmin(TEST_USERS.admin), true);
+
+assert.equal(canManageUsers(TEST_USERS.user), false);
+assert.equal(canManageUsers(TEST_USERS.methodist), false);
+assert.equal(canManageUsers(TEST_USERS.admin), true);
+
+assert.equal(hasPermission(TEST_USERS.methodist, "articles", "edit"), true);
+assert.equal(hasPermission(TEST_USERS.methodist, "users_roles", "view"), false);
+assert.equal(hasPermission({ ...TEST_USERS.methodist, permissions: { articles: "view" } }, "articles", "edit"), false);
+assert.equal(getUserPermissions(TEST_USERS.admin).users_roles, "edit");
 
 assert.equal(getRoleLabel("user"), "Пользователь");
 assert.equal(getRoleLabel("methodist"), "Методист");

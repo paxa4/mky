@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Badge from "../../components/Badge.jsx";
-import { formatArticleDate } from "../../utils/articleMeta.js";
 
 export default function FeaturedCard({ news, onClick, onAuthorClick }) {
   const [hov, setHov] = useState(false);
@@ -60,7 +59,7 @@ export default function FeaturedCard({ news, onClick, onAuthorClick }) {
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "28px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <Badge label={news.category} color={news.categoryColor} bg={news.categoryBg} />
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>{formatArticleDate(news.dateSortValue || news.date)}</span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>{news.date}</span>
         </div>
         <h3 style={{ fontSize: 21, fontWeight: 800, color: "#fff", lineHeight: 1.35, margin: "0 0 10px", letterSpacing: 0 }}>
           {news.title}

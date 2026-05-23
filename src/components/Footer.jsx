@@ -57,7 +57,7 @@ export default function Footer() {
     <footer className="site-footer">
       <style>{`
         .site-footer {
-          background: linear-gradient(180deg, #173285 0%, #1e40af 100%);
+          background: #19789c;
           color: #ffffff;
           padding: 52px 24px 28px;
         }

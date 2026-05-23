@@ -3,10 +3,12 @@ import Footer from "../components/Footer.jsx";
 import Breadcrumbs from "../components/Breadcrumbs.jsx";
 import Badge from "../components/Badge.jsx";
 import { BlockPreview } from "../features/admin/BlockEditor.jsx";
-import { formatArticleDate, getArticleAuthorLabel } from "../utils/articleMeta.js";
 
 function getDate(article) {
-  return formatArticleDate(article?.dateSortValue || article?.date);
+  const raw = article?.dateSortValue || article?.date || "";
+  const parsed = Date.parse(raw);
+  if (Number.isNaN(parsed)) return article?.date || "";
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(parsed));
 }
 
 function StaticContent({ article }) {
@@ -43,7 +45,6 @@ export default function ArticlePage({
 }) {
   const hasBlocks = article.blocks && article.blocks.length > 0;
   const heroImage = article.cover_image_url || article.image;
-  const authorLabel = getArticleAuthorLabel(article, "");
   const breadcrumbs = [
     { label: "Главная", to: "/" },
     article.parentLabel && article.parentPath ? { label: article.parentLabel, to: article.parentPath } : null,
@@ -94,13 +95,13 @@ export default function ArticlePage({
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
               {article.category && <Badge label={article.category} color={article.categoryColor} bg={article.categoryBg} />}
               <span style={{ fontSize: 13, color: "#94A3B8" }}>{getDate(article)}</span>
-              {authorLabel && (
+              {article.author && (
                 <button
                   type="button"
                   onClick={() => onOpenAuthor?.(article)}
                   style={{ border: 0, background: "transparent", color: "#1D4ED8", font: "700 13px/1.4 inherit", padding: 0, cursor: "pointer" }}
                 >
-                  {authorLabel}
+                  {article.author}
                 </button>
               )}
             </div>

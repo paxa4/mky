@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants/index.js";
-import { formatArticleDate, getArticleAuthorLabel } from "../../utils/articleMeta.js";
 import { getStoredAccessToken } from "../../utils/authHeaders.js";
 import { isObjectUrl, revokeObjectUrl, revokeObjectUrls, stripObjectUrls } from "../../utils/objectUrls.js";
 import { buildPendingAttachments } from "./articleAttachments.js";
@@ -169,7 +168,7 @@ function getPlacementLabels(article) {
 }
 
 function getAuthorLabel(article) {
-  return getArticleAuthorLabel(article);
+  return article.author || article.author_name || (article.author_id ? `Автор #${article.author_id}` : "Не указан");
 }
 
 function getUserFullName(user) {
@@ -771,7 +770,7 @@ function ArticlePreviewModal({ article, onClose }) {
 function ArticlePreview({ article, expanded = false }) {
   const title = article.title.trim() || "Заголовок статьи";
   const lead = article.lead.trim() || "Лид появится здесь и поможет читателю понять, о чем материал.";
-  const date = formatArticleDate(article.published_at, "Дата публикации не выбрана");
+  const date = article.published_at ? new Date(article.published_at).toLocaleString("ru-RU") : "Дата публикации не выбрана";
   return (
     <aside className={expanded ? "article-preview expanded" : "article-preview"} aria-label="Предпросмотр статьи">
       <section className="article-preview-card">
@@ -817,7 +816,7 @@ function ArticlePreview({ article, expanded = false }) {
 function ArticlePreviewV2({ article, expanded = false }) {
   const title = article.title.trim() || "Заголовок статьи";
   const lead = article.lead.trim() || "Лид появится здесь и поможет читателю понять, о чем материал.";
-  const date = formatArticleDate(article.published_at, "Дата публикации не выбрана");
+  const date = article.published_at ? new Date(article.published_at).toLocaleString("ru-RU") : "Дата публикации не выбрана";
   const sectionLabel = getCategoryLabel(article);
   const location = resolveArticleLocation(article);
   const breadcrumbs = [
@@ -852,7 +851,7 @@ function ArticlePreviewV2({ article, expanded = false }) {
           <div className="article-preview-meta">
             <span>{sectionLabel}</span>
             <span>{date}</span>
-            {getAuthorLabel(article) && <span>{getAuthorLabel(article)}</span>}
+            {article.author && <span>{article.author}</span>}
           </div>
           <h1>{title}</h1>
           <p>{lead}</p>
@@ -1542,7 +1541,7 @@ function ArticlesList({ articles, onNew, onEdit, onDelete, onArchive }) {
                 <td>{getPlacementLabels(article).join(" / ")}</td>
                 <td><span className="article-status-label">{STATUS_LABELS[article.status] || article.status}</span></td>
                 <td>{getCategoryLabel(article)}</td>
-                <td>{formatArticleDate(article.updated_at || article.updatedAt || article.created_at || article.createdAt)}</td>
+                <td>{toDateInputValue(article.updated_at || article.updatedAt || article.created_at || article.createdAt).replace("T", " ")}</td>
                 <td>
                   <div className="article-row-actions">
                     <button type="button" onClick={() => onEdit(article)}>Редактировать</button>

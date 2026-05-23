@@ -13,11 +13,9 @@ const MAIN_NAV_ITEMS = [
   { label: "Главная", href: "/" },
   { label: "Об организации", href: "/sveden/" },
   { label: "ТПМПК", href: "/tpmpk/" },
-  { label: "Дом учителя", href: "/dom-uchitelya/" },
-  { label: "Методика", href: "/metodika/" },
-  { label: "НОКО", href: "/noko/" },
-  { label: "Олимпиады и конкурсы", href: "/konkursy/" },
-  { label: "Новости и события", href: "/novosti/" },
+  { label: "Новости", href: "/novosti/" },
+  { label: "Безопасность", href: "/sveden/ovz/" },
+  { label: "Музей", href: "/deyatelnost/muzey/" },
 ];
 
 function normalizePath(pathname) {

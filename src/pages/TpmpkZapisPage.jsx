@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
@@ -49,6 +49,11 @@ function normalizePhone(value) {
   return `+7${body.slice(0, 10)}`;
 }
 
+function createSessionId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function getErrorMessage(response, fallback) {
   const data = await response.json().catch(() => null);
   if (typeof data?.detail === "string") return data.detail;
@@ -69,15 +74,57 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
   const [submitError, setSubmitError] = useState("");
   const [notice, setNotice] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [lockSessionId] = useState(createSessionId);
+  const [slotLock, setSlotLock] = useState(null);
+  const [slotLockLoading, setSlotLockLoading] = useState(false);
+  const slotLockRef = useRef(null);
 
   useEffect(() => {
     document.title = "Запись на обследование ТПМПК";
   }, []);
 
   useEffect(() => {
+    slotLockRef.current = slotLock;
+  }, [slotLock]);
+
+  const releaseSlotLock = useCallback(async (lock, { clearState = true } = {}) => {
+    if (!lock) return;
+    try {
+      await fetch(`${API_BASE}/api/tpmpk/slot-locks/`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          working_day_id: lock.working_day_id,
+          start_time: lock.start_time,
+          session_id: lock.session_id || lockSessionId,
+        }),
+      });
+    } catch {
+      // Истекшие блокировки очищаются сервером при следующих обращениях.
+    } finally {
+      if (clearState) {
+        setSlotLock((current) => (
+          current?.working_day_id === lock.working_day_id && current?.start_time === lock.start_time
+            ? null
+            : current
+        ));
+      }
+    }
+  }, [lockSessionId]);
+
+  useEffect(() => () => {
+    if (slotLockRef.current) {
+      void releaseSlotLock(slotLockRef.current, { clearState: false });
+    }
+  }, [releaseSlotLock]);
+
+  useEffect(() => {
     if (!form.selectedDate) {
       setSlots([]);
       setSlotsError("");
+      if (slotLockRef.current) {
+        void releaseSlotLock(slotLockRef.current);
+      }
       return undefined;
     }
 
@@ -85,6 +132,9 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     setSlots([]);
     setSlotsError("");
     setSlotsLoading(true);
+    if (slotLockRef.current) {
+      void releaseSlotLock(slotLockRef.current);
+    }
     setForm((prev) => ({ ...prev, selectedSlot: "", workingDayId: null }));
 
     fetch(`${API_BASE}/api/tpmpk/slots/?date=${encodeURIComponent(form.selectedDate)}`, {
@@ -105,7 +155,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
       .finally(() => setSlotsLoading(false));
 
     return () => controller.abort();
-  }, [form.selectedDate]);
+  }, [form.selectedDate, releaseSlotLock]);
 
   const availableSlots = useMemo(
     () => slots.filter((slot) => slot.is_available !== false),
@@ -133,13 +183,49 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     }
   }
 
-  function selectSlot(slot) {
+  async function selectSlot(slot) {
     setSubmitError("");
-    setForm((prev) => ({
-      ...prev,
-      selectedSlot: slot.start_time,
-      workingDayId: slot.working_day_id,
-    }));
+    if (!slot?.working_day_id || !slot?.start_time) return;
+    if (slotLock?.working_day_id === slot.working_day_id && slotLock?.start_time === slot.start_time) {
+      setForm((prev) => ({
+        ...prev,
+        selectedSlot: slot.start_time,
+        workingDayId: slot.working_day_id,
+      }));
+      return;
+    }
+
+    setSlotLockLoading(true);
+    try {
+      if (slotLock) {
+        await releaseSlotLock(slotLock);
+      }
+      const response = await fetch(`${API_BASE}/api/tpmpk/slot-locks/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          working_day_id: slot.working_day_id,
+          date: form.selectedDate,
+          start_time: slot.start_time,
+          session_id: lockSessionId,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await getErrorMessage(response, "Не удалось временно удержать слот"));
+      }
+      const lock = await response.json();
+      setSlotLock(lock);
+      setForm((prev) => ({
+        ...prev,
+        selectedSlot: slot.start_time,
+        workingDayId: slot.working_day_id,
+      }));
+    } catch (error) {
+      setSubmitError(error.message || "Слот уже недоступен. Обновите список и выберите другое время.");
+      refreshSlots();
+    } finally {
+      setSlotLockLoading(false);
+    }
   }
 
   function refreshSlots() {
@@ -202,6 +288,13 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     setStep((value) => Math.max(value - 1, 0));
   }
 
+  function cancelBooking() {
+    if (slotLockRef.current) {
+      void releaseSlotLock(slotLockRef.current);
+    }
+    navigate("/tpmpk");
+  }
+
   async function submitAppointment() {
     const error = validateStep();
     if (error) {
@@ -219,6 +312,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         body: JSON.stringify({
           working_day_id: form.workingDayId,
           start_time: form.selectedSlot,
+          lock_session_id: lockSessionId,
           child_full_name: form.childFullName.trim(),
           child_age: Number(form.childAge),
           child_registered_irkutsk: form.childRegisteredIrkutsk,
@@ -241,6 +335,8 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         date: form.selectedDate,
         time: form.selectedSlot,
       });
+      slotLockRef.current = null;
+      setSlotLock(null);
     } catch (error) {
       const message = error.message || "Не удалось создать запись";
       const lower = message.toLowerCase();
@@ -328,6 +424,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
             />
           </label>
           {slotsLoading && <div className="tz-state">Загружаем свободные слоты...</div>}
+          {slotLockLoading && <div className="tz-state">Временно удерживаем выбранное время...</div>}
           {slotsError && <div className="tz-state error">{slotsError}</div>}
           {!slotsLoading && form.selectedDate && !slotsError && availableSlots.length === 0 && (
             <div className="tz-state error">На выбранную дату свободных слотов нет. Попробуйте другой день.</div>
@@ -340,6 +437,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
                   key={`${slot.working_day_id}-${slot.start_time}`}
                   className={`tz-slot ${form.selectedSlot === slot.start_time ? "active" : ""}`}
                   onClick={() => selectSlot(slot)}
+                  disabled={slotLockLoading}
                   title={slot.slot_minutes ? `Длительность приема: ${slot.slot_minutes} минут` : undefined}
                 >
                   <span>{formatTime(slot.start_time)}</span>
@@ -718,6 +816,13 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           cursor: progress;
         }
 
+        .tz-slot:disabled {
+          opacity: 0.72;
+          cursor: progress;
+          transform: none;
+          box-shadow: none;
+        }
+
         .tz-secondary {
           color: #1e3a8a;
           background: #eef4fb;
@@ -924,6 +1029,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
                     type="button"
                     className="tz-primary"
                     onClick={() => {
+                      slotLockRef.current = null;
                       setForm(initialForm);
                       setSuccess(null);
                       setStep(0);
@@ -959,7 +1065,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
                     </div>
                   )}
                   <div className="tz-actions">
-                    <button type="button" className="tz-secondary" onClick={step === 0 ? () => navigate("/tpmpk") : goBack}>
+                    <button type="button" className="tz-secondary" onClick={step === 0 ? cancelBooking : goBack}>
                       {step === 0 ? "Отмена" : "Назад"}
                     </button>
                     {step < steps.length - 1 ? (

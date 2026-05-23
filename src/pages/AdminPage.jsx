@@ -8,6 +8,8 @@ import GenerateBatch from "../components/certificates/GenerateBatch.jsx";
 import TemplateConstructor from "../components/certificates/TemplateConstructor.jsx";
 import ChatSettings from "../components/chat/ChatSettings.jsx";
 import ArticlesModule from "../features/admin/ArticlesModule.jsx";
+import UsersRolesModule from "../features/admin/UsersRolesModule.jsx";
+import { canManageUsers, hasPermission } from "../auth.js";
 import { authHeaders, getStoredAccessToken } from "../utils/authHeaders.js";
 
 function IssueModule({ templates }) {
@@ -89,17 +91,23 @@ export default function AdminPage({
   const location = useLocation();
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const isSystemAdmin = canManageUsers(currentUser);
+  const canViewCertificates = hasPermission(currentUser, "certificates", "view");
+  const canViewTemplates = hasPermission(currentUser, "certificate_templates", "view");
+  const canViewArticles = hasPermission(currentUser, "articles", "view");
   const adminModules = [
-    { key: "issue", path: "/admin/certificates", label: "Выпуск грамот" },
-    { key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" },
-    { key: "articles", path: "/admin/articles", label: "Статьи" },
+    ...(canViewCertificates ? [{ key: "issue", path: "/admin/certificates", label: "Выпуск грамот" }] : []),
+    ...(canViewTemplates ? [{ key: "editor", path: "/admin/templates", label: "Конструктор шаблонов" }] : []),
+    ...(canViewArticles ? [{ key: "articles", path: "/admin/articles", label: "Статьи" }] : []),
+    ...(isSystemAdmin ? [{ key: "users", path: "/admin/users", label: "Пользователи и роли" }] : []),
     { key: "chat", path: "/admin/chat", label: "Демо чат-бота" },
   ];
-  const moduleOrder = ["articles", "issue", "editor", "chat"];
+  const moduleOrder = ["articles", "issue", "editor", "users", "chat"];
   const orderedAdminModules = [...adminModules].sort(
     (left, right) => moduleOrder.indexOf(left.key) - moduleOrder.indexOf(right.key),
   );
-  const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || "articles";
+  const fallbackModule = orderedAdminModules[0] || null;
+  const activeModule = orderedAdminModules.find((module) => location.pathname.startsWith(module.path))?.key || fallbackModule?.key;
   const needsTemplates = activeModule === "issue" || activeModule === "editor";
 
   const loadTemplates = useCallback(async () => {
@@ -130,9 +138,9 @@ export default function AdminPage({
 
   useEffect(() => {
     if (location.pathname === "/admin" || location.pathname === "/admin/") {
-      navigate("/admin/articles", { replace: true });
+      navigate(fallbackModule?.path || "/admin/articles", { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, [fallbackModule?.path, location.pathname, navigate]);
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #EFF6FF 100%)", display: "flex", flexDirection: "column" }}>
@@ -194,6 +202,7 @@ export default function AdminPage({
                   onArticlesChanged={onArticlesChanged}
                 />
               )}
+              {activeModule === "users" && <UsersRolesModule currentUser={currentUser} />}
               {activeModule === "chat" && <ChatSettings />}
             </>
           )}

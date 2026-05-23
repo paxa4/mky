@@ -8,6 +8,87 @@ export const ROLE_LABELS = {
   admin: "Администратор",
 };
 
+export const PERMISSION_LEVELS = {
+  none: 0,
+  view: 1,
+  edit: 2,
+};
+
+export const DEFAULT_ROLE_PERMISSIONS = {
+  admin: {
+    articles: "edit",
+    certificates: "edit",
+    certificate_templates: "edit",
+    users_roles: "edit",
+    tpmpk: "edit",
+    audit_log: "view",
+    portal_settings: "edit",
+  },
+  methodist: {
+    articles: "edit",
+    certificates: "edit",
+    certificate_templates: "edit",
+    users_roles: "none",
+    tpmpk: "none",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  metodist_editor: {
+    articles: "edit",
+    certificates: "edit",
+    certificate_templates: "edit",
+    users_roles: "none",
+    tpmpk: "none",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  operator: {
+    articles: "none",
+    certificates: "none",
+    certificate_templates: "none",
+    users_roles: "none",
+    tpmpk: "edit",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  tpmpk_admin: {
+    articles: "none",
+    certificates: "none",
+    certificate_templates: "none",
+    users_roles: "none",
+    tpmpk: "edit",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  tpmpk_operator: {
+    articles: "none",
+    certificates: "none",
+    certificate_templates: "none",
+    users_roles: "none",
+    tpmpk: "edit",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  domu_editor: {
+    articles: "edit",
+    certificates: "none",
+    certificate_templates: "none",
+    users_roles: "none",
+    tpmpk: "none",
+    audit_log: "view",
+    portal_settings: "none",
+  },
+  user: {
+    articles: "none",
+    certificates: "none",
+    certificate_templates: "none",
+    users_roles: "none",
+    tpmpk: "none",
+    audit_log: "none",
+    portal_settings: "none",
+  },
+};
+
 export const TEST_USERS = {
   user: {
     id: 101,
@@ -182,19 +263,48 @@ export function getRoleLabel(role) {
   return ROLE_LABELS[role] || role || "Пользователь";
 }
 
-export function canAccessAdmin(user) {
+function normalizeRoleName(user) {
   const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "methodist" || role === "admin";
+  return String(role || "user").trim().toLowerCase() || "user";
+}
+
+export function getUserPermissions(user) {
+  const role = normalizeRoleName(user);
+  const defaults = DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.user;
+  const explicit = user?.permissions && typeof user.permissions === "object" ? user.permissions : {};
+  return { ...defaults, ...explicit };
+}
+
+export function hasPermission(user, moduleKey, minLevel = "view") {
+  const required = PERMISSION_LEVELS[minLevel] ?? PERMISSION_LEVELS.view;
+  const current = PERMISSION_LEVELS[getUserPermissions(user)[moduleKey] || "none"] ?? PERMISSION_LEVELS.none;
+  return current >= required;
+}
+
+export function canAccessAdmin(user) {
+  const role = normalizeRoleName(user);
+  return (
+    role === "methodist"
+    || role === "admin"
+    || hasPermission(user, "articles", "view")
+    || hasPermission(user, "certificates", "view")
+    || hasPermission(user, "certificate_templates", "view")
+  );
 }
 
 export function canAccessTpmpkAdmin(user) {
-  const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "operator" || role === "tpmpk_operator" || role === "tpmpk_admin" || role === "admin";
+  const role = normalizeRoleName(user);
+  return role === "operator" || role === "tpmpk_operator" || role === "tpmpk_admin" || role === "admin" || hasPermission(user, "tpmpk", "view");
 }
 
 export function canAccessDomuAdmin(user) {
-  const role = typeof user?.role === "object" ? user.role?.role_name : user?.role;
-  return role === "domu_editor" || role === "methodist" || role === "admin";
+  const role = normalizeRoleName(user);
+  return role === "domu_editor" || role === "methodist" || role === "admin" || hasPermission(user, "articles", "view");
+}
+
+export function canManageUsers(user) {
+  const role = normalizeRoleName(user);
+  return role === "admin";
 }
 
 export function getStoredUser() {

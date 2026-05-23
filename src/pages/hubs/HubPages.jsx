@@ -3,7 +3,6 @@ import Header from "../../features/nav/Header.jsx";
 import Footer from "../../components/Footer.jsx";
 import Breadcrumbs from "../../components/Breadcrumbs.jsx";
 import NewsCard from "../../features/news/NewsCard.jsx";
-import { formatArticleDate } from "../../utils/articleMeta.js";
 import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
@@ -62,7 +61,10 @@ function HubStyles() {
 }
 
 function formatDate(value) {
-  return formatArticleDate(value, "Нет публикаций");
+  if (!value) return "Нет публикаций";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Нет публикаций";
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
 }
 
 function HubNewsList({ title, newsItems, onOpenArticle, onOpenAuthor }) {
