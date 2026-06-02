@@ -1,10 +1,10 @@
 /** Баннер уведомлений: success / error / info */
 export default function AlertBanner({ type, children }) {
   const styles = {
-    success: { bg: "#ECFDF5", color: "#059669", border: "#A7F3D0", icon: "✅" },
-    error:   { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA", icon: "❌" },
-    info:    { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE", icon: "ℹ️" },
-    warning: { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A", icon: "⚠️" },
+    success: { bg: "#ECFDF5", color: "#047857", border: "#A7F3D0", icon: "✓" },
+    error:   { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA", icon: "!" },
+    info:    { bg: "#EDF6F8", color: "#004F75", border: "#B8D4DD", icon: "i" },
+    warning: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A", icon: "!" },
   };
   const s = styles[type] || styles.info;
   return (

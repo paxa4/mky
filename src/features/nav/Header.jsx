@@ -25,7 +25,7 @@ function normalizePath(pathname) {
 
 function SearchIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.8-3.8" />
     </svg>
@@ -34,7 +34,7 @@ function SearchIcon() {
 
 function EyeIcon() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
@@ -136,11 +136,11 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           position: fixed;
           inset: 0 0 auto;
           z-index: 240;
-          border-bottom: 1px solid #dbe5f1;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(14px);
+          border-bottom: 1px solid rgba(0, 79, 117, 0.12);
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(18px);
           box-shadow: var(--header-shadow);
-          transition: box-shadow 0.2s ease;
+          transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
 
         .site-header-shell *:focus-visible {
@@ -149,39 +149,46 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .site-header-inner {
-          max-width: 1500px;
+          max-width: 1440px;
           margin: 0 auto;
-          height: 74px;
+          height: 84px;
           min-width: 0;
-          padding: 0 12px;
+          padding: 0 28px;
           display: grid;
           grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
-          column-gap: 12px;
+          column-gap: 22px;
         }
 
         .header-logo-slot {
           min-width: 0;
+          height: 100%;
           display: flex;
           align-items: center;
+        }
+
+        .header-logo-slot img {
+          width: clamp(230px, 20vw, 318px) !important;
+          height: auto !important;
+          max-height: 58px;
         }
 
         .header-main-area {
           min-width: 0;
           position: relative;
-          height: 74px;
+          height: 84px;
           display: flex;
           align-items: center;
         }
 
         .header-nav {
           width: 100%;
-          height: 74px;
+          height: 84px;
           min-width: 0;
           display: flex;
           align-items: center;
-          justify-content: flex-start;
-          gap: 10px;
+          justify-content: center;
+          gap: 8px;
           overflow: hidden;
           transition: opacity 0.16s ease, transform 0.2s ease, visibility 0.16s ease;
         }
@@ -194,46 +201,69 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-nav-link {
+          position: relative;
           flex: 0 0 auto;
-          height: 38px;
+          height: 42px;
           border: 1px solid transparent;
-          border-radius: 10px;
+          border-radius: 8px;
           background: transparent;
-          color: #1f3043;
-          padding: 0 9px;
-          font: 760 11.8px/1 inherit;
+          color: #203243;
+          padding: 0 14px;
+          font: 800 13px/1.1 inherit;
+          letter-spacing: 0;
           white-space: nowrap;
           cursor: pointer;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+          transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+        }
+
+        .header-nav-link::after {
+          content: "";
+          position: absolute;
+          left: 14px;
+          right: 14px;
+          bottom: 7px;
+          height: 2px;
+          border-radius: 999px;
+          background: currentColor;
+          opacity: 0;
+          transform: scaleX(0.5);
+          transition: opacity 0.16s ease, transform 0.16s ease;
         }
 
         .header-nav-link:hover {
-          color: #0b63ce;
-          background: #f3f8ff;
-          border-color: #d7e8ff;
+          color: #005e7d;
+          background: rgba(25, 120, 156, 0.08);
+          border-color: rgba(25, 120, 156, 0.18);
+          transform: translateY(-1px);
         }
 
         .header-nav-link.is-active {
-          color: #0b63ce;
-          background: #eef5ff;
-          border-color: #c9defb;
+          color: #004f75;
+          background: rgba(227, 242, 248, 0.9);
+          border-color: rgba(25, 120, 156, 0.24);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.74);
+        }
+
+        .header-nav-link.is-active::after {
+          opacity: 0.82;
+          transform: scaleX(1);
         }
 
         .header-search-panel {
           position: absolute;
-          inset: 14px 0;
+          inset: 18px 0;
           min-width: 0;
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 0 10px 0 14px;
-          border: 1px solid #9dc5f4;
-          border-radius: 12px;
+          border: 1px solid rgba(25, 120, 156, 0.34);
+          border-radius: 8px;
           background: #fff;
-          box-shadow: 0 10px 24px rgba(11, 99, 206, 0.12);
+          box-shadow: 0 16px 36px rgba(0, 79, 117, 0.14);
           opacity: 0;
           visibility: hidden;
           pointer-events: none;
@@ -250,7 +280,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-search-panel svg {
-          color: #0b63ce;
+          color: #005e7d;
           flex: 0 0 auto;
         }
 
@@ -273,25 +303,31 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-icon-btn,
         .header-search-btn,
         .header-menu-btn {
-          width: 40px;
-          height: 40px;
-          flex: 0 0 40px;
-          border: 1px solid #dbe5f1;
-          border-radius: 10px;
+          width: 44px;
+          height: 44px;
+          flex: 0 0 44px;
+          border: 1px solid rgba(0, 79, 117, 0.16);
+          border-radius: 8px;
           background: #fff;
-          color: #405166;
+          color: #314456;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
         }
 
         .header-search-close {
-          width: 30px;
-          height: 30px;
-          flex-basis: 30px;
-          background: #eef5ff;
+          width: 32px;
+          height: 32px;
+          flex-basis: 32px;
+          background: #e3f2f8;
+        }
+
+        .header-search-btn svg,
+        .header-icon-btn svg {
+          width: 22px;
+          height: 22px;
         }
 
         .header-icon-btn:hover,
@@ -300,22 +336,23 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-search-btn.active,
         .header-menu-btn:hover,
         .header-search-close:hover {
-          border-color: #9dc5f4;
-          background: #f5f9ff;
-          color: #0b63ce;
+          border-color: rgba(25, 120, 156, 0.42);
+          background: #f4f9fc;
+          color: #005e7d;
+          transform: translateY(-1px);
         }
 
         .header-search-btn.active {
-          box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+          box-shadow: 0 0 0 3px rgba(25, 120, 156, 0.14);
         }
 
         .header-actions {
           min-width: 0;
-          height: 74px;
+          height: 84px;
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          gap: 8px;
+          gap: 10px;
         }
 
         .header-a11y-wrap {
@@ -427,40 +464,44 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-profile-btn,
         .header-auth-btn,
         .header-register-btn {
-          height: 40px;
-          border: 1px solid #dbe5f1;
-          border-radius: 10px;
+          height: 44px;
+          border: 1px solid rgba(0, 79, 117, 0.16);
+          border-radius: 8px;
           background: #fff;
           color: #26364a;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 0 12px;
+          padding: 0 15px;
           font: 800 13px/1 inherit;
           white-space: nowrap;
           cursor: pointer;
-          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+          transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
         }
 
         .header-register-btn {
-          border-color: #0b63ce;
-          background: #0b63ce;
+          border-color: #005e7d;
+          background: #005e7d;
           color: #fff;
+          box-shadow: 0 10px 24px rgba(0, 79, 117, 0.18);
         }
 
         .header-admin-btn:hover,
         .header-tpmpk-btn:hover,
         .header-profile-btn:hover,
         .header-auth-btn:hover {
-          border-color: #9dc5f4;
-          background: #f5f9ff;
-          color: #0b63ce;
+          border-color: rgba(25, 120, 156, 0.42);
+          background: #f4f9fc;
+          color: #005e7d;
+          transform: translateY(-1px);
         }
 
         .header-register-btn:hover {
-          background: #084fa7;
-          border-color: #084fa7;
+          background: #004f75;
+          border-color: #004f75;
+          transform: translateY(-1px);
+          box-shadow: 0 14px 28px rgba(0, 79, 117, 0.22);
         }
 
         .header-avatar {
@@ -470,17 +511,17 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #0b63ce, #7c3aed);
+          background: linear-gradient(135deg, #005e7d, #19789c);
           color: #fff;
           font-size: 11px;
           font-weight: 900;
         }
 
         .header-spacer {
-          height: 75px;
+          height: 85px;
         }
 
-        @media (max-width: 1620px) {
+        @media (max-width: 1440px) {
           .header-auth-text,
           .header-register-text,
           .header-admin-label,
@@ -494,24 +535,13 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-admin-btn,
           .header-tpmpk-btn,
           .header-profile-btn {
-            width: 40px;
+            width: 44px;
             padding: 0;
           }
 
           .header-nav-link {
-            font-size: 11.2px;
-            padding: 0 8px;
-          }
-        }
-
-        @media (max-width: 1480px) {
-          .header-nav {
-            gap: 8px;
-          }
-
-          .header-nav-link {
-            font-size: 10.9px;
-            padding: 0 6px;
+            font-size: 12.4px;
+            padding: 0 10px;
           }
         }
 
@@ -521,8 +551,20 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
 
           .header-nav-link {
-            font-size: 10.5px;
-            padding: 0 5px;
+            font-size: 12px;
+            padding: 0 8px;
+          }
+        }
+
+        @media (max-width: 1240px) {
+          .site-header-inner {
+            padding: 0 20px;
+            column-gap: 16px;
+          }
+
+          .header-nav-link {
+            font-size: 11.5px;
+            padding: 0 7px;
           }
         }
 
@@ -534,16 +576,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-main-area {
             height: 0;
             position: absolute;
-            left: 12px;
-            right: 12px;
-            top: 74px;
+            left: 20px;
+            right: 20px;
+            top: 84px;
             z-index: 1;
             display: block;
           }
 
           .header-search-panel {
             inset: 0;
-            height: 48px;
+            height: 50px;
             transform: translateY(-8px);
             transform-origin: top center;
           }
@@ -553,27 +595,34 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
 
           .site-header-shell:has(.header-main-area.search-mode) {
-            padding-bottom: 60px;
+            padding-bottom: 64px;
           }
         }
 
         @media (max-width: 720px) {
           .site-header-inner,
           .header-actions {
-            height: 66px;
+            height: 68px;
           }
 
           .site-header-inner {
-            padding: 0 10px;
+            padding: 0 12px;
             column-gap: 8px;
           }
 
+          .header-logo-slot img {
+            width: clamp(166px, 43vw, 218px) !important;
+            max-height: 46px;
+          }
+
           .header-main-area {
-            top: 66px;
+            left: 12px;
+            right: 12px;
+            top: 68px;
           }
 
           .header-spacer {
-            height: 67px;
+            height: 69px;
           }
 
           .header-admin-btn,
@@ -587,9 +636,9 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-auth-btn,
           .header-register-btn,
           .header-profile-btn {
-            width: 38px;
-            height: 38px;
-            flex-basis: 38px;
+            width: 40px;
+            height: 40px;
+            flex-basis: 40px;
           }
         }
 
@@ -600,7 +649,12 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
 
           .header-actions {
-            gap: 4px;
+            gap: 5px;
+          }
+
+          .header-logo-slot img {
+            width: clamp(146px, 42vw, 174px) !important;
+            max-height: 40px;
           }
 
           .header-avatar {
@@ -617,6 +671,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-profile-btn {
             width: 34px;
             height: 34px;
+            flex-basis: 34px;
           }
 
           .header-icon-btn {

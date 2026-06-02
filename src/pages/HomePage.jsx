@@ -284,6 +284,17 @@ export default function HomePage({
 }) {
   const navigate = useNavigate();
   const directionsRef = useRef(null);
+  const directionsDragRef = useRef({
+    active: false,
+    horizontal: false,
+    moved: false,
+    pointerId: null,
+    scrollLeft: 0,
+    startX: 0,
+    startY: 0,
+  });
+  const suppressDirectionsClickRef = useRef(false);
+  const [isDirectionsDragging, setIsDirectionsDragging] = useState(false);
   const [carouselState, setCarouselState] = useState({
     activeIndex: 0,
     activeCardIndex: 0,
@@ -305,6 +316,50 @@ export default function HomePage({
   useEffect(() => {
     document.title = "МКУ ИМЦРО | Главная";
   }, []);
+
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll(".home-reveal"));
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const revealTimers = [];
+    const getRevealDelay = (element) => {
+      const value = window.getComputedStyle(element).getPropertyValue("--reveal-delay").trim();
+      if (value.endsWith("ms")) return Number.parseFloat(value) || 0;
+      if (value.endsWith("s")) return (Number.parseFloat(value) || 0) * 1000;
+      return 0;
+    };
+    const revealElement = (element) => {
+      element.classList.add("is-visible");
+      const timer = window.setTimeout(() => {
+        element.style.transitionDelay = "0ms";
+      }, getRevealDelay(element) + 700);
+      revealTimers.push(timer);
+    };
+
+    if (reducedMotion || !("IntersectionObserver" in window)) {
+      elements.forEach((element) => {
+        element.classList.add("is-visible");
+        element.style.transitionDelay = "0ms";
+      });
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        revealElement(entry.target);
+        observer.unobserve(entry.target);
+      });
+    }, {
+      rootMargin: "0px 0px -8% 0px",
+      threshold: 0.14,
+    });
+
+    elements.forEach((element) => observer.observe(element));
+    return () => {
+      observer.disconnect();
+      revealTimers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [featuredNews]);
 
   const getDirectionsPageCount = useCallback(() => {
     const node = directionsRef.current;
@@ -386,6 +441,86 @@ export default function HomePage({
     node.scrollBy({ left: direction * step, behavior: "smooth" });
   }, [getDirectionsCardMetrics]);
 
+  const endDirectionsDrag = useCallback(() => {
+    const node = directionsRef.current;
+    const drag = directionsDragRef.current;
+    if (!drag.active) return;
+
+    if (node && drag.pointerId !== null && node.hasPointerCapture?.(drag.pointerId)) {
+      node.releasePointerCapture(drag.pointerId);
+    }
+
+    if (drag.moved) {
+      suppressDirectionsClickRef.current = true;
+      window.setTimeout(() => {
+        suppressDirectionsClickRef.current = false;
+      }, 140);
+    }
+
+    directionsDragRef.current = {
+      active: false,
+      horizontal: false,
+      moved: false,
+      pointerId: null,
+      scrollLeft: 0,
+      startX: 0,
+      startY: 0,
+    };
+    setIsDirectionsDragging(false);
+  }, []);
+
+  const handleDirectionsPointerDown = useCallback((event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const node = directionsRef.current;
+    if (!node) return;
+
+    directionsDragRef.current = {
+      active: true,
+      horizontal: false,
+      moved: false,
+      pointerId: event.pointerId,
+      scrollLeft: node.scrollLeft,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    setIsDirectionsDragging(true);
+
+    if (event.pointerType !== "touch") {
+      node.setPointerCapture?.(event.pointerId);
+    }
+  }, []);
+
+  const handleDirectionsPointerMove = useCallback((event) => {
+    const node = directionsRef.current;
+    const drag = directionsDragRef.current;
+    if (!node || !drag.active || drag.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.horizontal) {
+      if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) return;
+      if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+      drag.horizontal = true;
+      node.setPointerCapture?.(event.pointerId);
+    }
+
+    event.preventDefault();
+    drag.moved = true;
+    node.scrollLeft = drag.scrollLeft - deltaX;
+  }, []);
+
+  const handleDirectionsPointerLeave = useCallback((event) => {
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      endDirectionsDrag();
+    }
+  }, [endDirectionsDrag]);
+
+  const handleDirectionsClickCapture = useCallback((event) => {
+    if (!suppressDirectionsClickRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
   const handleFeaturedNewsClick = useCallback((event) => {
     if (!featuredNews) return;
     const target = event.target;
@@ -445,6 +580,21 @@ export default function HomePage({
         .home-container {
           width: min(1280px, calc(100% - 48px));
           margin: 0 auto;
+        }
+
+        .home-reveal {
+          opacity: 0;
+          transform: translateY(24px);
+          transition:
+            opacity 0.62s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+          transition-delay: var(--reveal-delay, 0ms);
+          will-change: opacity, transform;
+        }
+
+        .home-reveal.is-visible {
+          opacity: 1;
+          transform: translateY(0);
         }
 
         .home-top-section {
@@ -527,6 +677,7 @@ export default function HomePage({
           isolation: isolate;
           cursor: pointer;
           box-shadow: 0 14px 30px rgba(15, 23, 42, 0.15);
+          transition: transform 0.22s ease, box-shadow 0.22s ease;
         }
 
         .main-news-card:not(.is-empty):hover {
@@ -558,13 +709,13 @@ export default function HomePage({
           inset: 0;
           z-index: -1;
           background:
-            linear-gradient(180deg, rgba(0, 31, 48, 0.24) 0%, rgba(0, 31, 48, 0.88) 100%),
-            linear-gradient(90deg, rgba(0, 79, 117, 0.84) 0%, rgba(0, 79, 117, 0.18) 72%);
+            linear-gradient(180deg, rgba(0, 31, 48, 0.05) 0%, rgba(0, 31, 48, 0.99) 100%),
+            linear-gradient(90deg, rgba(0, 79, 117, 0.15) 0%, rgba(0, 79, 117, 0.05) 72%);
           transition: opacity 0.2s ease;
         }
 
         .main-news-card:not(.is-empty):hover::before {
-          opacity: 0.94;
+          opacity: 0.88;
         }
 
         .main-news-content {
@@ -604,12 +755,14 @@ export default function HomePage({
         }
 
         .main-news-title {
+          display: block;
           margin: 0 0 22px;
           color: #ffffff;
           font-size: clamp(26px, 3.1vw, 36px);
           font-weight: 800;
           line-height: 1.13;
           letter-spacing: 0;
+          overflow-wrap: anywhere;
         }
 
         .main-news-description {
@@ -646,6 +799,7 @@ export default function HomePage({
           font-weight: 800;
           text-decoration: none;
           box-shadow: 0 1px 2px rgba(0, 79, 117, 0.12);
+          transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
         }
 
         .home-primary-btn:hover {
@@ -664,61 +818,45 @@ export default function HomePage({
 
         .event-banner-list {
           display: grid;
-          gap: 24px;
+          gap: 20px;
         }
 
         .event-banner {
           position: relative;
-          min-height: 126px;
-          display: flex;
-          align-items: center;
+          display: block;
+          aspect-ratio: 3 / 1;
           overflow: hidden;
           border-radius: 8px;
           color: #ffffff;
           text-decoration: none;
           isolation: isolate;
-          background-position: center;
-          background-size: cover;
-          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.13);
+          background: #f4f9fc;
+          border: 1px solid rgba(0, 79, 117, 0.12);
+          box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+          transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
         }
 
-        .event-banner::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-          background: linear-gradient(90deg, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0.46));
-          transition: background 0.18s ease;
+        body.mky-a11y-mode .home-page .event-banner {
+          min-height: 0;
         }
 
-        .event-banner::after {
-          content: "";
-          position: absolute;
-          inset: auto 0 0;
-          height: 46%;
-          z-index: 0;
-          background: linear-gradient(0deg, rgba(0, 79, 117, 0.36), rgba(0, 79, 117, 0));
+        .event-banner-image {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: cover;
+          border-radius: inherit;
+          transition: transform 0.24s ease;
         }
 
         .event-banner:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+          border-color: rgba(0, 79, 117, 0.28);
+          transform: translateY(-3px);
+          box-shadow: 0 18px 34px rgba(0, 79, 117, 0.2);
         }
 
-        .event-banner:hover::before {
-          background: linear-gradient(90deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.5));
-        }
-
-        .event-banner-title {
-          position: relative;
-          z-index: 1;
-          max-width: 88%;
-          padding: 26px 30px;
-          color: #ffffff;
-          font-size: 20px;
-          font-weight: 800;
-          line-height: 1.22;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        .event-banner:hover .event-banner-image {
+          transform: scale(1.025);
         }
 
         .main-sections-band {
@@ -743,6 +881,7 @@ export default function HomePage({
           text-decoration: none;
           box-shadow: 0 3px 10px rgba(0, 31, 48, 0.12);
           border: 1px solid rgba(255, 255, 255, 0.74);
+          transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
         }
 
         .main-section-card:hover {
@@ -793,6 +932,7 @@ export default function HomePage({
 
         .directions-section {
           background: linear-gradient(180deg, #ffffff 0%, #f4f9fc 100%);
+          overflow: hidden;
           padding: 70px 0 80px;
         }
 
@@ -830,6 +970,7 @@ export default function HomePage({
           color: #ffffff;
           cursor: pointer;
           box-shadow: 0 10px 22px rgba(0, 79, 117, 0.18);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
         }
 
         .carousel-btn svg {
@@ -847,6 +988,7 @@ export default function HomePage({
           background: #004f75;
           color: #ffffff;
           transform: translateY(-1px);
+          box-shadow: 0 14px 28px rgba(0, 79, 117, 0.22);
         }
 
         .carousel-btn:disabled {
@@ -867,8 +1009,8 @@ export default function HomePage({
         .directions-carousel-shell {
           position: relative;
           overflow: hidden;
-          margin: 0 -8px;
-          padding: 16px 0 6px 8px;
+          margin: 0 -12px;
+          padding: 18px 0 8px 12px;
         }
 
         .directions-carousel-shell::after {
@@ -882,12 +1024,23 @@ export default function HomePage({
 
         .directions-rail {
           display: flex;
-          gap: 18px;
+          gap: 20px;
           overflow-x: auto;
           scroll-behavior: smooth;
           scrollbar-width: none;
-          padding: 4px 74px 28px 0;
+          overscroll-behavior-x: contain;
+          padding: 4px 78px 30px 0;
           scroll-snap-type: x mandatory;
+          touch-action: pan-y;
+          cursor: grab;
+          user-select: none;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .directions-rail.is-dragging {
+          cursor: grabbing;
+          scroll-behavior: auto;
+          scroll-snap-type: none;
         }
 
         .directions-rail::-webkit-scrollbar {
@@ -895,32 +1048,57 @@ export default function HomePage({
         }
 
         .direction-card {
-          flex: 0 0 calc((100% - 92px) / 5.35);
-          min-width: 196px;
-          min-height: 154px;
+          position: relative;
+          flex: 0 0 clamp(214px, 18vw, 244px);
+          min-height: 170px;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
-          gap: 18px;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
           padding: 24px;
           border: 1px solid rgba(0, 79, 117, 0.18);
           border-radius: 8px;
-          background: #ffffff;
+          background:
+            linear-gradient(180deg, #ffffff 0%, #f9fcfe 100%);
           color: #121d26;
+          text-align: center;
           text-decoration: none;
           scroll-snap-align: start;
-          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+          overflow: hidden;
+          transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+        }
+
+        body.mky-a11y-mode .home-page .direction-card {
+          min-height: 170px;
+        }
+
+        .direction-card::before {
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 4px;
+          background: linear-gradient(180deg, #19789c, #004f75);
+          opacity: 0;
+          transition: opacity 0.22s ease;
         }
 
         .direction-card:hover {
           border-color: rgba(25, 120, 156, 0.72);
-          box-shadow: 0 18px 34px rgba(0, 79, 117, 0.13);
+          background: #ffffff;
+          box-shadow: 0 20px 40px rgba(0, 79, 117, 0.15);
           transform: translateY(-4px);
         }
 
         .direction-card.is-active {
           border-color: rgba(25, 120, 156, 0.9);
           box-shadow: 0 20px 38px rgba(0, 79, 117, 0.16);
+        }
+
+        .direction-card:hover::before,
+        .direction-card.is-active::before {
+          opacity: 1;
         }
 
         .direction-card .card-icon {
@@ -938,9 +1116,11 @@ export default function HomePage({
 
         .direction-title {
           color: #111827;
-          font-size: 14px;
+          font-size: 14.5px;
           font-weight: 800;
-          line-height: 1.28;
+          line-height: 1.3;
+          overflow-wrap: anywhere;
+          text-align: center;
         }
 
         .carousel-status {
@@ -952,12 +1132,14 @@ export default function HomePage({
         }
 
         .carousel-progress {
-          width: min(420px, 76vw);
-          height: 8px;
+          width: min(460px, 76vw);
+          height: 10px;
           overflow: hidden;
           border-radius: 999px;
-          background: #d8e7ee;
-          box-shadow: inset 0 0 0 1px rgba(0, 79, 117, 0.08);
+          background: rgba(216, 231, 238, 0.86);
+          box-shadow:
+            inset 0 0 0 1px rgba(0, 79, 117, 0.09),
+            0 8px 18px rgba(0, 79, 117, 0.08);
         }
 
         .carousel-progress-fill {
@@ -967,6 +1149,7 @@ export default function HomePage({
           border-radius: inherit;
           background: linear-gradient(90deg, #19789c, #004f75);
           transform-origin: left center;
+          box-shadow: 0 0 18px rgba(25, 120, 156, 0.32);
           transition: transform 0.18s ease;
         }
 
@@ -1124,6 +1307,42 @@ export default function HomePage({
           transform: translateY(-1px);
         }
 
+        .main-news-card.home-reveal,
+        .event-banner.home-reveal,
+        .main-section-card.home-reveal,
+        .directions-head.home-reveal,
+        .contact-card.home-reveal {
+          transition:
+            opacity 0.62s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+            transform 0.62s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+            box-shadow 0.24s ease,
+            border-color 0.24s ease,
+            background 0.24s ease;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .home-reveal,
+          .main-news-card.home-reveal,
+          .event-banner.home-reveal,
+          .main-section-card.home-reveal,
+          .directions-head.home-reveal,
+          .contact-card.home-reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+          }
+
+          .directions-rail {
+            scroll-behavior: auto;
+          }
+
+          .main-news-bg,
+          .event-banner-image,
+          .carousel-progress-fill {
+            transition: none;
+          }
+        }
+
         @media (max-width: 1020px) {
           .home-top-grid {
             grid-template-columns: 1fr;
@@ -1180,12 +1399,11 @@ export default function HomePage({
           }
 
           .event-banner {
-            min-height: 116px;
+            aspect-ratio: 3 / 1;
           }
 
-          .event-banner-title {
-            padding: 22px 24px;
-            font-size: 18px;
+          body.mky-a11y-mode .home-page .event-banner {
+            min-height: 0;
           }
 
           .main-sections-band {
@@ -1219,10 +1437,15 @@ export default function HomePage({
           }
 
           .direction-card {
-            flex-basis: 78vw;
-            min-width: 218px;
-            max-width: 292px;
+            flex-basis: 74vw;
+            min-width: 224px;
+            max-width: 304px;
+            min-height: 160px;
             padding: 20px;
+          }
+
+          body.mky-a11y-mode .home-page .direction-card {
+            min-height: 160px;
           }
 
           .contact-section {
@@ -1297,7 +1520,7 @@ export default function HomePage({
 
               {featuredNews ? (
                 <article
-                  className="main-news-card"
+                  className="main-news-card home-reveal"
                   role="link"
                   tabIndex={0}
                   onClick={handleFeaturedNewsClick}
@@ -1334,7 +1557,7 @@ export default function HomePage({
                   </span>
                 </article>
               ) : (
-                <article className="main-news-card is-empty">
+                <article className="main-news-card is-empty home-reveal">
                   <div className="main-news-content">
                     <div className="main-news-meta">
                       <span className="main-news-author">Редакция ИМЦРО</span>
@@ -1356,11 +1579,10 @@ export default function HomePage({
                 {keyEvents.map((event) => (
                   <Link
                     key={event.title}
-                    className="event-banner"
+                    className="event-banner home-reveal"
                     to={event.href}
-                    style={{ backgroundImage: `url(${event.image})` }}
                   >
-                    <span className="event-banner-title">{event.title}</span>
+                    <img className="event-banner-image" src={event.image} alt={event.title} loading="lazy" />
                   </Link>
                 ))}
               </div>
@@ -1371,8 +1593,13 @@ export default function HomePage({
         <section className="main-sections-band" aria-label="Главные разделы">
           <div className="home-container">
             <div className="main-sections-grid">
-              {mainSections.map((section) => (
-                <Link key={section.title} className="main-section-card" to={section.href}>
+              {mainSections.map((section, index) => (
+                <Link
+                  key={section.title}
+                  className="main-section-card home-reveal"
+                  to={section.href}
+                  style={{ "--reveal-delay": `${index * 55}ms` }}
+                >
                   <span className="card-icon"><Icon name={section.icon} /></span>
                   <h3>{section.title}</h3>
                   <p>{section.description}</p>
@@ -1384,7 +1611,7 @@ export default function HomePage({
 
         <section className="directions-section" aria-labelledby="directions-title">
           <div className="home-container">
-            <div className="directions-head">
+            <div className="directions-head home-reveal">
               <div>
                 <h2 className="home-section-title" id="directions-title">Направления деятельности</h2>
                 <p className="directions-kicker">
@@ -1414,7 +1641,17 @@ export default function HomePage({
             </div>
 
             <div className="directions-carousel-shell">
-              <div className="directions-rail" ref={directionsRef}>
+              <div
+                className={`directions-rail${isDirectionsDragging ? " is-dragging" : ""}`}
+                ref={directionsRef}
+                onClickCapture={handleDirectionsClickCapture}
+                onDragStart={(event) => event.preventDefault()}
+                onPointerCancel={endDirectionsDrag}
+                onPointerDown={handleDirectionsPointerDown}
+                onPointerLeave={handleDirectionsPointerLeave}
+                onPointerMove={handleDirectionsPointerMove}
+                onPointerUp={endDirectionsDrag}
+              >
                 {directions.map((direction, index) => (
                   <Link
                     key={direction.title}
@@ -1447,7 +1684,7 @@ export default function HomePage({
 
         <section className="contact-section" aria-labelledby="contact-title">
           <div className="home-container">
-            <div className="contact-card">
+            <div className="contact-card home-reveal">
               <div className="map-panel">
                 <iframe
                   className="contact-map-frame"

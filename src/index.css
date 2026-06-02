@@ -28,7 +28,9 @@ body,
   --app-primary: #1e3a8a;
   --app-primary-hover: #0b63ce;
   --app-danger: #dc2626;
-  --app-radius: 8px;
+  --app-radius: 12px;
+  --app-radius-lg: 18px;
+  --app-radius-md: 12px;
   --app-shadow: 0 18px 48px rgba(15, 23, 42, 0.07);
   --app-transition: 160ms ease;
   --app-page-max: 1180px;

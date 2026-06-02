@@ -1,17 +1,18 @@
-/** Общие стили для компонентов генератора сертификатов */
+/** Общие стили для компонентов выпуска грамот */
 
 export const cardStyle = {
   background: "#fff",
-  borderRadius: 20,
-  padding: 40,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+  border: "1px solid #d4e0e6",
+  borderRadius: 8,
+  padding: 26,
+  boxShadow: "0 10px 28px rgba(15,23,42,0.06)",
 };
 
 export const inputStyle = {
   width: "100%",
   padding: "14px 16px",
-  borderRadius: 12,
-  border: "1px solid #E2E8F0",
+  borderRadius: 8,
+  border: "1px solid #d6e0e6",
   fontSize: 15,
   boxSizing: "border-box",
   outline: "none",
@@ -32,10 +33,10 @@ export const primaryBtn = (disabled) => ({
   padding: "16px",
   fontSize: 16,
   fontWeight: 700,
-  background: disabled ? "#CBD5E1" : "#1D4ED8",
+  background: disabled ? "#CBD5E1" : "#19789c",
   color: "#fff",
   border: "none",
-  borderRadius: 12,
+  borderRadius: 8,
   cursor: disabled ? "not-allowed" : "pointer",
   transition: "background 0.15s, transform 0.1s",
   letterSpacing: "0.01em",

@@ -2,17 +2,17 @@ export const keyEvents = [
   {
     title: "Августовские встречи",
     href: "/deyatelnost/",
-    image: "/images/news4.jpg",
+    image: "/images/event-august-meetings.png",
   },
   {
     title: "Курсы повышения квалификации",
     href: "/deyatelnost/povyshenie-kvalifikatsii/",
-    image: "/images/news2.jpg",
+    image: "/images/event-training-courses.png",
   },
   {
     title: "Конкурсы и конференции",
     href: "/konkursy/",
-    image: "/images/news3.jpg",
+    image: "/images/event-contests-conferences.png",
   },
 ];
 

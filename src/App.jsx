@@ -54,6 +54,7 @@ import {
   resolveArticleLocation,
   resolveArticleSectionLabel,
 } from "./features/admin/articleTaxonomy.js";
+import { htmlToPlainText } from "./features/admin/articleEditorContent.js";
 import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, clearStoredUser, getStoredUser, storeUser } from "./auth.js";
 
 function ScrollToTop() {
@@ -208,7 +209,7 @@ function articleToNewsItem(article) {
   const heroBlock = article.blocks?.find((block) => block.type === "hero");
   const paraBlock = article.blocks?.find((block) => block.type === "paragraph");
   const imgBlock = article.blocks?.find((block) => block.type === "image" || block.type === "imagetext");
-  const excerpt = article.lead || heroBlock?.data?.intro || article.excerpt || paraBlock?.data?.text || "";
+  const excerpt = article.lead || heroBlock?.data?.intro || article.excerpt || paraBlock?.data?.text || htmlToPlainText(article.body || "") || "";
   const image = stripMkyPrefix(article.cover_image_url || imgBlock?.data?.url || article.image) || FALLBACK_IMAGES[(article.id - 1) % FALLBACK_IMAGES.length];
 
   return {
@@ -228,6 +229,7 @@ function articleToNewsItem(article) {
     lead: article.lead || article.excerpt || "",
     cover_image_url: stripMkyPrefix(article.cover_image_url || image),
     blocks: article.blocks || [],
+    sections: article.sections || [],
     attachments: article.attachments || [],
     author: getAuthorLabel(article),
     author_id: article.author_id || null,

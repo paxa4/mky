@@ -22,6 +22,12 @@ const initialForm = {
   consentSpecial: false,
 };
 
+const SLOT_TAKEN_MESSAGE = "Этот слот уже выбран другим пользователем. Обновите список свободных слотов и выберите другое время.";
+const SLOT_LOCK_EXPIRED_MESSAGE = "Время удержания слота истекло. Выберите слот заново.";
+const SLOT_LOCK_RENEW_BEFORE_EXPIRY_MS = 60 * 1000;
+const SLOT_LOCK_MIN_RENEW_DELAY_MS = 30 * 1000;
+const SLOT_LOCK_FALLBACK_RENEW_DELAY_MS = 4 * 60 * 1000;
+
 function todayIso() {
   const value = new Date();
   const year = value.getFullYear();
@@ -86,6 +92,12 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
   useEffect(() => {
     slotLockRef.current = slotLock;
   }, [slotLock]);
+
+  const clearSelectedSlot = useCallback(() => {
+    slotLockRef.current = null;
+    setSlotLock(null);
+    setForm((prev) => ({ ...prev, selectedSlot: "", workingDayId: null }));
+  }, []);
 
   const releaseSlotLock = useCallback(async (lock, { clearState = true } = {}) => {
     if (!lock) return;
@@ -157,6 +169,45 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     return () => controller.abort();
   }, [form.selectedDate, releaseSlotLock]);
 
+  useEffect(() => {
+    if (!slotLock?.working_day_id || !slotLock?.start_time || !form.selectedDate) {
+      return undefined;
+    }
+
+    const expiresAt = Date.parse(slotLock.expires_at);
+    const renewDelay = Number.isFinite(expiresAt)
+      ? Math.max(SLOT_LOCK_MIN_RENEW_DELAY_MS, expiresAt - Date.now() - SLOT_LOCK_RENEW_BEFORE_EXPIRY_MS)
+      : SLOT_LOCK_FALLBACK_RENEW_DELAY_MS;
+
+    const timerId = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/tpmpk/slot-locks/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            working_day_id: slotLock.working_day_id,
+            date: form.selectedDate,
+            start_time: slotLock.start_time,
+            session_id: lockSessionId,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(response.status === 409
+            ? SLOT_TAKEN_MESSAGE
+            : await getErrorMessage(response, SLOT_LOCK_EXPIRED_MESSAGE));
+        }
+        setSlotLock(await response.json());
+      } catch (error) {
+        clearSelectedSlot();
+        setSubmitError(error.message || SLOT_LOCK_EXPIRED_MESSAGE);
+        refreshSlots();
+      }
+    }, renewDelay);
+
+    return () => window.clearTimeout(timerId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotLock, form.selectedDate, lockSessionId, clearSelectedSlot]);
+
   const availableSlots = useMemo(
     () => slots.filter((slot) => slot.is_available !== false),
     [slots]
@@ -211,7 +262,9 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }),
       });
       if (!response.ok) {
-        throw new Error(await getErrorMessage(response, "Не удалось временно удержать слот"));
+        throw new Error(response.status === 409
+          ? SLOT_TAKEN_MESSAGE
+          : await getErrorMessage(response, "Не удалось временно удержать слот"));
       }
       const lock = await response.json();
       setSlotLock(lock);
@@ -221,7 +274,8 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         workingDayId: slot.working_day_id,
       }));
     } catch (error) {
-      setSubmitError(error.message || "Слот уже недоступен. Обновите список и выберите другое время.");
+      clearSelectedSlot();
+      setSubmitError(error.message || SLOT_TAKEN_MESSAGE);
       refreshSlots();
     } finally {
       setSlotLockLoading(false);
@@ -341,7 +395,9 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
       const message = error.message || "Не удалось создать запись";
       const lower = message.toLowerCase();
       if (lower.includes("слот") || lower.includes("занят") || lower.includes("409")) {
-        setSubmitError("Этот слот уже заняли. Обновите свободные слоты и выберите другое время.");
+        clearSelectedSlot();
+        setSubmitError(message.includes("истекло") ? SLOT_LOCK_EXPIRED_MESSAGE : SLOT_TAKEN_MESSAGE);
+        refreshSlots();
       } else if (lower.includes("день") || lower.includes("закрыт")) {
         setSubmitError("Выбранный день закрыт для записи. Выберите другую дату.");
       } else {
@@ -516,11 +572,16 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
     <div className="tz-page">
       <style>{`
         .tz-page {
+          --tz-primary: #19789c;
+          --tz-primary-dark: #004f75;
+          --tz-primary-soft: #edf6f8;
+          --tz-primary-line: #b8d4dd;
+          --tz-primary-shadow: rgba(25, 120, 156, 0.2);
           min-height: 100vh;
           display: flex;
           flex-direction: column;
           color: #0f172a;
-          background: linear-gradient(180deg, #fbfdff 0%, #f3f7fc 52%, #eef4fb 100%);
+          background: linear-gradient(180deg, #fbfdff 0%, #f3f9fb 52%, var(--tz-primary-soft) 100%);
         }
 
         .tz-main {
@@ -547,7 +608,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           display: grid;
           gap: 14px;
           background:
-            radial-gradient(circle at 100% 0%, rgba(124, 58, 237, 0.08), transparent 26%),
+            radial-gradient(circle at 100% 0%, rgba(25, 120, 156, 0.1), transparent 26%),
             #ffffff;
         }
 
@@ -575,7 +636,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }
 
         .tz-back {
-          color: #1e3a8a;
+          color: var(--tz-primary-dark);
           text-decoration: none;
           font-weight: 900;
         }
@@ -589,7 +650,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         .tz-progress {
           height: 8px;
           border-radius: 999px;
-          background: #e7eef8;
+          background: var(--tz-primary-soft);
           overflow: hidden;
         }
 
@@ -598,7 +659,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           width: var(--progress);
           height: 100%;
           border-radius: inherit;
-          background: linear-gradient(90deg, #1e3a8a, #7c3aed);
+          background: linear-gradient(90deg, var(--tz-primary), var(--tz-primary-dark));
           transition: width 0.2s ease;
         }
 
@@ -612,7 +673,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }
 
         .tz-kicker {
-          color: #6d28d9;
+          color: var(--tz-primary);
           font-size: 12px;
           font-weight: 950;
           letter-spacing: 0.06em;
@@ -646,7 +707,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         .tz-field input {
           width: 100%;
           min-height: 54px;
-          border: 1px solid #d7e2f2;
+          border: 1px solid var(--tz-primary-line);
           border-radius: 8px;
           background: #fff;
           color: #0f172a;
@@ -656,8 +717,8 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }
 
         .tz-field input:focus {
-          border-color: #8b5cf6;
-          box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
+          border-color: var(--tz-primary);
+          box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.16);
         }
 
         .tz-choice-grid,
@@ -679,10 +740,10 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         .tz-choice,
         .tz-slot {
           min-height: 52px;
-          border: 1px solid #d7e2f2;
+          border: 1px solid var(--tz-primary-line);
           border-radius: 8px;
           background: #fff;
-          color: #1e3a8a;
+          color: var(--tz-primary-dark);
           font-weight: 950;
           cursor: pointer;
           transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
@@ -709,15 +770,15 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         .tz-choice:hover,
         .tz-slot:hover {
           transform: translateY(-1px);
-          border-color: #c4b5fd;
-          box-shadow: 0 12px 28px rgba(30, 58, 138, 0.09);
+          border-color: var(--tz-primary-line);
+          box-shadow: 0 12px 28px rgba(25, 120, 156, 0.1);
         }
 
         .tz-choice.active,
         .tz-slot.active {
           color: #fff;
           border-color: transparent;
-          background: linear-gradient(135deg, #1e3a8a, #7c3aed);
+          background: linear-gradient(135deg, var(--tz-primary), var(--tz-primary-dark));
         }
 
         .tz-slot.active small {
@@ -725,20 +786,20 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }
 
         .tz-state {
-          border: 1px solid #cfe2ff;
+          border: 1px solid var(--tz-primary-line);
           border-radius: 8px;
           padding: 13px 14px;
-          background: #eef6ff;
-          color: #1e3a8a;
+          background: var(--tz-primary-soft);
+          color: var(--tz-primary-dark);
           font-weight: 800;
           line-height: 1.45;
         }
 
         .tz-state.error,
         .tz-error {
-          border-color: #fed7aa;
-          background: #fff7ed;
-          color: #9a3412;
+          border-color: #fecaca;
+          background: #fef2f2;
+          color: #b91c1c;
         }
 
         .tz-review {
@@ -774,7 +835,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           gap: 10px;
           align-items: start;
           padding: 13px;
-          border: 1px solid #d7e2f2;
+          border: 1px solid var(--tz-primary-line);
           border-radius: 8px;
           background: #fff;
           color: #334155;
@@ -786,7 +847,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           width: 20px;
           height: 20px;
           margin-top: 1px;
-          accent-color: #1e3a8a;
+          accent-color: var(--tz-primary);
         }
 
         .tz-actions {
@@ -807,8 +868,8 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
 
         .tz-primary {
           color: #fff;
-          background: linear-gradient(135deg, #1e3a8a, #7c3aed);
-          box-shadow: 0 16px 34px rgba(30, 58, 138, 0.18);
+          background: linear-gradient(135deg, var(--tz-primary), var(--tz-primary-dark));
+          box-shadow: 0 16px 34px var(--tz-primary-shadow);
         }
 
         .tz-primary:disabled {
@@ -824,9 +885,30 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
         }
 
         .tz-secondary {
-          color: #1e3a8a;
-          background: #eef4fb;
-          border: 1px solid #d7e2f2;
+          color: var(--tz-primary-dark);
+          background: var(--tz-primary-soft);
+          border: 1px solid var(--tz-primary-line);
+        }
+
+        .tz-primary:hover,
+        .tz-secondary:hover,
+        .tz-error button:hover,
+        .tz-modal-actions a:hover,
+        .tz-modal-actions button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 28px rgba(25, 120, 156, 0.14);
+        }
+
+        .tz-primary:focus-visible,
+        .tz-secondary:focus-visible,
+        .tz-choice:focus-visible,
+        .tz-slot:focus-visible,
+        .tz-back:focus-visible,
+        .tz-error button:focus-visible,
+        .tz-modal-actions a:focus-visible,
+        .tz-modal-actions button:focus-visible {
+          outline: 3px solid rgba(25, 120, 156, 0.2);
+          outline-offset: 3px;
         }
 
         .tz-error {
@@ -843,7 +925,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           padding: 0 13px;
           border: 0;
           border-radius: 8px;
-          background: #1e3a8a;
+          background: var(--tz-primary-dark);
           color: #fff;
           font-weight: 900;
           cursor: pointer;
@@ -862,7 +944,7 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
           display: grid;
           place-items: center;
           color: #fff;
-          background: linear-gradient(135deg, #059669, #1e3a8a);
+          background: linear-gradient(135deg, var(--tz-primary), var(--tz-primary-dark));
           font-size: 30px;
           font-weight: 950;
         }
@@ -952,13 +1034,13 @@ export default function TpmpkZapisPage({ currentUser, onGoAuth, onGoAdmin, onGoP
 
         .tz-modal-actions a {
           color: #fff;
-          background: linear-gradient(135deg, #1e3a8a, #7c3aed);
+          background: linear-gradient(135deg, var(--tz-primary), var(--tz-primary-dark));
         }
 
         .tz-modal-actions button {
-          color: #1e3a8a;
-          background: #eef4fb;
-          border: 1px solid #d7e2f2;
+          color: var(--tz-primary-dark);
+          background: var(--tz-primary-soft);
+          border: 1px solid var(--tz-primary-line);
         }
 
         @media (min-width: 720px) {

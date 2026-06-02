@@ -7,6 +7,9 @@ const emptyForm = {
   id: null,
   email: "",
   username: "",
+  last_name: "",
+  first_name: "",
+  middle_name: "",
   password: "",
   role: "user",
 };
@@ -14,30 +17,30 @@ const emptyForm = {
 const ROLE_ORDER = ["admin", "methodist", "metodist_editor", "operator", "tpmpk_admin", "tpmpk_operator", "domu_editor", "user"];
 
 const ROLE_META = {
-  admin: { accent: "#0b3fb3", description: "Полный административный доступ" },
-  methodist: { accent: "#1647ad", description: "Материалы портала и наградная продукция" },
-  metodist_editor: { accent: "#1647ad", description: "Материалы портала и наградная продукция" },
-  operator: { accent: "#6d5dfc", description: "Работа с расписанием и заявками ТПМПК" },
-  tpmpk_admin: { accent: "#6d5dfc", description: "Администрирование раздела ТПМПК" },
-  tpmpk_operator: { accent: "#6d5dfc", description: "Оператор раздела ТПМПК" },
-  domu_editor: { accent: "#0f766e", description: "Публикации раздела «Дом учителя»" },
+  admin: { accent: "#19789c", description: "Полный административный доступ" },
+  methodist: { accent: "#19789c", description: "Материалы портала и наградная продукция" },
+  metodist_editor: { accent: "#19789c", description: "Материалы портала и наградная продукция" },
+  operator: { accent: "#004f75", description: "Работа с расписанием и заявками ТПМПК" },
+  tpmpk_admin: { accent: "#004f75", description: "Администрирование раздела ТПМПК" },
+  tpmpk_operator: { accent: "#004f75", description: "Оператор раздела ТПМПК" },
+  domu_editor: { accent: "#19789c", description: "Публикации раздела «Дом учителя»" },
   user: { accent: "#64748b", description: "Базовая роль пользователя" },
 };
 
 const MODULE_DEFINITIONS = [
   { key: "articles", label: "Статьи", description: "Материалы публичных разделов" },
-  { key: "certificates", label: "Генерация грамот", description: "Одиночный и групповой выпуск PDF" },
-  { key: "certificate_templates", label: "Шаблоны грамот", description: "Конструктор шаблонов и подписантов" },
-  { key: "users_roles", label: "Пользователи и роли", description: "Учётные записи и права доступа" },
+  { key: "certificates", label: "Выпуск грамот", description: "Одиночный и групповой выпуск PDF" },
+  { key: "certificate_templates", label: "Шаблоны", description: "Конструктор шаблонов и подписантов" },
+  { key: "users_roles", label: "Пользователи", description: "Учётные записи и права доступа" },
   { key: "tpmpk", label: "Кабинет ТПМПК", description: "Расписание, слоты и записи" },
   { key: "audit_log", label: "Журнал действий", description: "Просмотр действий пользователей" },
   { key: "portal_settings", label: "Настройки портала", description: "Административные параметры системы" },
 ];
 
 const PERMISSION_OPTIONS = [
-  { value: "none", label: "Запрещено", short: "Нет" },
-  { value: "view", label: "Только просмотр", short: "Просмотр" },
-  { value: "edit", label: "Редактирование", short: "Правка" },
+  { value: "none", label: "Запрещено", short: "Запрещено" },
+  { value: "view", label: "Только просмотр", short: "Только просмотр" },
+  { value: "edit", label: "Разрешено", short: "Разрешено" },
 ];
 
 function normalizeRoleName(value) {
@@ -82,17 +85,30 @@ function roleName(user) {
 }
 
 function initials(user) {
-  const source = user?.username || user?.email || "?";
+  const source = userDisplayName(user) || user?.username || user?.email || "?";
   const parts = String(source).replace(/@.+$/, "").split(/[._\s-]+/).filter(Boolean);
   if (parts.length > 1) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   return String(source).slice(0, 2).toUpperCase();
 }
 
 function userDisplayName(user) {
-  return user?.username || user?.email || `Пользователь #${user?.id || ""}`;
+  const fio = [
+    user?.last_name || user?.lastName,
+    user?.first_name || user?.firstName,
+    user?.middle_name || user?.middleName,
+  ].filter(Boolean).join(" ");
+  return user?.full_name || user?.fullName || fio || user?.username || user?.email || `Пользователь #${user?.id || ""}`;
+}
+
+function userSecondaryLine(user) {
+  return [user?.username, user?.email].filter(Boolean).join(" · ") || "Контакты не указаны";
 }
 
 function accessSummary(permissions) {
+  const hasFullAccess = ["articles", "certificates", "certificate_templates", "users_roles"].every(
+    (key) => permissions[key] === "edit",
+  );
+  if (hasFullAccess) return "Полный доступ";
   const enabled = MODULE_DEFINITIONS
     .filter((module) => permissions[module.key] !== "none")
     .map((module) => {
@@ -102,13 +118,13 @@ function accessSummary(permissions) {
   return enabled.length ? enabled.join(", ") : "Нет доступных разделов";
 }
 
-function permissionClass(level) {
+function _permissionClass(level) {
   if (level === "edit") return "edit";
   if (level === "view") return "view";
   return "none";
 }
 
-function permissionLabel(level) {
+function _permissionLabel(level) {
   return PERMISSION_OPTIONS.find((option) => option.value === level)?.label || "Запрещено";
 }
 
@@ -134,12 +150,39 @@ export default function UsersRolesModule({ currentUser }) {
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("fio");
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(1);
+  const [openDropdown, setOpenDropdown] = useState(null); // key модуля с открытым dd
 
   const isAdmin = roleName(currentUser) === "admin";
   const sortedUsers = useMemo(
-    () => [...users].sort((left, right) => Number(left.id) - Number(right.id)),
-    [users],
+    () => {
+      const query = userSearch.trim().toLowerCase();
+      return users
+        .filter((user) => {
+          if (query) {
+            const haystack = `${userDisplayName(user)} ${userSecondaryLine(user)} ${user?.username || ""} ${user?.email || ""}`.toLowerCase();
+            if (!haystack.includes(query)) return false;
+          }
+          if (roleFilter !== "all" && roleName(user) !== roleFilter) return false;
+          if (statusFilter === "active" && user.is_active === false) return false;
+          if (statusFilter === "inactive" && user.is_active !== false) return false;
+          return true;
+        })
+        .sort((left, right) => {
+          if (sortBy === "role") return getRoleLabel(roleName(left)).localeCompare(getRoleLabel(roleName(right)), "ru");
+          if (sortBy === "status") return Number(right.is_active !== false) - Number(left.is_active !== false);
+          return userDisplayName(left).localeCompare(userDisplayName(right), "ru");
+        });
+    },
+    [roleFilter, sortBy, statusFilter, userSearch, users],
   );
+  const pageCount = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
+  const pagedUsers = sortedUsers.slice((page - 1) * pageSize, page * pageSize);
   const sortedRoles = useMemo(() => sortRoles(roles), [roles]);
   const selectedRoleData = useMemo(
     () => sortedRoles.find((role) => role.role_name === selectedRole) || null,
@@ -152,8 +195,14 @@ export default function UsersRolesModule({ currentUser }) {
   const savedPermissionsKey = useMemo(() => permissionsKey(selectedRolePermissions), [selectedRolePermissions]);
   const draftPermissionsKey = useMemo(() => permissionsKey(permissionDraft), [permissionDraft]);
   const permissionsDirty = savedPermissionsKey !== draftPermissionsKey;
-  const selectedRoleDetails = roleDetails(selectedRole);
+  const _selectedRoleDetails = roleDetails(selectedRole);
   const selectedRoleUsers = users.filter((user) => roleName(user) === selectedRole).length;
+  const demoActivityRows = useMemo(() => ([
+    { id: "demo-role", time: "Сегодня, 10:12", user: "Марина Кузнецова", action: "Изменение роли пользователя", section: "Пользователи", status: "Успешно" },
+    { id: "demo-article", time: "Сегодня, 09:34", user: "Ирина Абрамова", action: "Создание статьи", section: "Статьи", status: "Успешно" },
+    { id: "demo-template", time: "Вчера, 16:05", user: "Администратор", action: "Обновление шаблона грамоты", section: "Выпуск грамот", status: "Успешно" },
+  ]), []);
+  const activityRows = activityLog.length > 0 ? activityLog : demoActivityRows;
 
   const permissionsForRole = useCallback(
     (roleNameValue) => {
@@ -204,6 +253,17 @@ export default function UsersRolesModule({ currentUser }) {
     setPermissionDraft(selectedRolePermissions);
   }, [selectedRole, selectedRolePermissions]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, roleFilter, statusFilter, sortBy, userSearch]);
+
+  useEffect(() => {
+    if (!openDropdown) return;
+    const close = () => setOpenDropdown(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openDropdown]);
+
   function pushActivity(action, subject, section = "Пользователи") {
     const now = new Date();
     setActivityLog((prev) => [
@@ -245,6 +305,9 @@ export default function UsersRolesModule({ currentUser }) {
       id: user.id,
       email: user.email || "",
       username: user.username || "",
+      last_name: user.last_name || user.lastName || "",
+      first_name: user.first_name || user.firstName || "",
+      middle_name: user.middle_name || user.middleName || "",
       password: "",
       role: userRole,
     });
@@ -272,6 +335,9 @@ export default function UsersRolesModule({ currentUser }) {
         : {
             email: form.email.trim(),
             username: form.username.trim() || undefined,
+            last_name: form.last_name.trim() || undefined,
+            first_name: form.first_name.trim() || undefined,
+            middle_name: form.middle_name.trim() || undefined,
             password: form.password.trim(),
             role: form.role,
             is_active: true,
@@ -344,22 +410,26 @@ export default function UsersRolesModule({ currentUser }) {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes urDdIn {
+          from { opacity: 0; transform: translateY(-6px) scale(.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         .ur-admin {
-          --ur-blue: #0b3fb3;
-          --ur-blue-dark: #082f8f;
-          --ur-blue-soft: #eef5ff;
-          --ur-border: #dbe7ff;
+          --ur-blue: #19789c;
+          --ur-blue-dark: #004f75;
+          --ur-blue-soft: #edf6f8;
+          --ur-border: #cdd8df;
           --ur-line: #e8eef8;
           --ur-muted: #5b6577;
           --ur-ink: #132033;
+          --ur-radius-lg: 18px;
+          --ur-radius-md: 12px;
+          --ur-radius-sm: 8px;
           color: var(--ur-ink);
-          margin: -8px 0 0;
+          margin: 0;
           min-width: 0;
         }
-        .ur-admin * {
-          box-sizing: border-box;
-          letter-spacing: 0;
-        }
+        .ur-admin * { box-sizing: border-box; letter-spacing: 0; }
         .ur-page-head {
           display: flex;
           justify-content: space-between;
@@ -368,485 +438,193 @@ export default function UsersRolesModule({ currentUser }) {
           margin-bottom: 18px;
           animation: urFadeIn 0.24s ease both;
         }
-        .ur-page-head h2 {
-          margin: 0 0 6px;
-          font-size: 28px;
-          line-height: 1.08;
-          font-weight: 900;
-        }
-        .ur-page-head p {
-          margin: 0;
-          color: var(--ur-muted);
-          font-size: 15px;
-          font-weight: 650;
-          line-height: 1.5;
-          overflow-wrap: anywhere;
-        }
+        .ur-page-head h2 { margin: 0 0 5px; font-size: 26px; line-height: 1.1; font-weight: 900; }
+        .ur-page-head p { margin: 0; color: var(--ur-muted); font-size: 14px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
         .ur-layout {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(320px, 370px);
+          grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
           gap: 16px;
           align-items: start;
         }
         .ur-card {
           overflow: hidden;
           border: 1px solid var(--ur-border);
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.97);
-          box-shadow: 0 18px 48px rgba(25, 78, 160, 0.08);
+          border-radius: var(--ur-radius-lg);
+          background: rgba(255,255,255,.97);
+          box-shadow: 0 12px 36px rgba(25,78,160,.07);
           animation: urFadeIn 0.26s ease both;
         }
         .ur-card-head {
-          min-height: 64px;
-          padding: 15px 16px;
+          min-height: 58px;
+          padding: 13px 16px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 12px;
           border-bottom: 1px solid var(--ur-line);
         }
-        .ur-card-head h3 {
-          margin: 0;
-          font-size: 18px;
-          line-height: 1.2;
-          font-weight: 900;
-          overflow-wrap: anywhere;
-        }
+        .ur-card-head h3 { margin: 0; font-size: 16px; line-height: 1.2; font-weight: 900; overflow-wrap: anywhere; }
         .ur-button,
         .ur-action-link,
         .ur-role-button,
         .ur-segment-button {
           font-family: inherit;
-          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, color .18s ease;
         }
         .ur-button {
-          min-height: 40px;
-          border-radius: 8px;
+          min-height: 38px;
+          border-radius: var(--ur-radius-sm);
           border: 1px solid transparent;
-          padding: 0 15px;
+          padding: 0 14px;
           cursor: pointer;
           font-size: 13px;
           line-height: 1.1;
           font-weight: 850;
           white-space: normal;
         }
-        .ur-button.primary {
-          color: #fff;
-          background: linear-gradient(180deg, #0f4cd4 0%, var(--ur-blue) 100%);
-          box-shadow: 0 12px 24px rgba(11, 63, 179, 0.22);
-        }
-        .ur-button.secondary {
-          color: var(--ur-blue);
-          background: #f7faff;
-          border-color: #cddcff;
-        }
-        .ur-button.ghost {
-          color: #475569;
-          background: #fff;
-          border-color: #dbe3f0;
-        }
-        .ur-button:hover:not(:disabled),
-        .ur-action-link:hover:not(:disabled),
-        .ur-role-button:hover:not(:disabled) {
-          transform: translateY(-1px);
-        }
-        .ur-button.primary:hover:not(:disabled) {
-          background: linear-gradient(180deg, #1554e6 0%, var(--ur-blue-dark) 100%);
-          box-shadow: 0 15px 28px rgba(11, 63, 179, 0.27);
-        }
-        .ur-button:disabled,
-        .ur-action-link:disabled,
-        .ur-segment-button:disabled {
-          opacity: 0.58;
-          cursor: not-allowed;
-          transform: none;
-          box-shadow: none;
-        }
-        .ur-refresh {
-          flex: 0 0 auto;
-        }
-        .ur-alert {
-          margin-bottom: 14px;
-          border-radius: 8px;
-          padding: 12px 14px;
-          font-weight: 750;
-          line-height: 1.45;
-          overflow-wrap: anywhere;
-          animation: urFadeIn 0.2s ease both;
-        }
+        .ur-button.primary { color: #fff; background: var(--ur-blue); box-shadow: 0 10px 22px rgba(25,120,156,.22); }
+        .ur-button.secondary { color: var(--ur-blue); background: #f7faff; border-color: #cddcff; }
+        .ur-button.ghost { color: #475569; background: #fff; border-color: #dbe3f0; }
+        .ur-button:hover:not(:disabled), .ur-action-link:hover:not(:disabled), .ur-role-button:hover:not(:disabled) { transform: translateY(-1px); }
+        .ur-button.primary:hover:not(:disabled) { background: var(--ur-blue-dark); box-shadow: 0 14px 26px rgba(25,120,156,.27); }
+        .ur-button.success { color: #fff; background: #059669; box-shadow: 0 8px 18px rgba(5,150,105,.22); }
+        .ur-button:disabled, .ur-action-link:disabled, .ur-segment-button:disabled { opacity: .58; cursor: not-allowed; transform: none; box-shadow: none; }
+        .ur-refresh { flex: 0 0 auto; }
+        .ur-alert { margin-bottom: 12px; border-radius: var(--ur-radius-md); padding: 11px 14px; font-weight: 750; line-height: 1.45; overflow-wrap: anywhere; animation: urFadeIn .2s ease both; }
         .ur-alert.error { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
         .ur-alert.success { background: #ecfdf5; border: 1px solid #bbf7d0; color: #047857; }
-        .ur-table-wrap {
-          min-height: 420px;
-          overflow-x: auto;
+        .ur-table-wrap { min-height: 380px; overflow-x: auto; }
+        .ur-table { width: 100%; min-width: 940px; border-collapse: collapse; font-size: 13px; }
+        .ur-table th { padding: 12px 16px; color: #4f5667; background: #f5f7fb; text-align: left; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
+        .ur-table td { padding: 12px 16px; border-top: 1px solid var(--ur-line); color: #172033; font-weight: 700; vertical-align: middle; min-width: 0; }
+        .ur-table tr { transition: background .16s ease; }
+        .ur-table tbody tr:hover { background: #f9fbff; }
+        .ur-access-cell { max-width: 240px; color: #475569; font-size: 12px; font-weight: 680; line-height: 1.4; overflow-wrap: anywhere; }
+        .ur-user-cell { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; align-items: center; min-width: 0; }
+        .ur-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--role-accent, var(--ur-blue)); font-size: 10px; font-weight: 900; box-shadow: 0 6px 14px rgba(15,23,42,.14); }
+        .ur-name { display: block; max-width: 220px; line-height: 1.25; overflow-wrap: anywhere; }
+        .ur-email { display: inline-block; max-width: 240px; color: #5e6678; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+        .ur-user-filters { display: grid; grid-template-columns: minmax(200px,1fr) repeat(4, minmax(140px,auto)); gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--ur-line); background: #fbfcfd; }
+        .ur-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--ur-line); color: #5b6577; font-size: 13px; font-weight: 750; flex-wrap: wrap; }
+        .ur-pagination > div { display: flex; align-items: center; gap: 10px; }
+        .ur-role-pill, .ur-status, .ur-level-pill {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-height: 22px; border-radius: 999px; padding: 0 8px;
+          font-size: 11px; font-weight: 900; line-height: 1.1; white-space: nowrap;
         }
-        .ur-table {
-          width: 100%;
-          min-width: 880px;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-        .ur-table th {
-          padding: 14px 16px;
-          color: #4f5667;
-          background: #f5f7fb;
-          text-align: left;
-          font-size: 11px;
-          text-transform: uppercase;
-          white-space: nowrap;
-        }
-        .ur-table td {
-          padding: 14px 16px;
-          border-top: 1px solid var(--ur-line);
-          color: #172033;
-          font-weight: 700;
-          vertical-align: middle;
-          min-width: 0;
-        }
-        .ur-table tr {
-          transition: background 0.16s ease;
-        }
-        .ur-table tbody tr:hover {
-          background: #f9fbff;
-        }
-        .ur-access-cell {
-          max-width: 260px;
-          color: #475569;
-          font-size: 12px;
-          font-weight: 680;
-          line-height: 1.45;
-          overflow-wrap: anywhere;
-        }
-        .ur-user-cell {
-          display: grid;
-          grid-template-columns: 32px minmax(0, 1fr);
-          gap: 10px;
-          align-items: center;
-          min-width: 0;
-        }
-        .ur-avatar {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          color: #fff;
-          background: var(--role-accent, var(--ur-blue));
-          font-size: 11px;
-          font-weight: 900;
-          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
-        }
-        .ur-name {
-          display: block;
-          max-width: 170px;
-          line-height: 1.25;
-          overflow-wrap: anywhere;
-        }
-        .ur-email {
-          display: inline-block;
-          max-width: 180px;
-          color: #5e6678;
-          font-size: 12px;
-          font-weight: 650;
-          overflow-wrap: anywhere;
-        }
-        .ur-role-pill,
-        .ur-status,
-        .ur-level-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 24px;
-          border-radius: 999px;
-          padding: 0 9px;
-          font-size: 11px;
-          font-weight: 900;
-          line-height: 1.1;
-          white-space: nowrap;
-        }
-        .ur-role-pill {
-          color: var(--role-accent, var(--ur-blue));
-          background: #f1f6ff;
-          border: 1px solid #dbe7ff;
-        }
+        .ur-role-pill { color: var(--role-accent, var(--ur-blue)); background: #f1f6ff; border: 1px solid #dbe7ff; }
         .ur-status.active { color: #07883c; background: #dcfce7; }
         .ur-status.inactive { color: #657080; background: #edf2f7; }
         .ur-level-pill.edit { color: #047857; background: #dcfce7; }
-        .ur-level-pill.view { color: #1d4ed8; background: #dbeafe; }
+        .ur-level-pill.view { color: var(--ur-blue-dark); background: var(--ur-blue-soft); }
         .ur-level-pill.none { color: #6b7280; background: #eef2f7; }
-        .ur-row-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .ur-action-link {
-          min-height: 32px;
-          border: 1px solid #d8e3f8;
-          border-radius: 8px;
-          padding: 0 10px;
-          cursor: pointer;
-          color: var(--ur-blue);
-          background: #f8fbff;
-          font-size: 12px;
-          font-weight: 850;
-        }
-        .ur-side {
-          display: grid;
-          gap: 16px;
-          min-width: 0;
-        }
-        .ur-role-list {
-          padding: 12px 14px 14px;
-          display: grid;
-          gap: 8px;
-        }
+        .ur-row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: max-content; }
+        .ur-action-link { min-height: 30px; border: 1px solid #d8e3f8; border-radius: var(--ur-radius-sm); padding: 0 10px; cursor: pointer; color: var(--ur-blue); background: #f8fbff; font-size: 12px; font-weight: 850; }
+        .ur-side { display: grid; gap: 14px; min-width: 0; }
+        .ur-role-list { padding: 10px 12px 12px; display: grid; gap: 6px; }
         .ur-role-button {
-          min-height: 52px;
-          width: 100%;
+          min-height: 48px; width: 100%;
           border: 1px solid var(--ur-line);
-          border-radius: 8px;
-          padding: 9px 11px;
+          border-radius: var(--ur-radius-md);
+          padding: 8px 11px;
+          background: #fff; color: #172033; cursor: pointer; text-align: left;
+          display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center;
+        }
+        .ur-role-button.active { border-color: var(--role-accent, var(--ur-blue)); box-shadow: inset 0 0 0 1px var(--role-accent, var(--ur-blue)), 0 8px 20px rgba(11,63,179,.09); color: var(--role-accent, var(--ur-blue)); background: #f7faff; }
+        .ur-role-title { display: block; font-size: 13px; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+        .ur-role-subtitle { display: block; margin-top: 2px; color: #64748b; font-size: 11px; line-height: 1.25; font-weight: 650; overflow-wrap: anywhere; }
+        .ur-role-count { min-width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: #eef3ff; color: var(--role-accent, var(--ur-blue)); font-size: 11px; font-weight: 900; }
+        .ur-label { color: #5e6678; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+        .ur-input, .ur-select { width: 100%; min-height: 40px; border: 1px solid #cdd7e8; border-radius: var(--ur-radius-sm); padding: 0 11px; color: #172033; background: #fff; font: 760 13px/1.2 inherit; min-width: 0; }
+        .ur-input:focus, .ur-select:focus, .ur-action-link:focus, .ur-button:focus, .ur-role-button:focus, .ur-segment-button:focus { outline: 0; border-color: var(--ur-blue); box-shadow: 0 0 0 3px rgba(25,120,156,.15); }
+
+        /* ── Компактный блок "Права роли" ─────────────────────────── */
+        .ur-perm-list { padding: 0; }
+        .ur-perm-row {
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
+          padding: 0 14px;
+          min-height: 46px;
+          border-bottom: 1px solid var(--ur-line);
+          transition: background .14s ease;
+          position: relative;
+        }
+        .ur-perm-row:last-child { border-bottom: none; }
+        .ur-perm-row:hover { background: #f5f9fc; }
+        .ur-perm-label { font-size: 13px; font-weight: 800; color: #172033; min-width: 0; }
+        .ur-perm-badge {
+          display: inline-flex; align-items: center; gap: 5px;
+          min-height: 28px; padding: 0 10px 0 8px;
+          border-radius: 999px; border: 1px solid transparent;
+          font-size: 12px; font-weight: 900; white-space: nowrap;
+          cursor: pointer; user-select: none;
+          transition: filter .14s ease, box-shadow .14s ease;
+          flex-shrink: 0;
+        }
+        .ur-perm-badge:hover { filter: brightness(.94); }
+        .ur-perm-badge.edit  { color: #047857; background: #d1fae5; border-color: #6ee7b7; }
+        .ur-perm-badge.view  { color: var(--ur-blue-dark); background: var(--ur-blue-soft); border-color: #a5d4e4; }
+        .ur-perm-badge.none  { color: #6b7280; background: #f1f5f9; border-color: #d1d9e0; }
+        .ur-perm-badge svg   { width: 11px; height: 11px; flex-shrink: 0; }
+        /* dropdown */
+        .ur-perm-dd-wrap { position: relative; }
+        .ur-perm-dd {
+          position: absolute; top: calc(100% + 6px); right: 0; z-index: 200;
+          min-width: 168px;
           background: #fff;
-          color: #172033;
-          cursor: pointer;
-          text-align: left;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: center;
+          border: 1px solid #d0dae8;
+          border-radius: var(--ur-radius-md);
+          box-shadow: 0 16px 48px rgba(11,31,42,.18);
+          overflow: hidden;
+          animation: urDdIn .16s ease both;
         }
-        .ur-role-button.active {
-          border-color: var(--role-accent, var(--ur-blue));
-          box-shadow: inset 0 0 0 1px var(--role-accent, var(--ur-blue)), 0 12px 26px rgba(11, 63, 179, 0.1);
-          color: var(--role-accent, var(--ur-blue));
-          background: #f7faff;
+        .ur-perm-dd-item {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 13px;
+          cursor: pointer; font-size: 13px; font-weight: 800;
+          transition: background .12s ease;
+          border: none; background: transparent; width: 100%; text-align: left; font-family: inherit;
         }
-        .ur-role-title {
-          display: block;
-          font-size: 14px;
-          font-weight: 900;
-          line-height: 1.2;
-          overflow-wrap: anywhere;
-        }
-        .ur-role-subtitle {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 11px;
-          line-height: 1.25;
-          font-weight: 650;
-          overflow-wrap: anywhere;
-        }
-        .ur-role-count {
-          min-width: 26px;
-          height: 26px;
-          border-radius: 999px;
-          display: grid;
-          place-items: center;
-          background: #eef3ff;
-          color: var(--role-accent, var(--ur-blue));
-          font-size: 11px;
-          font-weight: 900;
-        }
-        .ur-label {
-          color: #5e6678;
-          font-size: 11px;
-          font-weight: 900;
-          text-transform: uppercase;
-        }
-        .ur-input,
-        .ur-select {
-          width: 100%;
-          min-height: 42px;
-          border: 1px solid #cdd7e8;
-          border-radius: 8px;
-          padding: 0 12px;
-          color: #172033;
-          background: #fff;
-          font: 760 14px/1.2 inherit;
-          min-width: 0;
-        }
-        .ur-input:focus,
-        .ur-select:focus,
-        .ur-action-link:focus,
-        .ur-button:focus,
-        .ur-role-button:focus,
-        .ur-segment-button:focus {
-          outline: 0;
-          border-color: var(--ur-blue);
-          box-shadow: 0 0 0 3px rgba(11, 63, 179, 0.12);
-        }
-        .ur-permissions {
-          padding: 4px 14px 14px;
-          display: grid;
-          gap: 10px;
-        }
-        .ur-role-meta {
-          color: #596374;
-          font-size: 13px;
-          font-weight: 650;
-          line-height: 1.45;
-          margin: 0 0 2px;
-          overflow-wrap: anywhere;
-        }
+        .ur-perm-dd-item:hover { background: #f0f6fa; }
+        .ur-perm-dd-item.active { background: #edf6f8; color: var(--ur-blue-dark); }
+        .ur-perm-dd-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .ur-perm-dd-dot.edit { background: #10b981; }
+        .ur-perm-dd-dot.view { background: var(--ur-blue); }
+        .ur-perm-dd-dot.none { background: #94a3b8; }
+        /* footer */
+        .ur-permission-footer { padding: 10px 14px 14px; display: grid; gap: 8px; }
+        .ur-permission-state { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; font-weight: 750; min-width: 0; }
+        .ur-perm-dirty { color: #92400e; }
+        .ur-perm-saved { color: #047857; }
+        .ur-perm-idle  { color: #64748b; }
+        .ur-role-meta { color: #596374; font-size: 12px; font-weight: 650; line-height: 1.4; padding: 10px 14px 0; margin: 0; overflow-wrap: anywhere; }
         .ur-role-meta strong { color: var(--ur-blue); }
-        .ur-permission-row {
-          border: 1px solid #edf2fb;
-          border-radius: 8px;
-          padding: 11px;
-          display: grid;
-          gap: 10px;
-          background: #f8fafc;
-        }
-        .ur-permission-copy {
-          min-width: 0;
-        }
-        .ur-permission-copy strong {
-          display: block;
-          color: #243044;
-          font-size: 13px;
-          line-height: 1.25;
-          font-weight: 900;
-          overflow-wrap: anywhere;
-        }
-        .ur-permission-copy span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 12px;
-          line-height: 1.35;
-          font-weight: 650;
-          overflow-wrap: anywhere;
-        }
-        .ur-segmented {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 4px;
-          padding: 4px;
-          border-radius: 8px;
-          background: #eaf0fb;
-        }
-        .ur-segment-button {
-          min-height: 32px;
-          border: 1px solid transparent;
-          border-radius: 6px;
-          background: transparent;
-          color: #526074;
-          cursor: pointer;
-          font-size: 11px;
-          font-weight: 900;
-          line-height: 1.1;
-          padding: 0 6px;
-          overflow-wrap: anywhere;
-        }
-        .ur-segment-button.active {
-          background: #fff;
-          color: var(--ur-blue);
-          border-color: #dbe7ff;
-          box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
-        }
-        .ur-segment-button.active.none { color: #6b7280; }
-        .ur-segment-button.active.view { color: #1d4ed8; }
-        .ur-segment-button.active.edit { color: #047857; }
-        .ur-permission-footer {
-          padding: 0 14px 14px;
-          display: grid;
-          gap: 8px;
-        }
-        .ur-permission-state {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 10px;
-          color: #64748b;
-          font-size: 12px;
-          font-weight: 750;
-          min-width: 0;
-        }
-        .ur-form-card {
-          margin-top: 16px;
-        }
-        .ur-user-form {
-          padding: 16px;
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-        .ur-field {
-          display: grid;
-          gap: 6px;
-          min-width: 0;
-        }
+        /* ── legacy segmented (скрываем, заменили на dropdown) ─────── */
+        .ur-permissions, .ur-permission-row, .ur-segmented { display: none; }
+
+        .ur-form-card { margin-top: 14px; }
+        .ur-user-form { padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 11px; }
+        .ur-field { display: grid; gap: 5px; min-width: 0; }
         .ur-field.full { grid-column: 1 / -1; }
-        .ur-readonly-user {
-          grid-column: 1 / -1;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-          padding: 12px;
-          border: 1px solid #e2eaf7;
-          border-radius: 8px;
-          background: #f8fbff;
-        }
-        .ur-readonly-item {
-          min-width: 0;
-        }
-        .ur-readonly-item span {
-          display: block;
-          margin-bottom: 4px;
-          color: #64748b;
-          font-size: 11px;
-          font-weight: 900;
-          text-transform: uppercase;
-        }
-        .ur-readonly-item strong {
-          display: block;
-          color: #172033;
-          font-size: 13px;
-          line-height: 1.35;
-          font-weight: 850;
-          overflow-wrap: anywhere;
-        }
-        .ur-form-actions {
-          grid-column: 1 / -1;
-          display: flex;
-          gap: 10px;
-          justify-content: flex-end;
-          flex-wrap: wrap;
-        }
-        .ur-activity {
-          margin-top: 16px;
-        }
-        .ur-activity-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-        .ur-activity-table th,
-        .ur-activity-table td {
-          padding: 11px 16px;
-          border-top: 1px solid var(--ur-line);
-          text-align: left;
-          line-height: 1.35;
-          overflow-wrap: anywhere;
-        }
-        .ur-activity-table th {
-          color: #5b6575;
-          font-size: 11px;
-          text-transform: uppercase;
-          background: #fff;
-        }
-        .ur-empty {
-          padding: 18px 16px;
-          color: #64748b;
-          font-weight: 700;
-          line-height: 1.45;
-          overflow-wrap: anywhere;
-        }
+        .ur-readonly-user { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding: 11px; border: 1px solid #e2eaf7; border-radius: var(--ur-radius-md); background: #f8fbff; }
+        .ur-readonly-item { min-width: 0; }
+        .ur-readonly-item span { display: block; margin-bottom: 3px; color: #64748b; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+        .ur-readonly-item strong { display: block; color: #172033; font-size: 13px; line-height: 1.35; font-weight: 850; overflow-wrap: anywhere; }
+        .ur-form-actions { grid-column: 1 / -1; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+        .ur-activity { margin-top: 14px; }
+        .ur-activity-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .ur-activity-table th, .ur-activity-table td { padding: 10px 14px; border-top: 1px solid var(--ur-line); text-align: left; line-height: 1.35; overflow-wrap: anywhere; }
+        .ur-activity-table th { color: #5b6575; font-size: 11px; text-transform: uppercase; background: #fff; }
+        .ur-empty { padding: 16px; color: #64748b; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+        .ur-empty.compact { padding: 10px 14px; border-bottom: 1px solid var(--ur-line); background: #fbfcfd; font-size: 12px; }
+        .ur-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+        .ur-stat-card { min-height: 96px; border: 1px solid var(--ur-border); border-radius: var(--ur-radius-md); color: #fff; background: var(--ur-blue); padding: 16px; box-shadow: 0 10px 22px rgba(25,120,156,.2); }
+        .ur-stat-card:nth-child(2) { background: var(--ur-blue-dark); }
+        .ur-stat-card span { display: block; font-size: 11px; font-weight: 900; text-transform: uppercase; opacity: .88; }
+        .ur-stat-card strong { display: block; margin-top: 10px; font-size: 30px; line-height: 1; font-weight: 950; }
         @media (max-width: 1180px) {
           .ur-layout { grid-template-columns: 1fr; }
-          .ur-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .ur-side { grid-template-columns: repeat(2, minmax(0,1fr)); }
+          .ur-user-filters { grid-template-columns: repeat(2, minmax(0,1fr)); }
         }
         @media (max-width: 760px) {
           .ur-page-head { display: grid; }
@@ -856,18 +634,11 @@ export default function UsersRolesModule({ currentUser }) {
           .ur-readonly-user { grid-template-columns: 1fr; }
           .ur-card-head { align-items: stretch; flex-direction: column; }
           .ur-card-head .ur-button { width: 100%; }
+          .ur-user-filters { grid-template-columns: 1fr; }
+          .ur-pagination { align-items: stretch; flex-direction: column; }
+          .ur-pagination > div { justify-content: space-between; }
         }
       `}</style>
-
-      <div className="ur-page-head">
-        <div>
-          <h2>Пользователи и роли</h2>
-          <p>Управление учётными записями сотрудников и правами доступа к разделам системы</p>
-        </div>
-        <button type="button" className="ur-button secondary ur-refresh" onClick={loadData} disabled={loading}>
-          {loading ? "Обновление..." : "Обновить данные"}
-        </button>
-      </div>
 
       {error && <div className="ur-alert error">{error}</div>}
       {success && <div className="ur-alert success">{success}</div>}
@@ -881,12 +652,40 @@ export default function UsersRolesModule({ currentUser }) {
                 + Добавить пользователя
               </button>
             </div>
+            <div className="ur-user-filters">
+              <input
+                className="ur-input"
+                value={userSearch}
+                onChange={(event) => setUserSearch(event.target.value)}
+                placeholder="Поиск по ФИО, email или логину"
+              />
+              <select className="ur-select" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+                <option value="all">Все роли</option>
+                {sortedRoles.map((role) => (
+                  <option key={role.id || role.role_name} value={role.role_name}>{getRoleLabel(role.role_name)}</option>
+                ))}
+              </select>
+              <select className="ur-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="all">Все статусы</option>
+                <option value="active">Активные</option>
+                <option value="inactive">Неактивные</option>
+              </select>
+              <select className="ur-select" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                <option value="fio">Сортировка: ФИО</option>
+                <option value="role">Сортировка: роль</option>
+                <option value="status">Сортировка: статус</option>
+              </select>
+              <select className="ur-select" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
+                <option value={10}>10 строк</option>
+                <option value={25}>25 строк</option>
+                <option value={50}>50 строк</option>
+              </select>
+            </div>
             <div className="ur-table-wrap">
               <table className="ur-table">
                 <thead>
                   <tr>
                     <th>Пользователь</th>
-                    <th>Email</th>
                     <th>Роль</th>
                     <th>Доступные разделы</th>
                     <th>Статус</th>
@@ -894,7 +693,7 @@ export default function UsersRolesModule({ currentUser }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedUsers.map((user) => {
+                  {pagedUsers.map((user) => {
                     const currentRole = roleName(user);
                     const details = roleDetails(currentRole);
                     const permissions = permissionsForRole(currentRole);
@@ -903,10 +702,12 @@ export default function UsersRolesModule({ currentUser }) {
                         <td>
                           <div className="ur-user-cell" style={{ "--role-accent": details.accent }}>
                             <span className="ur-avatar">{initials(user)}</span>
-                            <strong className="ur-name">{userDisplayName(user)}</strong>
+                            <span>
+                              <strong className="ur-name">{userDisplayName(user)}</strong>
+                              <span className="ur-email">{userSecondaryLine(user)}</span>
+                            </span>
                           </div>
                         </td>
-                        <td><span className="ur-email">{user.email}</span></td>
                         <td>
                           <span className="ur-role-pill" style={{ "--role-accent": details.accent }}>
                             {getRoleLabel(currentRole)}
@@ -930,16 +731,28 @@ export default function UsersRolesModule({ currentUser }) {
                   })}
                   {!loading && sortedUsers.length === 0 && (
                     <tr>
-                      <td colSpan="6"><div className="ur-empty">Пользователи не найдены.</div></td>
+                      <td colSpan="5"><div className="ur-empty">Пользователи не найдены. Измените условия поиска или фильтры.</div></td>
                     </tr>
                   )}
                   {loading && (
                     <tr>
-                      <td colSpan="6"><div className="ur-empty">Загрузка пользователей...</div></td>
+                      <td colSpan="5"><div className="ur-empty">Загрузка пользователей...</div></td>
                     </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="ur-pagination">
+              <span>Показано {sortedUsers.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, sortedUsers.length)} из {sortedUsers.length}</span>
+              <div>
+                <button type="button" className="ur-button ghost" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1}>
+                  Назад
+                </button>
+                <span>{page} / {pageCount}</span>
+                <button type="button" className="ur-button ghost" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount}>
+                  Вперёд
+                </button>
+              </div>
             </div>
           </div>
 
@@ -975,6 +788,18 @@ export default function UsersRolesModule({ currentUser }) {
                       <span className="ur-label">Имя пользователя</span>
                       <input className="ur-input" value={form.username} onChange={(event) => updateForm("username", event.target.value)} placeholder="Например, ivanov_ai" />
                     </label>
+                    <label className="ur-field">
+                      <span className="ur-label">Фамилия</span>
+                      <input className="ur-input" value={form.last_name} onChange={(event) => updateForm("last_name", event.target.value)} placeholder="Иванов" />
+                    </label>
+                    <label className="ur-field">
+                      <span className="ur-label">Имя</span>
+                      <input className="ur-input" value={form.first_name} onChange={(event) => updateForm("first_name", event.target.value)} placeholder="Иван" />
+                    </label>
+                    <label className="ur-field">
+                      <span className="ur-label">Отчество</span>
+                      <input className="ur-input" value={form.middle_name} onChange={(event) => updateForm("middle_name", event.target.value)} placeholder="Иванович" />
+                    </label>
                     <label className="ur-field full">
                       <span className="ur-label">Пароль</span>
                       <input className="ur-input" type="password" value={form.password} onChange={(event) => updateForm("password", event.target.value)} minLength={6} required placeholder="Минимум 6 символов" />
@@ -1005,32 +830,29 @@ export default function UsersRolesModule({ currentUser }) {
             <div className="ur-card-head">
               <h3>Последние действия</h3>
             </div>
-            {activityLog.length > 0 ? (
-              <table className="ur-activity-table">
-                <thead>
-                  <tr>
-                    <th>Дата и время</th>
-                    <th>Объект</th>
-                    <th>Действие</th>
-                    <th>Раздел</th>
-                    <th>Статус</th>
+            {!activityLog.length && <div className="ur-empty compact">Реальных действий в текущей сессии пока нет. Ниже показан пример журнала.</div>}
+            <table className="ur-activity-table">
+              <thead>
+                <tr>
+                  <th>Дата и время</th>
+                  <th>Объект</th>
+                  <th>Действие</th>
+                  <th>Раздел</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityRows.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.time}</td>
+                    <td>{item.user}</td>
+                    <td>{item.action}</td>
+                    <td>{item.section}</td>
+                    <td><span className="ur-status active">{item.status}</span></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {activityLog.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.time}</td>
-                      <td>{item.user}</td>
-                      <td>{item.action}</td>
-                      <td>{item.section}</td>
-                      <td><span className="ur-status active">{item.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="ur-empty">Действия в текущей сессии пока не выполнялись.</div>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1069,30 +891,50 @@ export default function UsersRolesModule({ currentUser }) {
             <div className="ur-card-head">
               <h3>Права роли</h3>
             </div>
-            <div className="ur-permissions">
-              <p className="ur-role-meta">
-                Выбрана роль: <strong>{getRoleLabel(selectedRole)}</strong><br />
-                Пользователей: <strong>{selectedRoleUsers}</strong>
-              </p>
+            <p className="ur-role-meta">
+              Роль: <strong>{getRoleLabel(selectedRole)}</strong> · Пользователей: <strong>{selectedRoleUsers}</strong>
+            </p>
+            <div className="ur-perm-list" role="list">
               {MODULE_DEFINITIONS.map((module) => {
-                const currentLevel = permissionDraft[module.key] || "none";
+                const lvl = permissionDraft[module.key] || "none";
+                const isOpen = openDropdown === module.key;
+                const badgeLabel = lvl === "edit" ? "Разрешено" : lvl === "view" ? "Просмотр" : "Запрещено";
                 return (
-                  <div className="ur-permission-row" key={module.key}>
-                    <div className="ur-permission-copy">
-                      <strong>{module.label}</strong>
-                      <span>{module.description}</span>
-                    </div>
-                    <div className="ur-segmented" role="group" aria-label={`Права: ${module.label}`}>
-                      {PERMISSION_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className={`ur-segment-button ${currentLevel === option.value ? `active ${option.value}` : ""}`}
-                          onClick={() => updatePermission(module.key, option.value)}
+                  <div className="ur-perm-row" key={module.key} role="listitem">
+                    <span className="ur-perm-label">{module.label}</span>
+                    <div className="ur-perm-dd-wrap">
+                      <button
+                        type="button"
+                        className={`ur-perm-badge ${lvl}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={isOpen}
+                        onClick={(e) => { e.stopPropagation(); setOpenDropdown(isOpen ? null : module.key); }}
+                      >
+                        <svg viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg>
+                        {badgeLabel}
+                        <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 1l4 4 4-4"/></svg>
+                      </button>
+                      {isOpen && (
+                        <div
+                          className="ur-perm-dd"
+                          role="listbox"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          {option.short}
-                        </button>
-                      ))}
+                          {PERMISSION_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              role="option"
+                              aria-selected={lvl === opt.value}
+                              className={`ur-perm-dd-item${lvl === opt.value ? " active" : ""}`}
+                              onClick={() => { updatePermission(module.key, opt.value); setOpenDropdown(null); }}
+                            >
+                              <span className={`ur-perm-dd-dot ${opt.value}`} />
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1100,20 +942,31 @@ export default function UsersRolesModule({ currentUser }) {
             </div>
             <div className="ur-permission-footer">
               <div className="ur-permission-state">
-                <span>Текущее состояние</span>
-                <span className={`ur-level-pill ${permissionClass(permissionDraft.users_roles)}`}>
-                  Пользователи и роли: {permissionLabel(permissionDraft.users_roles)}
+                <span className={permissionsDirty ? "ur-perm-dirty" : success && !permissionsDirty ? "ur-perm-saved" : "ur-perm-idle"}>
+                  {permissionsDirty ? "• Есть несохранённые изменения" : success && !permissionsDirty ? "✓ Права сохранены" : ""}
                 </span>
               </div>
               <button
                 type="button"
-                className="ur-button primary"
+                className={`ur-button ${permissionsDirty ? "primary" : "ghost"}`}
+                style={{ width: "100%" }}
                 onClick={saveRolePermissions}
                 disabled={!selectedRoleData || !permissionsDirty || savingPermissions}
               >
-                {savingPermissions ? "Сохранение..." : permissionsDirty ? "Сохранить права роли" : "Права сохранены"}
+                {savingPermissions ? "Сохранение..." : "Сохранить права роли"}
               </button>
             </div>
+          </div>
+
+          <div className="ur-stats" aria-label="Статистика пользователей">
+            <section className="ur-stat-card">
+              <span>Всего пользователей</span>
+              <strong>{users.length}</strong>
+            </section>
+            <section className="ur-stat-card">
+              <span>Активных сессий</span>
+              <strong>{users.filter((user) => user.is_active !== false).length}</strong>
+            </section>
           </div>
         </aside>
       </div>

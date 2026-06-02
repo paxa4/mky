@@ -204,7 +204,7 @@ export default function MegaMenu({ open, onClose, currentUser }) {
       <style>{`
         .mega-overlay {
           position: fixed;
-          top: 73px;
+          top: 83px;
           left: 0;
           right: 0;
           bottom: 0;
@@ -458,7 +458,7 @@ export default function MegaMenu({ open, onClose, currentUser }) {
 
         @media (max-width: 600px) {
           .mega-overlay {
-            top: 65px;
+            top: 67px;
             padding: 18px 14px;
           }
           .mega-compact-grid { grid-template-columns: 1fr; }
