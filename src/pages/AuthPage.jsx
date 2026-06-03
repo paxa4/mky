@@ -82,7 +82,7 @@ export default function AuthPage({ onLogin }) {
           background:
             radial-gradient(circle at 84% 6%, rgba(124, 58, 237, 0.16), transparent 28rem),
             radial-gradient(circle at 10% 18%, rgba(25, 120, 156, 0.18), transparent 30rem),
-            linear-gradient(135deg, #FFFFFF 0%, #EAF7FA 100%);
+            linear-gradient(135deg, #FFFFFF 0%, #edf6f8 100%);
         }
         .auth-top {
           position: relative;
@@ -112,7 +112,7 @@ export default function AuthPage({ onLogin }) {
           cursor: pointer;
           transition: all .18s ease;
         }
-        .back-btn:hover { border-color: #78C2D8; color: #19789C; transform: translateY(-1px); }
+        .back-btn:hover { border-color: #a9d4df; color: #19789C; transform: translateY(-1px); }
         .auth-logo { height: 46px; object-fit: contain; cursor: pointer; }
         .auth-content {
           position: relative;
@@ -127,7 +127,7 @@ export default function AuthPage({ onLogin }) {
         .auth-icon {
           width: 66px; height: 66px; border-radius: 22px;
           display: grid; place-items: center; margin: 0 auto 18px;
-          color: #19789C; background: linear-gradient(135deg, #D1EEF5, #F5F3FF);
+          color: #19789C; background: linear-gradient(135deg, #dceaf2, #F5F3FF);
           box-shadow: 0 18px 40px rgba(25, 120, 156, 0.13);
         }
         .auth-intro h1 { margin: 0 0 8px; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; letter-spacing: -0.045em; }
@@ -160,7 +160,7 @@ export default function AuthPage({ onLogin }) {
           transition: all .2s ease;
         }
         .auth-input:focus {
-          border-color: #2E9ABA; background: #fff; box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.16);
+          border-color: #19789C; background: #fff; box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.16);
         }
         .password-box { position: relative; }
         .password-box .auth-input { padding-right: 48px; }

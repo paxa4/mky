@@ -334,7 +334,7 @@ export default function ChatBot() {
         .chat-link-bot  { color: #19789C; }
         .chat-link-bot:hover  { color: #19789C; }
         .chat-link-user { color: #fff; }
-        .chat-link-user:hover { color: #D1EEF5; }
+        .chat-link-user:hover { color: #dceaf2; }
         .chat-source-link {
           display: block;
           font-size: 11px;

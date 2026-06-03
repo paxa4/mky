@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Footer from "../components/Footer.jsx";
 import Header from "../features/nav/Header.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 
 const phone = "+73952481256";
 const phoneLabel = "+7 (3952) 48-12-56";
@@ -24,19 +25,22 @@ const quickLinks = [
 ];
 
 export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfile }) {
-  const navigate = useNavigate();
-
   return (
     <div className="tpmpk-page">
       <style>{`
         .tpmpk-page {
+          --tpmpk-primary: #19789C;
+          --tpmpk-primary-dark: #004f75;
+          --tpmpk-primary-soft: #edf6f8;
+          --tpmpk-primary-line: #b8d4dd;
+          --tpmpk-primary-shadow: rgba(25, 120, 156, 0.22);
           min-height: 100vh;
           display: flex;
           flex-direction: column;
           color: #0f172a;
           background:
-            radial-gradient(circle at 12% 7%, rgba(124, 58, 237, 0.07), transparent 30%),
-            linear-gradient(180deg, #fbfdff 0%, #f3f7fc 52%, #eef4fb 100%);
+            radial-gradient(circle at 12% 7%, rgba(25, 120, 156, 0.08), transparent 30%),
+            linear-gradient(180deg, #fbfdff 0%, #f3f9fb 52%, var(--tpmpk-primary-soft) 100%);
         }
 
         .tpmpk-main {
@@ -47,26 +51,6 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
           width: min(1180px, calc(100% - 28px));
           margin: 0 auto;
           padding: 34px 0 72px;
-        }
-
-        .tpmpk-breadcrumb {
-          margin-bottom: 18px;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          flex-wrap: wrap;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 850;
-        }
-
-        .tpmpk-breadcrumb a {
-          color: #1e3a8a;
-          text-decoration: none;
-        }
-
-        .tpmpk-breadcrumb a:hover {
-          color: #6d28d9;
         }
 
         .tpmpk-hero {
@@ -93,7 +77,7 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
           width: min(440px, 72vw);
           height: 220px;
           border-radius: 999px;
-          background: linear-gradient(125deg, rgba(30, 58, 138, 0.11), rgba(124, 58, 237, 0.13));
+          background: linear-gradient(125deg, rgba(25, 120, 156, 0.13), rgba(0, 79, 117, 0.1));
           transform: rotate(-8deg);
           pointer-events: none;
         }
@@ -102,8 +86,8 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
           width: fit-content;
           padding: 7px 11px;
           border-radius: 999px;
-          background: #eef2ff;
-          color: #6d28d9;
+          background: var(--tpmpk-primary-soft);
+          color: var(--tpmpk-primary-dark);
           font-size: 12px;
           font-weight: 900;
           letter-spacing: 0.04em;
@@ -155,22 +139,29 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
 
         .tpmpk-primary {
           color: #fff;
-          background: linear-gradient(135deg, #1e3a8a, #7c3aed);
-          box-shadow: 0 18px 38px rgba(30, 58, 138, 0.22);
+          background: linear-gradient(135deg, var(--tpmpk-primary), var(--tpmpk-primary-dark));
+          box-shadow: 0 18px 38px var(--tpmpk-primary-shadow);
           transition: transform 0.16s ease, box-shadow 0.16s ease;
         }
 
         .tpmpk-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 22px 46px rgba(30, 58, 138, 0.27);
+          box-shadow: 0 22px 46px rgba(25, 120, 156, 0.28);
         }
 
         .tpmpk-phone {
-          color: #1e3a8a;
+          color: var(--tpmpk-primary-dark);
           background: #fff;
-          border: 1px solid #d7e2f2;
+          border: 1px solid var(--tpmpk-primary-line);
           font-size: 18px;
           box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+        }
+
+        .tpmpk-primary:focus-visible,
+        .tpmpk-phone:focus-visible,
+        .tpmpk-link-card:focus-visible {
+          outline: 3px solid rgba(25, 120, 156, 0.2);
+          outline-offset: 3px;
         }
 
         .tpmpk-section {
@@ -248,8 +239,8 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
 
         .tpmpk-link-card:hover {
           transform: translateY(-2px);
-          border-color: #c4b5fd;
-          box-shadow: 0 20px 44px rgba(30, 58, 138, 0.11);
+          border-color: var(--tpmpk-primary-line);
+          box-shadow: 0 20px 44px rgba(25, 120, 156, 0.12);
         }
 
         .tpmpk-link-card h3 {
@@ -274,8 +265,8 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
           display: inline-flex;
           align-items: center;
           gap: 9px;
-          color: #5b21b6;
-          background: #f5f3ff;
+          color: var(--tpmpk-primary-dark);
+          background: var(--tpmpk-primary-soft);
           font-size: 13px;
           font-weight: 950;
         }
@@ -330,11 +321,7 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
 
       <main className="tpmpk-main">
         <div className="tpmpk-shell">
-          <nav className="tpmpk-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <span>ТПМПК</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "ТПМПК" }]} />
           <section className="tpmpk-hero">
             <div className="tpmpk-hero-inner">
               <div className="tpmpk-hero-copy">

@@ -6,7 +6,6 @@ export const MOCK_USER = {
   firstName: "Ирина",
   lastName: "Абрамова",
   middleName: "Владимировна",
-  username: "abramova_iv",
   email: "abramova@mc.eduirk.ru",
   phone: "+7 (3952) 20-19-85",
   position: "Методист",
@@ -31,7 +30,7 @@ export const MOCK_USER = {
 };
 
 const LEVEL_COLORS = {
-  Муниципальный: { bg: "#EAF7FA", color: "#19789C" },
+  Муниципальный: { bg: "#edf6f8", color: "#19789C" },
   Региональный: { bg: "#F5F3FF", color: "#6D28D9" },
   Федеральный: { bg: "#ECFDF5", color: "#047857" },
 };
@@ -142,7 +141,6 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({
-    username: user.username || "",
     phone: user.phone || "",
     position: user.position || "",
     organization: user.organization || "",
@@ -196,7 +194,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           --slate-500: #64748B;
           --slate-300: #CBD5E1;
           --slate-100: #F1F5F9;
-          --paper: #FFFFFF;
+          --paper: #19789C;
           --line: rgba(148, 163, 184, 0.22);
           min-height: 100vh;
           color: var(--slate-900);
@@ -210,7 +208,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .profile-topbar {
           position: sticky; top: 0; z-index: 20;
           border-bottom: 1px solid rgba(226, 232, 240, 0.9);
-          background: rgba(255, 255, 255, 0.82);
+          background: rgba(25, 120, 156, 0.82);
           backdrop-filter: blur(18px);
         }
         .profile-topbar__inner {
@@ -222,9 +220,9 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-logo {
           width: 34px; height: 34px; border-radius: 12px;
-          display: grid; place-items: center; color: white; font-weight: 800;
+          display: grid; place-items: center; color: #19789C; font-weight: 800;
           background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
-          box-shadow: 0 12px 30px rgba(25, 120, 156, 0.24);
+          box-shadow: 0 12px 30px white;
         }
         .topbar-spacer { flex: 1; }
         .profile-btn {
@@ -239,15 +237,15 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           outline-offset: 3px;
         }
         .profile-btn--ghost {
-          color: var(--blue-900); background: #fff; border: 1px solid rgba(25, 120, 156, 0.18);
+          color: var(--blue-900); background: #19789C; border: 1px solid rgba(25, 120, 156, 0.18);
           box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
         .profile-btn--primary {
-          color: #fff; background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
+          color: #19789C; background: linear-gradient(135deg, var(--blue-700), var(--violet-600));
           box-shadow: 0 16px 34px rgba(25, 120, 156, 0.28);
         }
         .profile-btn--danger {
-          color: #B91C1C; background: #fff; border: 1px solid rgba(248, 113, 113, 0.4);
+          color: #B91C1C; background: #19789C; border: 1px solid rgba(248, 113, 113, 0.4);
         }
         .profile-btn--small { min-height: 34px; border-radius: 12px; padding: 0 13px; font-size: 12px; }
         .saved-pill {
@@ -259,28 +257,28 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           position: relative; overflow: hidden;
           display: grid; grid-template-columns: auto 1fr auto; gap: 26px; align-items: center;
           min-height: 220px; padding: 34px;
-          border: 1px solid rgba(255,255,255,0.78); border-radius: 32px;
+          border: 1px solid rgba(25, 120, 156, 0.78); border-radius: 32px;
           background:
             linear-gradient(135deg, rgba(13,63,84,0.95), rgba(25,120,156,0.92) 52%, rgba(124,58,237,0.86)),
-            radial-gradient(circle at 70% 35%, rgba(255,255,255,0.3), transparent 18rem);
+            radial-gradient(circle at 70% 35%, rgba(25, 120, 156, 0.3), transparent 18rem);
           box-shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
         }
         .profile-hero__card::before {
           content: ""; position: absolute; inset: 16px; border-radius: 26px;
-          border: 1px solid rgba(255,255,255,0.14); pointer-events: none;
+          border: 1px solid rgba(25, 120, 156, 0.14); pointer-events: none;
         }
         .profile-hero__card::after {
           content: ""; position: absolute; right: -90px; top: -120px; width: 360px; height: 360px;
-          background: radial-gradient(circle, rgba(255,255,255,0.24), transparent 62%);
+          background: radial-gradient(circle, rgba(25, 120, 156, 0.24), transparent 62%);
         }
         .profile-hero__main, .profile-hero__actions, .profile-avatar { position: relative; z-index: 1; }
         .profile-avatar {
           width: var(--avatar-size); height: var(--avatar-size); border-radius: 28px;
           display: grid; place-items: center;
-          color: #fff; font-size: calc(var(--avatar-size) * .28); font-weight: 800;
-          background: linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08));
-          border: 1px solid rgba(255,255,255,0.36);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 20px 48px rgba(5, 14, 36, 0.24);
+          color: #19789C; font-size: calc(var(--avatar-size) * .28); font-weight: 800;
+          background: linear-gradient(145deg, rgba(25, 120, 156, 0.24), rgba(25, 120, 156, 0.08));
+          border: 1px solid #fff;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 20px 48px rgba(5, 14, 36, 0.24);
         }
         .profile-avatar--compact {
           border-radius: 13px;
@@ -288,7 +286,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           border: 0; box-shadow: none; font-size: 12px;
         }
         .profile-kicker {
-          display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.76);
+          display: inline-flex; align-items: center; gap: 8px; color: rgba(25, 120, 156, 0.76);
           font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
         }
         .profile-kicker::before {
@@ -297,26 +295,26 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-hero h1 {
           margin: 10px 0 8px; max-width: 720px;
-          color: #fff; font-size: clamp(28px, 4vw, 46px); line-height: 1.03; letter-spacing: -0.055em;
+          color: #19789C; font-size: clamp(28px, 4vw, 46px); line-height: 1.03; letter-spacing: -0.055em;
         }
-        .profile-subtitle { color: rgba(255,255,255,0.78); font-size: 15px; font-weight: 600; }
+        .profile-subtitle { color: #fff; font-size: 15px; font-weight: 600; }
         .profile-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
         .profile-tag {
           display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px;
           font-size: 12px; font-weight: 800; border: 1px solid transparent;
         }
-        .profile-tag--hero { color: #fff; background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.2); }
-        .profile-tag--blue { color: #19789C; background: #EAF7FA; border-color: #D1EEF5; }
+        .profile-tag--hero { color: #19789C; background: rgba(25, 120, 156, 0.14); border-color: rgba(25, 120, 156, 0.2); }
+        .profile-tag--blue { color: #19789C; background: #edf6f8; border-color: #dceaf2; }
         .profile-tag--violet { color: #6D28D9; background: #F5F3FF; border-color: #EDE9FE; }
         .profile-tag--green { color: #047857; background: #ECFDF5; border-color: #D1FAE5; }
         .profile-tag--gray { color: #475569; background: #F8FAFC; border-color: #E2E8F0; }
         .profile-hero__actions { display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
         .hero-mini-card {
-          min-width: 180px; padding: 14px 16px; border-radius: 20px; color: #fff;
-          background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+          min-width: 180px; padding: 14px 16px; border-radius: 20px; color: #19789C;
+          background: rgba(25, 120, 156, 0.12); border: 1px solid rgba(25, 120, 156, 0.18);
           backdrop-filter: blur(12px);
         }
-        .hero-mini-card span { display: block; color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 700; }
+        .hero-mini-card span { display: block; color: rgba(25, 120, 156, 0.7); font-size: 12px; font-weight: 700; }
         .hero-mini-card strong { display: block; margin-top: 3px; font-size: 22px; letter-spacing: -0.03em; }
         .profile-layout {
           display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; align-items: start;
@@ -324,7 +322,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-sidebar { display: grid; gap: 16px; position: sticky; top: 84px; }
         .profile-card {
-          background: rgba(255,255,255,0.86); border: 1px solid rgba(226, 232, 240, 0.86); border-radius: 26px;
+          background: rgba(25, 120, 156, 0.86); border: 1px solid rgba(226, 232, 240, 0.86); border-radius: 26px;
           padding: 22px; box-shadow: 0 20px 60px rgba(15,23,42,0.07);
           backdrop-filter: blur(16px);
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
@@ -339,7 +337,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-card__icon {
           width: 36px; height: 36px; border-radius: 14px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EAF7FA;
+          color: var(--blue-700); background: #edf6f8;
         }
         .ptabs-col { display: grid; gap: 6px; }
         .ptab {
@@ -350,7 +348,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .ptab:hover { color: var(--blue-900); background: #F8FAFC; transform: translateX(2px); }
         .ptab.active {
-          color: var(--blue-700); background: linear-gradient(135deg, #EAF7FA, #F5F3FF);
+          color: var(--blue-700); background: linear-gradient(135deg, #edf6f8, #F5F3FF);
           box-shadow: inset 3px 0 0 var(--blue-700);
         }
         .ptab span {
@@ -359,7 +357,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .profile-content { display: grid; gap: 18px; min-width: 0; }
         .attestation-card {
-          background: linear-gradient(180deg, #fff 0%, #FFFBEB 100%);
+          background: linear-gradient(180deg, #19789C 0%, #FFFBEB 100%);
         }
         .eyebrow {
           color: var(--slate-500); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em;
@@ -381,7 +379,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
         .stat-card {
           padding: 18px; border-radius: 22px; border: 1px solid rgba(226,232,240,.86);
-          background: #fff; box-shadow: 0 14px 38px rgba(15,23,42,.05);
+          background: #19789C; box-shadow: 0 14px 38px rgba(15,23,42,.05);
         }
         .stat-card span { color: var(--slate-500); font-size: 12px; font-weight: 800; }
         .stat-card strong { display: block; margin-top: 8px; color: var(--blue-950); font-size: 30px; line-height: 1; letter-spacing: -0.05em; }
@@ -389,12 +387,12 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .info-tile {
           display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: center;
           min-height: 82px; padding: 14px; border-radius: 20px;
-          background: linear-gradient(180deg, #fff, #F8FAFC); border: 1px solid rgba(226,232,240,.9);
+          background: linear-gradient(180deg, #19789C, #F8FAFC); border: 1px solid rgba(226,232,240,.9);
         }
         .info-tile--wide { grid-column: 1 / -1; }
         .info-tile__icon {
           width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EAF7FA;
+          color: var(--blue-700); background: #edf6f8;
         }
         .info-tile span { display: block; color: var(--slate-500); font-size: 12px; font-weight: 800; }
         .info-tile strong {
@@ -405,7 +403,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
           background: #F8FAFC; color: var(--slate-900); font: inherit; font-size: 14px; font-weight: 700;
           transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
         }
-        .pinput:focus { background: #fff; border-color: #78C2D8; box-shadow: 0 0 0 4px rgba(25,120,156,.16); outline: none; }
+        .pinput:focus { background: #19789C; border-color: #a9d4df; box-shadow: 0 0 0 4px rgba(25,120,156,.16); outline: none; }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
         .form-field label {
           display: block; margin-bottom: 7px; color: var(--slate-500); font-size: 11px; font-weight: 800;
@@ -416,7 +414,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .subjects-cloud { display: flex; flex-wrap: wrap; gap: 10px; }
         .subject-chip {
           display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 15px; border-radius: 999px;
-          color: var(--blue-900); background: linear-gradient(135deg, #EAF7FA, #F5F3FF);
+          color: var(--blue-900); background: linear-gradient(135deg, #edf6f8, #F5F3FF);
           border: 1px solid rgba(37,99,235,.12); font-size: 13px; font-weight: 800;
         }
         .subject-chip::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--violet-600); }
@@ -424,11 +422,11 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         .list-item {
           display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: center;
           padding: 14px; border-radius: 20px; border: 1px solid rgba(226,232,240,.86);
-          background: linear-gradient(180deg, #fff, #F8FAFC);
+          background: linear-gradient(180deg, #19789C, #F8FAFC);
         }
         .list-icon {
           width: 48px; height: 48px; border-radius: 17px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EAF7FA;
+          color: var(--blue-700); background: #edf6f8;
         }
         .list-item h3 { margin: 0 0 5px; color: var(--slate-900); font-size: 14px; line-height: 1.3; }
         .list-item p { margin: 0; color: var(--slate-500); font-size: 13px; font-weight: 600; }
@@ -439,7 +437,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
         }
         .empty-state span {
           width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center;
-          color: var(--blue-700); background: #EAF7FA;
+          color: var(--blue-700); background: #edf6f8;
         }
         .empty-state p { margin: 0; font-size: 14px; font-weight: 700; }
         .security-note {
@@ -513,7 +511,7 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
                 <span className="profile-kicker">{hasTpmpkAccess ? "Рабочий центр психолога ТПМПК" : "Рабочий центр методиста"}</span>
                 <h1>{user.lastName} {user.firstName} {user.middleName}</h1>
                 <div className="profile-subtitle">
-                  {form.position || user.position} · @{form.username || user.username} · {user.email}
+                  {form.position || user.position} · {user.email}
                 </div>
                 <div className="profile-tags">
                   <Tag tone="hero">{getRoleLabel(roleName)}</Tag>
@@ -611,7 +609,6 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
                     <>
                       <div className="form-grid">
                         {[
-                          { label: "Username", key: "username" },
                           { label: "Телефон", key: "phone" },
                           { label: "Должность", key: "position" },
                           { label: "Организация", key: "organization", wide: true },
@@ -634,7 +631,6 @@ export default function ProfilePage({ user = MOCK_USER, onBack, onAdmin, onTpmpk
                   ) : (
                     <div className="info-grid">
                       <InfoTile icon="mail" label="Email" value={user.email} />
-                      <InfoTile icon="user" label="Username" value={`@${form.username}`} />
                       <InfoTile icon="shield" label="Роль" value={getRoleLabel(roleName)} />
                       <InfoTile icon="calendar" label="Регистрация" value={new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })} />
                       <InfoTile icon="phone" label="Телефон" value={form.phone} />

@@ -21,7 +21,7 @@ export default function Projects() {
           transition: background 0.2s, transform 0.2s;
         }
         .project-card:hover {
-          background: #EAF7FA;
+          background: #EFF6FF;
           transform: translateY(-3px);
         }
         .project-icon {
@@ -31,7 +31,7 @@ export default function Projects() {
           font-size: 28px;
           transition: background 0.2s;
         }
-        .project-card:hover .project-icon { background: #D1EEF5; }
+        .project-card:hover .project-icon { background: #DBEAFE; }
         .project-title {
           font-size: 13px; font-weight: 600; color: #0F172A;
           line-height: 1.45;
@@ -43,7 +43,7 @@ export default function Projects() {
           <h2 style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", textTransform: "uppercase" }}>
             Проекты
           </h2>
-          <button style={{ fontSize: 13, fontWeight: 600, color: "#19789C", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          <button style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             Все проекты →
           </button>
         </div>

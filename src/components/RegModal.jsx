@@ -36,7 +36,7 @@ export default function RegModal({ open, onClose }) {
           transition: border-color 0.2s, background 0.2s;
           font-family: inherit; box-sizing: border-box;
         }
-        .reg-input:focus { border-color: #78C2D8; background: #fff; }
+        .reg-input:focus { border-color: #a9d4df; background: #fff; }
         .reg-input::placeholder { color: #94A3B8; }
         .reg-submit {
           width: 100%; padding: 12px; font-size: 15px; font-weight: 700;
@@ -46,7 +46,7 @@ export default function RegModal({ open, onClose }) {
         }
         .reg-submit:hover  { background: #145F7D; transform: translateY(-1px); }
         .reg-submit:active { transform: translateY(0); }
-        .reg-submit:disabled { background: #78C2D8; cursor: default; transform: none; }
+        .reg-submit:disabled { background: #a9d4df; cursor: default; transform: none; }
       `}</style>
 
       {/* Backdrop */}
@@ -81,7 +81,7 @@ export default function RegModal({ open, onClose }) {
           /* Form */
           <>
             <div style={{ marginBottom: 24 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#EAF7FA", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#edf6f8", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M10 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM2 18c0-3.314 3.582-6 8-6s8 2.686 8 6" stroke="#19789C" strokeWidth="1.6" strokeLinecap="round"/>
                 </svg>

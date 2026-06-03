@@ -355,9 +355,6 @@ export default function AnswerQualityStats() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
           <div>
             <h2 style={{ margin: 0, color: "#0F172A", fontSize: 22, fontWeight: 800 }}>Качество ответов чат-бота</h2>
-            <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: 14 }}>
-              Ручные оценки ответов из `/assistant/quality`.
-            </p>
           </div>
           <button
             type="button"
@@ -365,7 +362,7 @@ export default function AnswerQualityStats() {
             disabled={loading}
             style={{
               border: "1px solid #CBD5E1",
-              background: "#fff",
+              background: "#19789C",
               color: "#0F766E",
               borderRadius: 8,
               padding: "10px 14px",

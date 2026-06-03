@@ -4,6 +4,7 @@ import { API_BASE } from "../../constants/index.js";
 import StatusPanel from "./StatusPanel.jsx";
 import UpdatePanel from "./UpdatePanel.jsx";
 import TestChatPanel from "./TestChatPanel.jsx";
+import AssistantSettingsPanel from "./AssistantSettingsPanel.jsx";
 
 const POLL_INTERVAL = 3000;
 
@@ -67,6 +68,7 @@ export default function ChatSettings() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <AssistantSettingsPanel onSaved={fetchStatus} />
         <StatusPanel
           status={status}
           loading={loadingStatus}

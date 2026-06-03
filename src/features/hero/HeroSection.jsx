@@ -2,7 +2,7 @@ export default function HeroSection() {
   return (
     <section style={{
       position: "relative",
-      backgroundColor: "#0D3F54", /* Deep dark blue */
+      backgroundColor: "#0A1F44", /* Deep dark blue */
       backgroundImage: "linear-gradient(90deg, rgba(10,31,68,0.95) 0%, rgba(10,31,68,0.7) 100%), url('https://mc.eduirk.ru/images/headers/bg.jpg')",
       backgroundSize: "cover",
       backgroundPosition: "center",
@@ -77,7 +77,7 @@ export default function HeroSection() {
           width: 100%;
         }
         .hero-card-btn {
-          background: #4FB0CA;
+          background: #60A5FA;
           color: #fff;
           border: none;
           padding: 10px 20px;
@@ -87,7 +87,7 @@ export default function HeroSection() {
           cursor: pointer;
           transition: background 0.15s;
         }
-        .hero-card-btn:hover { background: #2E9ABA; }
+        .hero-card-btn:hover { background: #3B82F6; }
         
         .hero-esia-btn {
           background: transparent;

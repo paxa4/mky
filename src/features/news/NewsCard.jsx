@@ -22,12 +22,12 @@ export default function NewsCard({ news, horizontal = false, onClick, onAuthorCl
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: "transparent", borderRadius: 16, overflow: "hidden", cursor: "pointer",
-        border: "1px solid rgba(25, 120, 156, .3)", display: "flex",
+        background: "#fff", borderRadius: 16, overflow: "hidden", cursor: "pointer",
+        border: "1px solid #F1F5F9", display: "flex", 
         flexDirection: horizontal ? "row" : "column",
-        boxShadow: hov ? "0 12px 36px rgba(25,120,156,0.16)" : "0 2px 10px rgba(25,120,156,0.04)",
+        boxShadow: hov ? "0 12px 36px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.04)",
         transform: hov ? "translateY(-3px)" : "translateY(0)",
-        transition: "box-shadow 0.25s, transform 0.25s, border-color 0.25s",
+        transition: "box-shadow 0.25s, transform 0.25s",
         height: "100%"
       }}
     >
@@ -61,12 +61,12 @@ export default function NewsCard({ news, horizontal = false, onClick, onAuthorCl
       <div style={{ padding: "18px 20px 22px", flex: 1, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Badge label={news.category} color={news.categoryColor} bg={news.categoryBg} />
-          <span style={{ fontSize: 11, color: "#587087" }}>{news.date}</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{news.date}</span>
         </div>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0B1728", lineHeight: 1.45, margin: "0 0 8px", flex: 1, overflowWrap: "anywhere" }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", lineHeight: 1.45, margin: "0 0 8px", flex: 1 }}>
           {news.title}
         </h3>
-        <p style={{ fontSize: 13, color: "#33465C", lineHeight: 1.6, margin: 0, fontWeight: 650 }}>
+        <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6, margin: 0 }}>
           {news.excerpt}
         </p>
         {news.author && (
@@ -76,7 +76,7 @@ export default function NewsCard({ news, horizontal = false, onClick, onAuthorCl
               event.stopPropagation();
               onAuthorClick?.(news);
             }}
-            style={{ marginTop: 10, border: 0, background: "transparent", color: "#19789C", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer", textAlign: "left" }}
+            style={{ marginTop: 10, border: 0, background: "transparent", color: "#1D4ED8", font: "700 12px/1.4 inherit", padding: 0, cursor: "pointer", textAlign: "left" }}
           >
             {news.author}
           </button>

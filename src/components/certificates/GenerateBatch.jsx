@@ -1,76 +1,149 @@
-/**
- * GenerateBatch — групповая генерация из Excel.
- * Поле «Мероприятие» убрано. Недостающие переменные шаблона
- * появляются автоматически после загрузки Excel.
- */
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { getApiErrorMessage } from "../../utils/apiError.js";
+import { authHeaders } from "../../utils/authHeaders.js";
+import { getDownloadFilename } from "../../utils/contentDisposition.js";
 import AlertBanner from "./shared/AlertBanner.jsx";
-import { inputStyle, labelStyle, successBtn, cardStyle } from "./shared/styles.js";
+import TemplateLivePreview from "./shared/TemplateLivePreview.jsx";
 
-const FIO_ALIASES = new Set(["фио","fio","full_name","fullname","полноеимя","фамилияимяотчество","name","участник"]);
+const FIO_ALIASES = new Set(["фио", "fio", "full_name", "fullname", "полноеимя", "фамилияимяотчество", "name", "участник", "фиоучастника"]);
 
-function norm(v) { return String(v ?? "").trim().toLowerCase().replace(/\s+/g, ""); }
+function normalize(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, "");
+}
 
-function Tooltip({ text }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
-      <button type="button"
-        onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
-        onFocus={() => setShow(true)} onBlur={() => setShow(false)}
-        style={{ width: 18, height: 18, borderRadius: "50%", background: "#E2E8F0", border: "none", color: "#64748B", fontSize: 11, fontWeight: 700, cursor: "help", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle", fontFamily: "inherit" }}
-        aria-label="Подсказка"
-      >?</button>
-      {show && (
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: "calc(100% + 8px)", background: "#0F172A", color: "#fff", fontSize: 12, lineHeight: 1.5, padding: "8px 12px", borderRadius: 8, width: 240, zIndex: 999, boxShadow: "0 4px 16px rgba(0,0,0,0.25)", pointerEvents: "none", whiteSpace: "normal" }}>
-          {text}
-          <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", border: "5px solid transparent", borderTopColor: "#0F172A" }} />
-        </div>
-      )}
-    </span>
-  );
+function rowValue(row, key) {
+  if (!row || !key) return "";
+  if (row[key] !== undefined) return row[key];
+  const normalized = normalize(key);
+  const found = Object.keys(row).find((item) => normalize(item) === normalized);
+  return found ? row[found] : "";
+}
+
+function addCommonAliases(values) {
+  const next = { ...values };
+  for (const [key, value] of Object.entries(values || {})) {
+    const normalized = normalize(key);
+    if (FIO_ALIASES.has(normalized)) {
+      next["ФИО"] = value;
+      next["фио"] = value;
+      next.fio = value;
+      next["ФИО участника"] = value;
+    }
+    if (["названиемероприятия", "мероприятие", "event"].includes(normalized)) {
+      next["Название мероприятия"] = value;
+      next["Мероприятие"] = value;
+      next.event = value;
+    }
+    if (["дата", "date", "датавыдачи"].includes(normalized)) {
+      next["Дата"] = value;
+      next.date = value;
+    }
+    if (["достижение", "основание", "результат"].includes(normalized)) {
+      next["Достижение"] = value;
+    }
+  }
+  return next;
+}
+
+function buildArchiveName() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `Грамоты_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
 }
 
 export default function GenerateBatch({ templates }) {
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? null);
+  const [templateVariables, setTemplateVariables] = useState([]);
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
-  const dragCounter = useRef(0);
   const [preview, setPreview] = useState(null);
-  const [parseError, setParseError] = useState(null);
+  const [parseError, setParseError] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [msg, setMsg] = useState(null);
   const [msgType, setMsgType] = useState("info");
   const [archiveName, setArchiveName] = useState("");
-  const [abortController, setAbortController] = useState(null);
-  // Переменные шаблона, не покрытые Excel — заполняются один раз для всех
   const [extraVariables, setExtraVariables] = useState({});
+  const [generatedArchive, setGeneratedArchive] = useState(null);
+  const [abortController, setAbortController] = useState(null);
   const inputRef = useRef(null);
+  const dragCounter = useRef(0);
   const progressRef = useRef(null);
 
-  const pickFile = async (f) => {
-    if (!f) return;
-    if (!f.name.toLowerCase().match(/\.(xlsx|xlsm)$/)) {
-      setParseError("Нужен файл Excel в формате .xlsx. Другие форматы (.csv, .ods, .xls) не поддерживаются.");
+  useEffect(() => {
+    if (templates.length && !templates.some((template) => template.id === templateId)) {
+      setTemplateId(templates[0].id);
+    }
+  }, [templateId, templates]);
+
+  useEffect(() => () => {
+    clearInterval(progressRef.current);
+    if (generatedArchive?.url) URL.revokeObjectURL(generatedArchive.url);
+  }, [generatedArchive?.url]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!templateId) {
+      setTemplateVariables([]);
+      return undefined;
+    }
+    fetch(`${API_BASE}/certificates/templates/${templateId}/variables`, { headers: authHeaders() })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось загрузить переменные шаблона"));
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) setTemplateVariables(Array.isArray(data.variables) ? data.variables : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateVariables([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [templateId]);
+
+  const tableColumns = useMemo(() => {
+    if (preview?.templateVariables?.length) return preview.templateVariables;
+    if (templateVariables.length) return templateVariables;
+    if (preview?.headers?.length) return preview.headers.slice(0, 5);
+    return ["ФИО участника", "Название мероприятия", "Достижение", "Дата"];
+  }, [preview, templateVariables]);
+  const missingExtra = Object.keys(extraVariables).filter((key) => !String(extraVariables[key] || "").trim());
+  const hasMissingColumns = (preview?.missingColumns || []).length > 0;
+  const canGenerate = Boolean(templateId && file && preview && !parseError && !hasMissingColumns && missingExtra.length === 0 && !loading);
+
+  const inspectFile = async (nextFile) => {
+    if (!nextFile) return;
+    if (!nextFile.name.toLowerCase().match(/\.(xlsx|xlsm)$/)) {
+      setParseError("Нужен файл Excel в формате .xlsx или .xlsm.");
+      setFile(null);
+      setPreview(null);
       return;
     }
-    setFile(f); setParseError(null); setPreview(null); setMsg(null);
+
+    setFile(nextFile);
+    setParseError("");
+    setPreview(null);
+    setMsg(null);
+    setGeneratedArchive((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+
     try {
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", nextFile);
       if (templateId) fd.append("template_id", String(templateId));
-      const res = await fetch(`${API_BASE}/certificates/excel/inspect`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/certificates/excel/inspect`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось проверить Excel"));
       const data = await res.json();
-      const names = data.fio_column
-        ? data.preview_rows.map((row) => String(row[data.fio_column] || "").trim()).filter(Boolean)
-        : [];
-      setPreview({
-        names,
-        warnings: names.filter((n) => n.length > 80).map((n) => `«${n.slice(0, 40)}…» — очень длинное имя`),
+      const nextPreview = {
         headers: data.headers || [],
         rows: data.preview_rows || [],
         rowCount: data.row_count || 0,
@@ -78,281 +151,505 @@ export default function GenerateBatch({ templates }) {
         templateVariables: data.template_variables || [],
         matchedColumns: data.matched_columns || [],
         missingColumns: data.missing_columns || [],
-      });
-      // Строим extraVariables из переменных, не покрытых Excel и не являющихся ФИО/Дата
-      const excelNorms = new Set((data.matched_columns || []).map(norm));
-      const covered = new Set([...FIO_ALIASES, "дата", "date", ...excelNorms]);
-      setExtraVariables((prev) => {
-        const next = {};
-        for (const key of (data.missing_columns || [])) {
-          if (!covered.has(norm(key))) next[key] = prev[key] ?? "";
-        }
-        return next;
-      });
-    } catch (err) {
-      setParseError(err.message); setFile(null);
+        warnings: data.warnings || [],
+        processedPreview: data.processed_preview || [],
+      };
+      setPreview(nextPreview);
+      setArchiveName((prev) => prev || buildArchiveName());
+      setExtraVariables({});
+    } catch (error) {
+      setParseError(error.message || "Не удалось проверить Excel");
+      setFile(null);
+      setPreview(null);
     }
   };
 
   useEffect(() => {
-    if (!loading) { setProgress(0); return; }
-    const total = preview?.rowCount || 10;
-    const step = 100 / (total * 0.3 + 5);
-    progressRef.current = setInterval(() => setProgress((p) => Math.min(p + step, 92)), 300);
-    return () => clearInterval(progressRef.current);
-  }, [loading, preview]);
-
-  useEffect(() => { if (file && !loading) pickFile(file); }, [templateId]);
-  useEffect(() => () => clearInterval(progressRef.current), []);
+    if (file && !loading) inspectFile(file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId]);
 
   useEffect(() => {
-    if (preview?.rowCount) {
-      const now = new Date();
-      const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
-      setArchiveName((prev) => prev || `certificates_${stamp}`);
+    if (!loading) {
+      setProgress(0);
+      return undefined;
     }
-  }, [preview]);
+    const total = preview?.rowCount || 10;
+    const step = 100 / (total * 0.28 + 5);
+    progressRef.current = window.setInterval(() => setProgress((value) => Math.min(value + step, 92)), 300);
+    return () => window.clearInterval(progressRef.current);
+  }, [loading, preview?.rowCount]);
 
   const handleGenerate = async () => {
-    if (!templateId || !file) return;
+    if (!canGenerate) return;
     const controller = new AbortController();
-    setAbortController(controller); setLoading(true); setMsg(null);
+    setAbortController(controller);
+    setLoading(true);
+    setMsg(null);
+    setGeneratedArchive((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+
     try {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("template_id", String(templateId));
+      fd.append("response_mode", "json");
       if (archiveName.trim()) fd.append("archive_name", archiveName.trim());
-      // Передаём дополнительные переменные как JSON
       if (Object.keys(extraVariables).length > 0) {
-        fd.append("extra_variables", JSON.stringify(extraVariables));
+        fd.append("extra_variables", JSON.stringify(addCommonAliases(extraVariables)));
       }
-      const res = await fetch(`${API_BASE}/certificates/batch`, { method: "POST", body: fd, signal: controller.signal });
-      clearInterval(progressRef.current); setProgress(100);
+      const res = await fetch(`${API_BASE}/certificates/batch`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+        signal: controller.signal,
+      });
+      window.clearInterval(progressRef.current);
+      setProgress(100);
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Ошибка на сервере"));
-      const blob = await res.blob();
-      const cd = res.headers.get("Content-Disposition");
-      const m = cd && /filename="?([^";]+)"?/i.exec(cd);
-      const fallback = (archiveName.trim() || `certificates_${new Date().toISOString().slice(2,16).replace(/[-T:]/g,"")}`) + ".zip";
-      const filename = m ? m[1] : fallback;
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-      setMsg(`Готово! Скачано ${preview?.rowCount ?? "?"} грамот ZIP-архивом.`);
+      const contentType = res.headers.get("Content-Type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        setGeneratedArchive({
+          url: `${API_BASE}${data.file_url}`,
+          filename: data.filename || `${archiveName.trim() || buildArchiveName()}.zip`,
+          count: data.count || preview?.rowCount || 0,
+        });
+      } else {
+        const blob = await res.blob();
+        const cd = res.headers.get("Content-Disposition");
+        const filename = getDownloadFilename(cd, `${archiveName.trim() || buildArchiveName()}.zip`);
+        const blobUrl = URL.createObjectURL(blob);
+        setGeneratedArchive({ url: blobUrl, filename, count: preview?.rowCount || 0 });
+      }
+      setMsg(`Сформировано грамот: ${preview?.rowCount || 0}. Архив готов к скачиванию.`);
       setMsgType("success");
-    } catch (e) {
-      if (e.name === "AbortError") { setMsg("Создание отменено"); setMsgType("info"); }
-      else { setMsg(e.message || "Ошибка при создании архива"); setMsgType("error"); }
-    } finally { setLoading(false); setAbortController(null); }
+    } catch (error) {
+      if (error.name === "AbortError") {
+        setMsg("Создание отменено");
+        setMsgType("info");
+      } else {
+        setMsg(error.message || "Ошибка при создании архива");
+        setMsgType("error");
+      }
+    } finally {
+      setLoading(false);
+      setAbortController(null);
+    }
   };
 
   const handleCancel = () => {
-    clearInterval(progressRef.current);
-    abortController?.abort(); setAbortController(null); setLoading(false);
+    window.clearInterval(progressRef.current);
+    abortController?.abort();
+    setAbortController(null);
+    setLoading(false);
   };
 
-  const extraKeys = Object.keys(extraVariables);
-  const hasUnfilledExtra = extraKeys.some((k) => !extraVariables[k]?.trim());
-  const disabled = loading || !templateId || !file || !!parseError || hasUnfilledExtra;
+  const downloadArchive = () => {
+    if (!generatedArchive?.url) return;
+    const link = document.createElement("a");
+    link.href = generatedArchive.url;
+    link.download = generatedArchive.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const firstPreviewValues = useMemo(() => {
+    const row = preview?.processedPreview?.[0] || preview?.rows?.[0] || {};
+    return addCommonAliases({ ...row, ...extraVariables });
+  }, [extraVariables, preview?.processedPreview, preview?.rows]);
+  const previewRowsForTable = preview?.processedPreview?.length ? preview.processedPreview : (preview?.rows || []);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: 32, alignItems: "start" }}>
-      {/* ── Левая панель ── */}
-      <div style={cardStyle}>
-        <div style={{ marginBottom: 28 }}>
-          <h2 style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 800, color: "#0F172A" }}>Создать грамоты для группы участников</h2>
-          <p style={{ margin: 0, fontSize: 14, color: "#64748B", lineHeight: 1.5 }}>Загрузите список из Excel — система сама создаст по одной грамоте для каждого</p>
+    <section className="batch-certificate">
+      <style>{`
+        .batch-certificate {
+          --batch-primary: #19789C;
+          --batch-primary-dark: #004f75;
+          display: grid;
+          grid-template-columns: minmax(420px, 1.1fr) minmax(360px, .9fr);
+          gap: 24px;
+          align-items: start;
+        }
+        .batch-card {
+          border: 1px solid #d4e0e6;
+          border-radius: 8px;
+          background: #fff;
+          padding: 22px;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+        }
+        .batch-card h2,
+        .batch-card h3 {
+          margin: 0;
+          color: var(--batch-primary-dark);
+          line-height: 1.2;
+        }
+        .batch-card p {
+          margin: 7px 0 0;
+          color: #667783;
+          line-height: 1.5;
+          font-weight: 650;
+        }
+        .batch-flow {
+          display: grid;
+          gap: 18px;
+        }
+        .batch-field {
+          display: grid;
+          gap: 7px;
+        }
+        .batch-field span,
+        .batch-label {
+          color: #52636d;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+        }
+        .batch-field input,
+        .batch-field select {
+          width: 100%;
+          min-height: 42px;
+          border: 1px solid #d6e0e6;
+          border-radius: 8px;
+          background: #fbfcfd;
+          color: #17232b;
+          font: inherit;
+          font-size: 14px;
+          padding: 0 12px;
+          outline: 0;
+        }
+        .batch-field input:focus,
+        .batch-field select:focus {
+          border-color: var(--batch-primary);
+          box-shadow: 0 0 0 4px rgba(25, 120, 156, .12);
+          background: #fff;
+        }
+        .batch-chip-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          margin-top: 10px;
+        }
+        .batch-chip {
+          border-radius: 999px;
+          border: 1px solid #cfe0e7;
+          background: #edf6f8;
+          color: var(--batch-primary-dark);
+          padding: 5px 9px;
+          font-size: 12px;
+          font-weight: 850;
+        }
+        .batch-chip.success {
+          border-color: #bbf7d0;
+          background: #ecfdf5;
+          color: #047857;
+        }
+        .batch-chip.error {
+          border-color: #fecaca;
+          background: #fef2f2;
+          color: #b91c1c;
+        }
+        .batch-drop {
+          min-height: 178px;
+          display: grid;
+          place-items: center;
+          gap: 7px;
+          border: 1.5px dashed #b9cbd4;
+          border-radius: 8px;
+          background: #f8fbfc;
+          text-align: center;
+          padding: 22px;
+          cursor: pointer;
+        }
+        .batch-drop.is-active {
+          border-color: var(--batch-primary);
+          background: #edf6f8;
+        }
+        .batch-drop.has-file {
+          border-color: #22c55e;
+          background: #f0fdf4;
+        }
+        .batch-drop strong {
+          color: #17232b;
+          font-size: 15px;
+        }
+        .batch-drop small {
+          color: #667783;
+          font-weight: 750;
+        }
+        .batch-data-summary {
+          display: grid;
+          gap: 12px;
+          border: 1px solid #d4e0e6;
+          border-radius: 8px;
+          background: #f8fbfc;
+          padding: 16px;
+        }
+        .batch-data-summary strong {
+          color: #047857;
+        }
+        .batch-table-wrap {
+          overflow-x: auto;
+          border: 1px solid #dbe6f5;
+          border-radius: 8px;
+          background: #fff;
+        }
+        .batch-table {
+          width: 100%;
+          min-width: 620px;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .batch-table th {
+          background: #eef7fa;
+          color: var(--batch-primary-dark);
+          padding: 10px 12px;
+          text-align: left;
+          font-size: 11px;
+          text-transform: uppercase;
+        }
+        .batch-table td {
+          border-top: 1px solid #edf2f7;
+          color: #334155;
+          padding: 11px 12px;
+        }
+        .batch-extra-grid {
+          display: grid;
+          gap: 12px;
+        }
+        .batch-actions {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .batch-primary,
+        .batch-secondary,
+        .batch-danger {
+          min-height: 44px;
+          border-radius: 8px;
+          padding: 0 16px;
+          font: inherit;
+          font-size: 14px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .batch-primary {
+          border: 1px solid var(--batch-primary);
+          background: var(--batch-primary);
+          color: #fff;
+          box-shadow: 0 10px 22px rgba(25, 120, 156, .24);
+        }
+        .batch-primary:hover:not(:disabled) {
+          background: var(--batch-primary-dark);
+          border-color: var(--batch-primary-dark);
+        }
+        .batch-secondary {
+          border: 1px solid #cdd8df;
+          background: #fff;
+          color: var(--batch-primary-dark);
+        }
+        .batch-danger {
+          border: 1px solid #fecaca;
+          background: #fef2f2;
+          color: #b91c1c;
+        }
+        .batch-primary:disabled,
+        .batch-secondary:disabled {
+          border-color: #c8d2d8;
+          background: #e8eef1;
+          color: #7a8b94;
+          box-shadow: none;
+          cursor: not-allowed;
+        }
+        .batch-progress {
+          display: grid;
+          gap: 7px;
+        }
+        .batch-progress-track {
+          height: 10px;
+          border-radius: 999px;
+          background: #e2e8f0;
+          overflow: hidden;
+        }
+        .batch-progress-track span {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: var(--batch-primary);
+          transition: width .25s ease;
+        }
+        .batch-preview {
+          position: sticky;
+          top: 88px;
+          display: grid;
+          gap: 14px;
+        }
+        @media (max-width: 1120px) {
+          .batch-certificate {
+            grid-template-columns: 1fr;
+          }
+          .batch-preview {
+            position: static;
+          }
+        }
+      `}</style>
+
+      <div className="batch-card batch-flow">
+        <div>
+          <h2>Групповой выпуск грамот</h2>
+          <p>Загрузите Excel-файл. Колонки таблицы должны совпадать с переменными выбранного шаблона.</p>
         </div>
 
-        {/* Шаблон */}
-        <div style={{ marginBottom: 22 }}>
-          <label style={labelStyle}>
-            <span style={{ display: "flex", alignItems: "center" }}>
-              Оформление грамоты
-              <Tooltip text="Выберите внешний вид — он будет одинаковым для всех участников." />
-            </span>
-          </label>
-          <select value={templateId ?? ""} onChange={(e) => setTemplateId(Number(e.target.value) || null)} style={{ ...inputStyle, background: "#fff", marginTop: 8 }}>
-            {templates.length === 0
-              ? <option value="">Нет шаблонов — сначала создайте в разделе «Конструктор»</option>
-              : (<><option value="">— Выберите оформление —</option>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</>)
-            }
+        <label className="batch-field">
+          <span>Выбор шаблона</span>
+          <select value={templateId ?? ""} onChange={(event) => setTemplateId(Number(event.target.value) || null)}>
+            {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
-        </div>
+        </label>
 
-        {/* Название архива */}
-        <div style={{ marginBottom: 22 }}>
-          <label style={{ ...labelStyle, color: "#94A3B8" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              Название ZIP-архива (необязательно)
-              <Tooltip text="Имя скачиваемого файла. Если пусто — назовётся автоматически по дате." />
-            </span>
-          </label>
-          <div style={{ position: "relative", marginTop: 8 }}>
-            <input type="text" value={archiveName} onChange={(e) => setArchiveName(e.target.value)} placeholder="certificates_20260415_1030" style={{ ...inputStyle, borderColor: "#F1F5F9", paddingRight: 60 }} />
-            <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#94A3B8", fontWeight: 600 }}>.zip</span>
+        <div>
+          <span className="batch-label">Переменные выбранного шаблона</span>
+          <div className="batch-chip-list">
+            {(templateVariables.length ? templateVariables : ["ФИО участника", "Название мероприятия", "Достижение", "Дата"]).map((key) => (
+              <span className="batch-chip" key={key}>{`{${key}}`}</span>
+            ))}
           </div>
         </div>
 
-        {/* Drag-and-drop */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>
-            <span style={{ display: "flex", alignItems: "center" }}>
-              Список участников (Excel .xlsx)
-              <span style={{ color: "#EF4444", marginLeft: 4 }}>*</span>
-              <Tooltip text="Файл Excel (.xlsx). В первой строке заголовки колонок, ФИО в обязательной колонке «ФИО». Остальные колонки подставляются автоматически." />
-            </span>
-          </label>
-          <div
-            role="button" tabIndex={0} aria-label="Загрузить Excel-файл"
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
-            onDragEnter={(e) => { e.preventDefault(); dragCounter.current++; if (dragCounter.current === 1) setDrag(true); }}
-            onDragLeave={(e) => { e.preventDefault(); dragCounter.current--; if (dragCounter.current === 0) setDrag(false); }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); dragCounter.current = 0; setDrag(false); pickFile(e.dataTransfer.files?.[0]); }}
-            onClick={() => inputRef.current?.click()}
-            style={{ border: `2px dashed ${drag ? "#19789C" : file ? "#059669" : "#CBD5E1"}`, borderRadius: 16, padding: "32px 24px", textAlign: "center", cursor: "pointer", background: drag ? "#EAF7FA" : file ? "#F0FDF4" : "#F8FAFC", transition: "all 0.15s", marginTop: 8 }}
-          >
-            <input ref={inputRef} type="file" accept=".xlsx,.xlsm" style={{ display: "none" }} onChange={(e) => pickFile(e.target.files?.[0])} />
-            <div style={{ fontSize: 32, marginBottom: 10 }}>{file ? "✓" : drag ? "📂" : "📊"}</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-              {file ? file.name : drag ? "Отпустите файл здесь" : "Перетащите .xlsx сюда или нажмите для выбора"}
-            </div>
-            <div style={{ fontSize: 13, color: "#94A3B8" }}>
-              {file ? "Нажмите, чтобы заменить файл" : "Поддерживается: Excel (.xlsx) — до 500 участников"}
-            </div>
+        <div>
+          <span className="batch-label">Требуемые столбцы Excel</span>
+          <div className="batch-chip-list">
+            {(templateVariables.length ? templateVariables : ["ФИО участника"]).map((key) => (
+              <span
+                className={`batch-chip${preview ? (preview.missingColumns.some((item) => normalize(item) === normalize(key)) ? " error" : " success") : ""}`}
+                key={key}
+              >
+                {key}
+              </span>
+            ))}
           </div>
         </div>
+
+        <label
+          className={`batch-drop${drag ? " is-active" : ""}${file ? " has-file" : ""}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            dragCounter.current += 1;
+            if (dragCounter.current === 1) setDrag(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            dragCounter.current -= 1;
+            if (dragCounter.current === 0) setDrag(false);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            dragCounter.current = 0;
+            setDrag(false);
+            inspectFile(event.dataTransfer.files?.[0]);
+          }}
+        >
+          <input ref={inputRef} type="file" accept=".xlsx,.xlsm" hidden onChange={(event) => inspectFile(event.target.files?.[0])} />
+          <strong>{file ? file.name : drag ? "Отпустите файл здесь" : "Перетащите Excel-файл сюда или выберите файл"}</strong>
+          <small>{file ? "Файл проверен, его можно заменить" : "Поддерживаются .xlsx и .xlsm"}</small>
+          <button type="button" className="batch-secondary" onClick={(event) => { event.preventDefault(); inputRef.current?.click(); }}>
+            Выбрать файл
+          </button>
+        </label>
 
         {parseError && <AlertBanner type="error">{parseError}</AlertBanner>}
 
-        {/* Превью Excel */}
+        {preview && !parseError && preview.missingColumns.length > 0 && (
+          <AlertBanner type="error">
+            В Excel не найдены обязательные столбцы: {preview.missingColumns.join(", ")}.
+          </AlertBanner>
+        )}
+
         {preview && !parseError && (
-          <div style={{ marginBottom: 20, padding: 16, background: "#F0FDF4", borderRadius: 12, border: "1px solid #BBF7D0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontWeight: 700, color: "#059669", fontSize: 14 }}>Файл принят — найдено {preview.rowCount} строк</div>
-              <button type="button" onClick={() => { setFile(null); setPreview(null); setExtraVariables({}); if (inputRef.current) inputRef.current.value = ""; }}
-                style={{ fontSize: 12, color: "#64748B", background: "none", border: "1px solid #CBD5E1", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}>
-                Заменить
-              </button>
-            </div>
-
-            {/* Колонки Excel */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              {preview.headers.map((h) => (
-                <span key={h} style={{ padding: "3px 8px", borderRadius: 7, background: "#fff", border: "1px solid #BBF7D0", color: "#047857", fontSize: 12, fontWeight: 700 }}>{h}</span>
+          <div className="batch-data-summary">
+            <strong>Найдено строк: {preview.rowCount}</strong>
+            <div className="batch-chip-list">
+              {preview.headers.map((header) => (
+                <span className="batch-chip success" key={header}>{header}</span>
               ))}
             </div>
-
-            {/* Переменные шаблона — статус */}
-            {preview.templateVariables.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700, marginBottom: 6 }}>Переменные шаблона</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {preview.templateVariables.map((key) => {
-                    const inExcel = preview.matchedColumns.some((c) => norm(c) === norm(key));
-                    const isCovered = inExcel || FIO_ALIASES.has(norm(key)) || norm(key) === "дата" || norm(key) === "date";
-                    const inExtra = key in extraVariables;
-                    const matched = isCovered || inExtra;
-                    return (
-                      <span key={key} style={{ padding: "4px 8px", borderRadius: 8, background: matched ? "#ECFDF5" : "#FFF7ED", color: matched ? "#047857" : "#C2410C", border: `1px solid ${matched ? "#A7F3D0" : "#FED7AA"}`, fontSize: 12, fontWeight: 700 }}>
-                        {`{${key}}`} {inExcel ? "✓ Excel" : isCovered ? "✓ поле" : inExtra ? "✓ заполните ниже" : "⚠ не найдена"}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Предпросмотр строк */}
-            <div style={{ fontSize: 13, color: "#475569" }}>
-              {preview.rows.slice(0, 5).map((row, i) => (
-                <div key={i} style={{ padding: "5px 0", borderTop: i ? "1px solid #DCFCE7" : "none" }}>
-                  {preview.headers.slice(0, 4).map((h) => (
-                    <span key={h} style={{ marginRight: 12 }}><strong>{h}:</strong> {row[h] || "—"}</span>
+            <div className="batch-table-wrap">
+              <table className="batch-table">
+                <thead>
+                  <tr>
+                    {tableColumns.map((column) => <th key={column}>{column}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRowsForTable.slice(0, 5).map((row, index) => (
+                    <tr key={`${index}-${JSON.stringify(row)}`}>
+                      {tableColumns.map((column) => <td key={column}>{rowValue(row, column) || "—"}</td>)}
+                    </tr>
                   ))}
-                </div>
-              ))}
-              {preview.rowCount > preview.rows.length && (
-                <div style={{ color: "#94A3B8", marginTop: 4 }}>…и ещё {preview.rowCount - preview.rows.length}</div>
-              )}
+                </tbody>
+              </table>
             </div>
-            {preview.warnings.slice(0, 3).map((w, i) => (
-              <div key={i} style={{ fontSize: 12, color: "#D97706", marginTop: 4 }}>{w}</div>
+            {preview.rowCount > previewRowsForTable.length && (
+              <p>Показаны первые {previewRowsForTable.length} строк из {preview.rowCount}.</p>
+            )}
+            {preview.processedPreview?.length > 0 && (
+              <p>Предпросмотр показывает обработанные значения с учётом склонений и override-колонок.</p>
+            )}
+            {preview.warnings?.length > 0 && (
+              <AlertBanner type="info">
+                {preview.warnings.slice(0, 4).join(" ")}
+              </AlertBanner>
+            )}
+          </div>
+        )}
+
+        {Object.keys(extraVariables).length > 0 && (
+          <div className="batch-extra-grid">
+            <div>
+              <h3>Общие значения для всех грамот</h3>
+              <p>Эти переменные не найдены в Excel. Заполните их один раз для всего набора.</p>
+            </div>
+            {Object.keys(extraVariables).map((key) => (
+              <label className="batch-field" key={key}>
+                <span>{key}</span>
+                <input
+                  value={extraVariables[key] ?? ""}
+                  onChange={(event) => setExtraVariables((prev) => ({ ...prev, [key]: event.target.value }))}
+                  placeholder={`Значение для «${key}»`}
+                />
+              </label>
             ))}
           </div>
         )}
 
-        {/* Блок дополнительных переменных */}
-        {extraKeys.length > 0 && (
-          <div style={{ marginBottom: 24, padding: 18, background: "linear-gradient(135deg, #F0FAFC 0%, #F8FAFC 100%)", border: "1px solid #A9D9E7", borderRadius: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 16 }}>📋</span>
-              <span style={{ fontWeight: 800, color: "#19789C", fontSize: 15 }}>Данные для шаблона</span>
-              <span style={{ fontSize: 11, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FECACA", borderRadius: 4, padding: "1px 7px", fontWeight: 700 }}>обязательно</span>
-            </div>
-            <p style={{ margin: "0 0 14px", fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
-              Эти переменные не найдены в Excel — заполните их, чтобы сгенерировать грамоты.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {extraKeys.map((key) => {
-                const empty = !extraVariables[key]?.trim();
-                return (
-                  <label key={key} style={{ display: "block" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
-                      <code style={{ background: "#D1EEF5", color: "#19789C", padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", fontSize: 12 }}>{`{${key}}`}</code>
-                      {key}
-                      <span style={{ color: "#EF4444" }}>*</span>
-                    </span>
-                    <input
-                      type="text"
-                      value={extraVariables[key] ?? ""}
-                      onChange={(e) => setExtraVariables((prev) => ({ ...prev, [key]: e.target.value }))}
-                      placeholder={`Значение для «${key}»`}
-                      style={{ ...inputStyle, fontSize: 14, borderColor: empty ? "#FCA5A5" : undefined, background: empty ? "#FFF5F5" : undefined }}
-                    />
-                  </label>
-                );
-              })}
-            </div>
-            {hasUnfilledExtra && (
-              <div style={{ marginTop: 12, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 12, color: "#B91C1C", fontWeight: 600 }}>
-                ⚠ Заполните все поля выше — без них генерация недоступна
-              </div>
-            )}
-          </div>
-        )}
+        <label className="batch-field">
+          <span>Название архива</span>
+          <input value={archiveName} onChange={(event) => setArchiveName(event.target.value)} placeholder="Грамоты_20260524_1030" />
+        </label>
 
-        {/* Прогресс */}
         {loading && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#475569", marginBottom: 8 }}>
-              <span>Создаём грамоты…</span>
-              <span style={{ fontWeight: 700, color: "#059669" }}>{Math.round(progress)}%</span>
+          <div className="batch-progress">
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#52636d", fontSize: 13, fontWeight: 850 }}>
+              <span>Формируем грамоты</span>
+              <span>{Math.round(progress)}%</span>
             </div>
-            <div style={{ height: 10, background: "#E2E8F0", borderRadius: 99, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #059669, #10B981)", borderRadius: 99, transition: "width 0.3s ease" }} />
-            </div>
-            <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 6, textAlign: "center" }}>Пожалуйста, не закрывайте страницу…</div>
+            <div className="batch-progress-track"><span style={{ width: `${progress}%` }} /></div>
           </div>
         )}
 
-        {/* Кнопки */}
-        <div style={{ display: "flex", gap: 12 }}>
-          <button type="button" onClick={handleGenerate} disabled={disabled}
-            style={{ ...successBtn(disabled), flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {loading ? (
-              <>
-                <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin2 0.7s linear infinite" }} />
-                <style>{`@keyframes spin2 { to { transform: rotate(360deg); } }`}</style>
-                Создаём архив…
-              </>
-            ) : <>Скачать ZIP{preview ? ` (${preview.rowCount} грамот)` : ""}</>}
+        <div className="batch-actions">
+          <button type="button" className="batch-primary" onClick={handleGenerate} disabled={!canGenerate}>
+            {loading ? "Формируем..." : preview ? `Сформировать ${preview.rowCount} грамот` : "Сформировать грамоты"}
+          </button>
+          <button type="button" className="batch-secondary" onClick={downloadArchive} disabled={!generatedArchive}>
+            Скачать ZIP
           </button>
           {loading && (
-            <button type="button" onClick={handleCancel}
-              style={{ padding: "10px 20px", background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", borderRadius: 10, fontWeight: 600, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
+            <button type="button" className="batch-danger" onClick={handleCancel}>
               Отмена
             </button>
           )}
@@ -361,59 +658,14 @@ export default function GenerateBatch({ templates }) {
         {msg && <AlertBanner type={msgType}>{msg}</AlertBanner>}
       </div>
 
-      {/* ── Правая панель — инструкция ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <div style={cardStyle}>
-          <h3 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 700, color: "#0F172A" }}>Как это работает</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {[
-              { step: 1, title: "Подготовьте таблицу Excel", desc: "В первой строке — заголовки колонок. Обязательная колонка «ФИО». Дополнительные колонки (Класс, Школа и т.д.) подставятся в шаблон автоматически." },
-              { step: 2, title: "Сохраните как .xlsx", desc: "Файл → Сохранить как → «Excel Книга (.xlsx)»." },
-              { step: 3, title: "Загрузите файл и выберите шаблон", desc: "Система проверит данные и покажет, какие переменные покрыты Excel, а какие нужно заполнить вручную." },
-              { step: 4, title: "Нажмите «Скачать ZIP»", desc: "Получите архив с готовыми PDF — по одной грамоте на каждого участника." },
-            ].map(({ step, title, desc }) => (
-              <div key={step} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#19789C", color: "#fff", fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step}</div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", marginBottom: 3 }}>{title}</div>
-                  <div style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>{desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#334155", marginBottom: 12 }}>Пример правильной таблицы Excel</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "inherit" }}>
-            <thead>
-              <tr>
-                <th style={{ background: "#19789C", color: "#fff", padding: "8px 12px", textAlign: "left", borderRadius: "6px 0 0 6px" }}>ФИО</th>
-                <th style={{ background: "#E2E8F0", color: "#64748B", padding: "8px 12px", textAlign: "left" }}>Класс</th>
-                <th style={{ background: "#E2E8F0", color: "#64748B", padding: "8px 12px", textAlign: "left", borderRadius: "0 6px 6px 0" }}>Школа</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[["Иванов Иван Иванович","8А","Школа №1"],["Петрова Мария Сергеевна","10Б","Лицей №3"]].map((r,i) => (
-                <tr key={i} style={{ background: i % 2 ? "#F8FAFC" : "#fff" }}>
-                  {r.map((c,j) => <td key={j} style={{ padding: "7px 12px", color: "#334155", border: "1px solid #E2E8F0" }}>{c}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 14, padding: 20 }}>
-          <div style={{ fontWeight: 700, color: "#C2410C", marginBottom: 12, fontSize: 14 }}>💡 Советы</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {["Максимум 500 участников за один раз","Любая колонка Excel автоматически становится переменной — называйте как в шаблоне","Очень длинные имена уменьшатся в шрифте автоматически","Пустые строки игнорируются"].map((tip, i) => (
-              <div key={i} style={{ fontSize: 13, color: "#7C2D12", lineHeight: 1.5, display: "flex", gap: 8 }}>
-                <span style={{ flexShrink: 0 }}>•</span><span>{tip}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+      <aside className="batch-card batch-preview">
+        <h3>Предпросмотр одной грамоты</h3>
+        <TemplateLivePreview
+          templateId={templateId}
+          values={firstPreviewValues}
+          empty={!preview}
+        />
+      </aside>
+    </section>
   );
 }

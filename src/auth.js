@@ -1,5 +1,6 @@
 export const AUTH_STORAGE_KEY = "mky_current_user";
 export const AUTH_TOKEN_STORAGE_KEYS = ["access_token", "mky_access_token"];
+export const AUTH_REFRESH_TOKEN_STORAGE_KEYS = ["refresh_token", "mky_refresh_token"];
 
 export const ROLE_LABELS = {
   user: "Пользователь",
@@ -46,7 +47,14 @@ export function canAccessDomuAdmin(user) {
 export function getStoredUser() {
   try {
     const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const user = raw ? JSON.parse(raw) : null;
+    if (user?.access_token) {
+      AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.setItem(key, user.access_token));
+    }
+    if (user?.refresh_token) {
+      AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.setItem(key, user.refresh_token));
+    }
+    return user;
   } catch {
     return null;
   }
@@ -57,9 +65,13 @@ export function storeUser(user) {
   if (user?.access_token) {
     AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.setItem(key, user.access_token));
   }
+  if (user?.refresh_token) {
+    AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.setItem(key, user.refresh_token));
+  }
 }
 
 export function clearStoredUser() {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
   AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+  AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
 }

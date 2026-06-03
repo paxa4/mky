@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CALENDAR_EVENTS } from "../../constants/index.js";
 
 const DAYS = [
@@ -10,18 +9,14 @@ const DAYS = [
 ];
 
 const TAG_COLORS = {
-  КОНКУРС:    { bg: "#EAF7FA", color: "#19789C" },
+  КОНКУРС:    { bg: "#EFF6FF", color: "#1D4ED8" },
   ОЛИМПИАДА:  { bg: "#ECFDF5", color: "#059669" },
   СЕМИНАР:    { bg: "#FFFBEB", color: "#D97706" },
   СОБЫТИЕ:    { bg: "#F5F3FF", color: "#7C3AED" },
 };
 
 export default function EventCalendar() {
-  const [activeDay, setActiveDay] = useState(null);
-
-  const filtered = activeDay
-    ? CALENDAR_EVENTS.filter(e => e.day === activeDay)
-    : CALENDAR_EVENTS;
+  const filtered = CALENDAR_EVENTS;
 
   const grouped = DAYS.reduce((acc, d) => {
     acc[d.day] = filtered.filter(e => e.day === d.day);
@@ -133,7 +128,7 @@ export default function EventCalendar() {
               <span className="cal-day-name">{weekday}</span>
             </div>
             {(grouped[day] || []).map((ev, i) => {
-              const colors = TAG_COLORS[ev.tag] || { bg: "#19789C", color: "#fff" };
+              const colors = TAG_COLORS[ev.tag] || { bg: "#1D4ED8", color: "#fff" };
               return (
                 <div key={i} className="cal-event" style={{ background: "rgba(255,255,255,0.07)", borderLeft: `3px solid ${colors.bg}` }}>
                   <div className="cal-event-tag" style={{ color: colors.bg }}>{ev.tag}</div>

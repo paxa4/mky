@@ -164,7 +164,7 @@ export default function StatusPanel({ status, loading, error }) {
         <div style={{
           marginTop: 16,
           padding: "12px 16px",
-          background: "#EAF7FA",
+          background: "#edf6f8",
           borderRadius: 10,
           border: "1px solid #A9D9E7",
           fontSize: 13,

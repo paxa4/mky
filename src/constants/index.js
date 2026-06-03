@@ -1,4 +1,12 @@
-/** Базовый URL бэкенда (можно задать VITE_API_URL в .env) */
+/** Базовый URL бэкенда.
+ *
+ * В production-сборке (Docker + Nginx) переменная VITE_API_URL должна быть
+ * пустой или не задана — тогда API_BASE = "" и все запросы идут на тот же
+ * origin через Nginx, который проксирует их на backend:8000.
+ *
+ * Для локальной разработки (npm run dev) задайте в .env файле:
+ *   VITE_API_URL=http://localhost:8000
+ */
 export const API_BASE =
   typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace(/\/$/, "")
@@ -34,17 +42,7 @@ export const PROJECTS = [
   { icon: "🆘", title: "Социальный проект «Помощь рядом»" },
 ];
 
-export const CALENDAR_EVENTS = [
-  { day: 13, weekday: "Четверг",     time: "09:30–15:30", title: "Конкурс среди молодых педагогических работников «Новая волна»", tag: "КОНКУРС" },
-  { day: 13, weekday: "Четверг",     time: "10:00–16:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 14, weekday: "Пятница",     time: "10:30–20:30", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 14, weekday: "Пятница",     time: "15:00",       title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 15, weekday: "Суббота",     time: "10:00–12:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 15, weekday: "Суббота",     time: "19:00–23:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 17, weekday: "Понедельник", time: "09:00–13:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 17, weekday: "Понедельник", time: "15:30–17:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-  { day: 18, weekday: "Вторник",     time: "09:00–13:00", title: "III муниципальный конкурс «Урок в формате ФГОС-3.0»", tag: "КОНКУРС" },
-];
+export const CALENDAR_EVENTS = [];
 
 export const STATS = [
   { value: "142",     label: "образовательные организации", emoji: "🏫" },

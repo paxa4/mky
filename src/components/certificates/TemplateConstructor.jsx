@@ -13,9 +13,11 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { API_BASE } from "../../constants/index.js";
 import { getApiErrorMessage } from "../../utils/apiError.js";
+import { authHeaders } from "../../utils/authHeaders.js";
+import { isObjectUrl, revokeObjectUrl, stripObjectUrls } from "../../utils/objectUrls.js";
 import AlertBanner from "./shared/AlertBanner.jsx";
-import { cardStyle, inputStyle, labelStyle, sectionBox, dangerBtn } from "./shared/styles.js";
-import AccuratePreview, { smartAlign, clamp } from "./shared/AccuratePreview.jsx";
+import AccuratePreview from "./shared/AccuratePreview.jsx";
+import { smartAlign, clamp } from "./shared/previewMath.js";
 import useHotkeys from "./shared/useHotkeys.js";
 import ContextMenu from "./shared/ContextMenu.jsx";
 
@@ -30,7 +32,17 @@ const BUILTIN_FONTS = [
   { font_family: "Playfair Display", font_url: null },
   { font_family: "Oswald",           font_url: null },
 ];
-const QUICK_VARIABLES = ["ФИО", "Класс", "Школа", "Предмет", "Дата", "Мероприятие", "Награда"];
+const QUICK_VARIABLES = ["ФИО", "Мероприятие"];
+const SUGGESTED_EXTRA_VARIABLES = ["Дата", "Класс", "Школа", "Должность", "Награда", "Номер приказа", "ФИО руководителя"];
+const GRAMMAR_CASES = [
+  { value: "", label: "как введено" },
+  { value: "именительный", label: "именительный (кто, что)" },
+  { value: "родительный", label: "родительный (кого, чего)" },
+  { value: "дательный", label: "дательный (кому, чему)" },
+  { value: "винительный", label: "винительный (кого, что)" },
+  { value: "творительный", label: "творительный (кем, чем)" },
+  { value: "предложный", label: "предложный (о ком, о чём)" },
+];
 const QUICK_GENDER_VARIANTS = [
   { label: "ученику / ученице", value: "{род:ученику|ученице}" },
   { label: "награждён / награждена", value: "{род:награждён|награждена}" },
@@ -67,10 +79,44 @@ const VARIABLE_HINTS = {
   "Награда": "Тип награды: победитель, призёр и т.д. Колонка «Награда» в Excel.",
 };
 const PREVIEW_STORAGE_PREFIX = "certificate-template-preview-vars:";
+const SHOW_LEGACY_LAYER_SECTIONS = false;
 const DEFAULT_PREVIEW_VARIABLES = {
   "ФИО": "Григорьев Владислав Дмитриевич",
   "Мероприятие": "Всероссийская олимпиада по информатике",
 };
+
+function createCanvasId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeElementType(rawType) {
+  const type = String(rawType || "text").toLowerCase();
+  if (type === "seal") return "stamp";
+  if (type === "facsimile") return "signature";
+  return type;
+}
+
+function isImageElementType(type) {
+  return ["image", "stamp", "seal", "signature", "facsimile", "line"].includes(String(type || "").toLowerCase());
+}
+
+function sourceUrlToPreview(sourceUrl) {
+  if (!sourceUrl) return null;
+  return String(sourceUrl).startsWith("blob:") || String(sourceUrl).startsWith("http")
+    ? sourceUrl
+    : `${API_BASE}${sourceUrl}`;
+}
+
+function sourceUrlToApi(sourceUrl) {
+  if (!sourceUrl) return null;
+  const value = String(sourceUrl);
+  return value.startsWith(API_BASE) ? value.slice(API_BASE.length) : value;
+}
+
+function imageKindToElementType(kind) {
+  const normalized = normalizeElementType(kind);
+  return normalized === "stamp" ? "seal" : normalized;
+}
 
 function previewStorageKey(templateId) {
   return `${PREVIEW_STORAGE_PREFIX}${templateId}`;
@@ -128,6 +174,14 @@ function hasRussianWord(text, pattern) {
 
 function isGenderVariantPlaceholder(key) {
   return /^(?:род|пол|gender)\s*:\s*[^|{}]+\|[^{}]+$/i.test(String(key || "").trim());
+}
+
+function placeholderKeyForUi(rawKey) {
+  const key = String(rawKey || "").trim();
+  if (!key || isGenderVariantPlaceholder(key)) return "";
+  if (key.includes("|")) return key.split("|")[0].trim();
+  if (key.includes(":")) return key.split(":")[0].trim();
+  return key;
 }
 
 function getPreviewContext(elements) {
@@ -207,7 +261,7 @@ function declinePreviewFio(fio, caseName, gender) {
   return declined.concat(parts.slice(3)).join(" ");
 }
 
-function applyGenderVariantsPreview(text, gender) {
+function _applyGenderVariantsPreview(text, gender) {
   return String(text || "").replace(/\{([^}]+)\}/g, (match, inner) => {
     const key = inner.trim();
     const genderMatch = key.match(/^(?:род|пол|gender)\s*:\s*([^|{}]+)\|([^{}]+)$/i);
@@ -292,23 +346,20 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     font_family: DEFAULT_FONT_FAMILY, position_color: "", name_color: "",
   });
 
-  // Текстовые элементы
+  // Текстовые элементы (без зашитого блока подписантов — он добавляется отдельной кнопкой)
   const [elements, setElements] = useState([
-    { id: 1, text: "Сертификат", x: 50, y: 14, size: 48, color: "#0F172A", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
-    { id: 2, text: "награждается", x: 50, y: 24, size: 22, color: "#64748B", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
-    { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
-    { id: 4, text: "за участие в {Мероприятие}", x: 50, y: 54, size: 18, color: "#475569", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
+    { id: 1, text: "ГРАМОТА", x: 50, y: 17, size: 28, color: "#004f75", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+    { id: 2, text: "НАГРАЖДАЕТСЯ", x: 50, y: 28, size: 34, color: "#17232b", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+    { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+    { id: 4, text: "{Мероприятие}", x: 50, y: 52, size: 18, color: "#17232b", weight: "600", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
   ]);
 
-  // Подписанты
-  const [signers, setSigners] = useState([{
-    id: "s1", position: "Директор", fullName: "",
-    facFile: null, facPreview: null,
-    offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1,
-  }]);
+  // Подписанты — по умолчанию ни одного; добавляются кнопкой
+  const [signers, setSigners] = useState([]);
 
+  const objectUrlsRef = useRef([]);
   const [saving, setSaving] = useState(false);
-  const [uploadingFont, setUploadingFont] = useState(false);
+  const [_uploadingFont, setUploadingFont] = useState(false);
   const [availableFonts, setAvailableFonts] = useState(BUILTIN_FONTS);
   const [msg, setMsg] = useState(null);
   const [msgType, setMsgType] = useState("info");
@@ -317,13 +368,14 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
 
   // ── UX: выделение, контекстное меню, автосохранение ──────────────────────
   const [selectedElementId, setSelectedElementId] = useState(null);
+  const [selectedSignerId, setSelectedSignerId] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null); // { x, y, elementId }
   const [autoSaveStatus, setAutoSaveStatus] = useState(""); // "", "saving", "saved"
   const autoSaveTimerRef = useRef(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const MAX_UNDO = 40;
-  const [showOnboarding, setShowOnboarding] = useState(() => {
+  const [_showOnboarding, _setShowOnboarding] = useState(() => {
     try { return !window.localStorage.getItem("constructor-onboarding-v1-dismissed"); } catch { return true; }
   });
   // Инлайн-пикер переменных
@@ -331,8 +383,103 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   const textareaRefs = useRef({}); // { [elId]: HTMLTextAreaElement }
 
   const bgInputRef = useRef(null);
-  const bgDragCounter = useRef(0);
-  const [bgDrag, setBgDrag] = useState(false);
+  const _bgDragCounter = useRef(0);
+  const [_bgDrag, _setBgDrag] = useState(false);
+
+  // ── Новые возможности конструктора ────────────────────────────────────────
+  // Пользовательские переменные шаблона
+  const [userVariables, setUserVariables] = useState([]);
+  const [variableDraft, setVariableDraft] = useState("");
+  const [showVariableInput, setShowVariableInput] = useState(false);
+
+  // Изображения (печати, подписи, декор)
+  // { id, kind: 'stamp'|'signature'|'image', label, file, url, x, y, widthMm, heightMm, opacity }
+  const [images, setImages] = useState([]);
+  const [selectedImageId, setSelectedImageId] = useState(null);
+  const stampInputRef = useRef(null);
+  const signatureInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const imageReplaceInputRef = useRef(null);
+  const signerFacInputRef = useRef(null);
+  const [signerPresetOpen, setSignerPresetOpen] = useState(false);
+  const [signerDraft, setSignerDraft] = useState({
+    position: "Директор ИМЦРО",
+    fullName: "",
+    facFile: null,
+    facPreview: null,
+    includeLine: true,
+  });
+
+  // Сетка, масштаб, слои
+  const [showGrid, setShowGrid] = useState(true);
+  const [zoom, setZoom] = useState(100);
+  const [layersOpen, setLayersOpen] = useState(false);
+
+  // Режим редактирования (видны переменные) или просмотра (тестовые данные)
+  const [editorMode, setEditorMode] = useState("edit"); // "edit" | "preview"
+
+  // Грязный флаг для предупреждения и индикатора автосохранения
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  // Флаг зелёного уведомления после ручного сохранения
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const saveSuccessTimerRef = useRef(null);
+
+  // Предложение восстановить черновик из localStorage
+  const [draftOffer, setDraftOffer] = useState(null); // null | { key, data }
+
+  // Буфер обмена для копирования
+  const clipboardRef = useRef(null);
+
+  const createTrackedObjectUrl = useCallback((file) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.push(url);
+    return url;
+  }, []);
+
+  useEffect(() => () => {
+    objectUrlsRef.current.forEach(revokeObjectUrl);
+    objectUrlsRef.current = [];
+  }, []);
+
+  // ── Восстановление черновика из localStorage ─────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `cert-constructor-autosave:${editingId || "new"}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.name || parsed.elements?.length)) {
+          setDraftOffer({ key, data: parsed });
+        }
+      }
+    } catch { /* ignore */ }
+  }, [editingId]);
+
+  const restoreDraft = useCallback(() => {
+    if (!draftOffer) return;
+    const d = draftOffer.data;
+    if (d.name) setName(d.name);
+    if (d.bgUrl && !d.bgUrl.startsWith("blob:")) setBgUrl(d.bgUrl);
+    if (d.margins) setMargins(d.margins);
+    if (d.signersLayout) setSignersLayout(d.signersLayout);
+    if (Array.isArray(d.elements)) setElements(d.elements);
+    if (Array.isArray(d.signers)) setSigners(d.signers);
+    if (Array.isArray(d.images)) setImages(d.images);
+    if (d.userVariables) setUserVariables(d.userVariables);
+    try { window.localStorage.removeItem(draftOffer.key); } catch { /* ignore */ }
+    setDraftOffer(null);
+    setIsDirty(true);
+    setMsg("Черновик восстановлен"); setMsgType("success");
+  }, [draftOffer]);
+
+  const dismissDraft = useCallback(() => {
+    if (!draftOffer) return;
+    try { window.localStorage.removeItem(draftOffer.key); } catch { /* ignore */ }
+    setDraftOffer(null);
+  }, [draftOffer]);
+
   // Вычисляем безопасную зону в %
   const safePct = useMemo(() => ({
     xMin: (margins.left / PAGE_W) * 100,
@@ -347,8 +494,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     for (const el of elements) {
       const matches = el.text.matchAll(/\{([^}]+)\}/g);
       for (const m of matches) {
-        const key = m[1].trim();
-        if (!isGenderVariantPlaceholder(key)) found.add(key);
+        const key = placeholderKeyForUi(m[1]);
+        if (key) found.add(key);
       }
     }
     return [...found];
@@ -379,9 +526,49 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     FIO: fioDeclensionPreview.declinedFio,
   }), [previewVariables, fioDeclensionPreview]);
 
+  const getMaxZIndex = useCallback(() => {
+    const textZ = elements.map((item, index) => (typeof item.zIndex === "number" ? item.zIndex : index + 20));
+    const imageZ = images.map((item, index) => (typeof item.zIndex === "number" ? item.zIndex : index + 1));
+    return Math.max(0, ...textZ, ...imageZ);
+  }, [elements, images]);
+
+  const signerGroupCount = useMemo(() => {
+    const ids = new Set();
+    for (const item of [...elements, ...images]) {
+      if (item.signerGroupId) ids.add(item.signerGroupId);
+    }
+    return ids.size;
+  }, [elements, images]);
+
+  const layerItems = useMemo(() => {
+    const textItems = elements.map((el, index) => ({
+      kind: "element",
+      id: el.id,
+      label: el.signerGroupId
+        ? (el.text?.includes("{") ? "Переменная подписанта" : (el.text || "Текст подписанта"))
+        : (el.text || "Текст"),
+      group: el.signerGroupId,
+      hidden: !!el.hidden,
+      locked: !!el.locked,
+      z: typeof el.zIndex === "number" ? el.zIndex : index + 20,
+      icon: (el.text || "").includes("{") ? "▣" : "T",
+    }));
+    const imageItems = images.map((img, index) => ({
+      kind: "image",
+      id: img.id,
+      label: img.kind === "line" ? "Линия подписи" : (img.label || "Изображение"),
+      group: img.signerGroupId,
+      hidden: !!img.hidden,
+      locked: !!img.locked,
+      z: typeof img.zIndex === "number" ? img.zIndex : index + 1,
+      icon: img.kind === "line" ? "—" : "□",
+    }));
+    return [...textItems, ...imageItems].sort((a, b) => b.z - a.z);
+  }, [elements, images]);
+
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/certificates/fonts`)
+    fetch(`${API_BASE}/certificates/fonts`, { headers: authHeaders() })
       .then((res) => res.ok ? res.json() : Promise.reject(new Error("fonts")))
       .then((data) => {
         if (!cancelled) setAvailableFonts(mergeFontOptions(BUILTIN_FONTS, data.fonts));
@@ -409,7 +596,9 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!id) { resetToNew(); return; }
     setLoadingTemplate(true);
     try {
-      const res = await fetch(`${API_BASE}/certificates/templates/${id}/full`);
+      const res = await fetch(`${API_BASE}/certificates/templates/${id}/full`, {
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось загрузить шаблон"));
       const data = await res.json();
       const t = data.template;
@@ -430,41 +619,140 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         name_color: t.signers_name_color || "",
       });
 
-      // Конвертируем элементы из мм в %
-      setElements(data.elements.map((el, i) => ({
-        id: el.id || i + 1,
-        text: el.text,
-        x: (el.x_mm / PAGE_W) * 100,
-        y: (el.y_mm / PAGE_H) * 100,
-        size: el.font_size,
-        color: el.color || "#0F172A",
-        weight: el.font_weight || "400",
-        fontFamily: el.font_family || DEFAULT_FONT_FAMILY,
-        align: el.align,
-        maxWidthMm: el.max_width_mm,
-      })));
+      const loadedTextElements = [];
+      const loadedImages = [];
+      for (const [i, el] of (data.elements || []).entries()) {
+        const elementType = normalizeElementType(el.type || el.element_type);
+        const common = {
+          id: el.id || el.client_id || el.db_id || i + 1,
+          x: (Number(el.x_mm) / PAGE_W) * 100,
+          y: (Number(el.y_mm) / PAGE_H) * 100,
+          zIndex: typeof el.z_index === "number" ? el.z_index : undefined,
+          hidden: !!el.hidden,
+          locked: !!el.locked,
+          opacity: el.opacity ?? 1,
+          signerGroupId: el.signerGroupId || el.signer_group_id || null,
+        };
+        if (isImageElementType(elementType)) {
+          loadedImages.push({
+            ...common,
+            kind: elementType,
+            label: elementType === "line" ? "Линия подписи" : elementType === "stamp" ? "Печать" : elementType === "signature" ? "Подпись" : "Изображение",
+            file: null,
+            sourceUrl: el.source_url || null,
+            url: sourceUrlToPreview(el.source_url),
+            widthMm: el.width ?? el.width_mm ?? el.max_width_mm ?? 50,
+            heightMm: el.height ?? el.height_mm ?? el.max_height_mm ?? (elementType === "line" ? 0.6 : 30),
+          });
+        } else {
+          loadedTextElements.push({
+            ...common,
+            text: el.text || "",
+            size: el.font_size || 24,
+            color: el.color || "#0F172A",
+            weight: el.font_weight || "400",
+            italic: !!el.italic,
+            underline: !!el.underline,
+            lineHeight: el.line_height || 1.25,
+            fontFamily: el.font_family || DEFAULT_FONT_FAMILY,
+            align: el.align,
+            maxWidthMm: el.width ?? el.width_mm ?? el.max_width_mm,
+            maxHeightMm: el.height ?? el.height_mm ?? el.max_height_mm,
+            variableName: el.variableName || el.variable_name || null,
+            grammarSettings: el.grammar_settings || null,
+          });
+        }
+      }
+
+      const legacySignerText = [];
+      const legacySignerImages = [];
+      for (const [i, signer] of (data.signers || []).entries()) {
+        const groupId = `legacy_signer_${signer.id || i + 1}`;
+        const rowTop = (t.signers_y_mm || 248) + i * (t.signers_row_height_mm || 32) + (signer.offset_y_mm || 0);
+        const band = t.signers_band_width_mm || 168;
+        const leftEdge = (t.signers_block_x_mm || 105) - band / 2;
+        const rightEdge = (t.signers_block_x_mm || 105) + band / 2;
+        const midX = t.signers_block_x_mm || 105;
+        legacySignerText.push({
+          id: `${groupId}_position`,
+          text: signer.position || "Должность",
+          x: ((leftEdge + 4) / PAGE_W) * 100,
+          y: ((rowTop + 8) / PAGE_H) * 100,
+          size: t.signers_font_size || 10,
+          color: t.signers_position_color || t.signers_text_color || "#1e293b",
+          weight: t.signers_font_weight || "400",
+          fontFamily: t.signers_font_family || DEFAULT_FONT_FAMILY,
+          align: "left",
+          maxWidthMm: band * 0.38,
+          maxHeightMm: (t.signers_row_height_mm || 32) * 0.55,
+          signerGroupId: groupId,
+          zIndex: 40 + i * 4,
+          lineHeight: 1.2,
+        });
+        legacySignerText.push({
+          id: `${groupId}_name`,
+          text: signer.full_name || "Фамилия И.О.",
+          x: ((rightEdge - 4) / PAGE_W) * 100,
+          y: ((rowTop + 8) / PAGE_H) * 100,
+          size: t.signers_font_size || 10,
+          color: t.signers_name_color || t.signers_text_color || "#1e293b",
+          weight: t.signers_font_weight || "400",
+          fontFamily: t.signers_font_family || DEFAULT_FONT_FAMILY,
+          align: "right",
+          maxWidthMm: band * 0.38,
+          maxHeightMm: (t.signers_row_height_mm || 32) * 0.55,
+          signerGroupId: groupId,
+          zIndex: 41 + i * 4,
+          lineHeight: 1.2,
+        });
+        legacySignerImages.push({
+          id: `${groupId}_line`,
+          kind: "line",
+          label: "Линия подписи",
+          x: (midX / PAGE_W) * 100,
+          y: ((rowTop + 15) / PAGE_H) * 100,
+          widthMm: band * 0.24,
+          heightMm: 0.5,
+          opacity: 1,
+          signerGroupId: groupId,
+          zIndex: 42 + i * 4,
+        });
+        if (signer.facsimile_url) {
+          legacySignerImages.push({
+            id: `${groupId}_facsimile`,
+            kind: "signature",
+            label: "Факсимиле",
+            file: null,
+            sourceUrl: signer.facsimile_url,
+            url: sourceUrlToPreview(signer.facsimile_url),
+            x: ((midX + (signer.facsimile_offset_x_mm || 0)) / PAGE_W) * 100,
+            y: ((rowTop + 13 + (signer.facsimile_offset_y_mm || 0)) / PAGE_H) * 100,
+            widthMm: 52 * (signer.facsimile_scale || 1),
+            heightMm: 20 * (signer.facsimile_scale || 1),
+            opacity: 1,
+            signerGroupId: groupId,
+            zIndex: 43 + i * 4,
+          });
+        }
+      }
+
+      setElements([...loadedTextElements, ...legacySignerText]);
 
       setPreviewVariables({
         ...DEFAULT_PREVIEW_VARIABLES,
         ...readStoredPreviewVariables(id),
       });
 
-      setSigners(data.signers.length > 0 ? data.signers.map((s) => ({
-        id: s.id,
-        position: s.position,
-        fullName: s.full_name,
-        facFile: null,
-        facPreview: s.facsimile_url ? `${API_BASE}${s.facsimile_url}` : null,
-        facUrl: s.facsimile_url,
-        offsetY: s.offset_y_mm,
-        facOffsetX: s.facsimile_offset_x_mm,
-        facOffsetY: s.facsimile_offset_y_mm,
-        facScale: s.facsimile_scale,
-      })) : [{
-        id: "s1", position: "Директор", fullName: "",
-        facFile: null, facPreview: null, offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1,
-      }]);
+      setSigners([]);
+      setImages([...loadedImages, ...legacySignerImages]);
+      setSelectedImageId(null);
+      setSelectedSignerId(null);
 
+      // Сбрасываем dirty-флаг и статус после загрузки шаблона
+      skipDirtyRef.current = true;
+      setIsDirty(false);
+      setAutoSaveStatus("");
+      setSaveSuccess(false);
       setMsg(null);
     } catch (e) {
       setMsg(e.message); setMsgType("error");
@@ -479,13 +767,25 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setMargins({ left: 12, right: 12, top: 12, bottom: 12 });
     setSignersLayout({ y_mm: 248, x_mm: 105, row_h_mm: 32, band_mm: 168, font_size: 10, text_color: "#1e293b", font_weight: "400", font_family: DEFAULT_FONT_FAMILY, position_color: "", name_color: "" });
     setElements([
-      { id: 1, text: "Сертификат", x: 50, y: 14, size: 48, color: "#0F172A", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
-      { id: 2, text: "награждается", x: 50, y: 24, size: 22, color: "#64748B", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
-      { id: 3, text: "{ФИО}", x: 50, y: 38, size: 38, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY },
-      { id: 4, text: "за участие в {Мероприятие}", x: 50, y: 54, size: 18, color: "#475569", weight: "400", fontFamily: DEFAULT_FONT_FAMILY },
+      { id: 1, text: "ГРАМОТА", x: 50, y: 17, size: 28, color: "#004f75", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+      { id: 2, text: "НАГРАЖДАЕТСЯ", x: 50, y: 28, size: 34, color: "#17232b", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+      { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+      { id: 4, text: "{Мероприятие}", x: 50, y: 52, size: 18, color: "#17232b", weight: "600", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
     ]);
     setPreviewVariables(DEFAULT_PREVIEW_VARIABLES);
-    setSigners([{ id: "s1", position: "Директор", fullName: "", facFile: null, facPreview: null, offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1 }]);
+    setSigners([]);
+    setImages([]);
+    setSignerDraft({ position: "Директор ИМЦРО", fullName: "", facFile: null, facPreview: null, includeLine: true });
+    setSignerPresetOpen(false);
+    setUserVariables([]);
+    setSelectedImageId(null);
+    setSelectedSignerId(null);
+    setSelectedElementId(null);
+    // Сбрасываем dirty при переходе на новый шаблон
+    skipDirtyRef.current = true;
+    setIsDirty(false);
+    setAutoSaveStatus("");
+    setSaveSuccess(false);
     setMsg(null);
   };
 
@@ -496,7 +796,10 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setLoadingTemplate(true);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/certificates/templates/${editingId}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/certificates/templates/${editingId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Не удалось удалить шаблон"));
 
       if (typeof window !== "undefined") {
@@ -515,14 +818,14 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   };
 
   // ── Элементы ──────────────────────────────────────────────────────────────
-  const addElement = () => {
-    const newId = Math.max(0, ...elements.map((e) => e.id)) + 1;
+  const _addElement = () => {
+    const newId = createCanvasId("txt");
     const cx = (safePct.xMin + safePct.xMax) / 2;
     const cy = (safePct.yMin + safePct.yMax) / 2;
-    setElements((prev) => [...prev, { id: newId, text: "Новый текст", x: cx, y: cy, size: 24, color: "#000000", weight: "400", fontFamily: DEFAULT_FONT_FAMILY, maxWidthMm: null }]);
+    setElements((prev) => [...prev, { id: newId, text: "Новый текст", x: cx, y: cy, size: 24, color: "#000000", weight: "400", fontFamily: DEFAULT_FONT_FAMILY, maxWidthMm: null, zIndex: getMaxZIndex() + 1 }]);
   };
   const insertVariableBlock = (key) => {
-    const newId = Math.max(0, ...elements.map((e) => e.id)) + 1;
+    const newId = createCanvasId("txt");
     const cx = (safePct.xMin + safePct.xMax) / 2;
     const cy = Math.min(safePct.yMax, Math.max(safePct.yMin, 44 + (detectedPlaceholders.length % 4) * 6));
     setElements((prev) => [...prev, {
@@ -535,11 +838,12 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       weight: key === "ФИО" ? "700" : "500",
       fontFamily: DEFAULT_FONT_FAMILY,
       maxWidthMm: null,
+      zIndex: getMaxZIndex() + 1,
     }]);
   };
 
-  const insertGenderVariantBlock = (variantText) => {
-    const newId = Math.max(0, ...elements.map((e) => e.id)) + 1;
+  const _insertGenderVariantBlock = (variantText) => {
+    const newId = createCanvasId("txt");
     const cx = (safePct.xMin + safePct.xMax) / 2;
     const cy = Math.min(safePct.yMax, Math.max(safePct.yMin, 50 + (elements.length % 4) * 6));
     setElements((prev) => [...prev, {
@@ -552,11 +856,12 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       weight: "400",
       fontFamily: DEFAULT_FONT_FAMILY,
       maxWidthMm: 168,
+      zIndex: getMaxZIndex() + 1,
     }]);
   };
 
   /** Вставить текст в позицию курсора выбранного textarea */
-  const insertAtCursor = useCallback((elId, insertText) => {
+  const _insertAtCursor = useCallback((elId, insertText) => {
     const ta = textareaRefs.current[elId];
     setElements((prev) => {
       const el = prev.find((e) => e.id === elId);
@@ -590,8 +895,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setElements((prev) => {
       const src = prev.find((e) => e.id === id);
       if (!src) return prev;
-      const newId = Math.max(0, ...prev.map((e) => e.id)) + 1;
-      return [...prev, { ...src, id: newId, y: Math.min(safePct.yMax, src.y + 3) }];
+      const newId = createCanvasId("txt");
+      return [...prev, { ...src, id: newId, y: Math.min(safePct.yMax, src.y + 3), zIndex: getMaxZIndex() + 1 }];
     });
   };
 
@@ -665,10 +970,25 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   useHotkeys({
     "ctrl+z": () => undo(),
     "ctrl+shift+z": () => redo(),
+    "ctrl+y": () => redo(),
     "ctrl+s": () => { handleSave(); },
-    "delete": () => { if (selectedElementId) { pushUndo(); removeEl(selectedElementId); } },
-    "ctrl+d": () => { if (selectedElementId) { pushUndo(); duplicateEl(selectedElementId); } },
-    "escape": () => { setSelectedElementId(null); setCtxMenu(null); setPickerOpenId(null); },
+    "delete": () => {
+      if (selectedElementId) { pushUndo(); removeEl(selectedElementId); }
+      else if (selectedSignerId) { pushUndo(); removeSigner(selectedSignerId); }
+      else if (selectedImageId) { pushUndo(); removeImage(selectedImageId); }
+      else if (selectedElementId == null && typeof window !== "undefined" && window.__tpl_selImg) { /* noop */ }
+    },
+    "backspace": () => {
+      if (selectedElementId) { pushUndo(); removeEl(selectedElementId); }
+      else if (selectedSignerId) { pushUndo(); removeSigner(selectedSignerId); }
+    },
+    "ctrl+d": () => {
+      if (selectedElementId) { pushUndo(); duplicateEl(selectedElementId); }
+      else if (selectedSignerId) { pushUndo(); duplicateSigner(selectedSignerId); }
+    },
+    "ctrl+c": () => { if (selectedElementId || selectedImageId || selectedSignerId) copyElement(); },
+    "ctrl+v": () => { if (clipboardRef.current) pasteElement(); },
+    "escape": () => { setSelectedElementId(null); setSelectedImageId(null); setSelectedSignerId(null); setCtxMenu(null); setPickerOpenId(null); setLayersOpen(false); },
   });
 
   // Закрываем пикер по клику вне — bubble-phase на document (capture вызывал гонку с onClick кнопок)
@@ -684,29 +1004,59 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     };
   }, [pickerOpenId]);
 
-  // ── Автосохранение (localStorage backup, каждые 15с) ─────────────────────────
+  // ── Грязный флаг + автосохранение черновика в localStorage ────────────────
+  const skipDirtyRef = useRef(true);
+  useEffect(() => {
+    if (skipDirtyRef.current) { skipDirtyRef.current = false; return; }
+    setIsDirty(true);
+    setSaveSuccess(false); // сбрасываем зелёный статус при любом изменении
+    setAutoSaveStatus("dirty");
+  }, [name, elements, signers, margins, signersLayout, bgUrl, images, userVariables]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // автосохранение только если есть несохранённые изменения
+    if (!isDirty) return;
     const key = `cert-constructor-autosave:${editingId || "new"}`;
     clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       try {
-        const snapshot = JSON.stringify({ name, elements, signers, margins, signersLayout, bgUrl });
+        setAutoSaveStatus("saving");
+        const snapshot = JSON.stringify(stripObjectUrls({
+          name, elements, signers, margins, signersLayout, bgUrl,
+          userVariables, images: images.map((img) => ({ ...img, file: undefined, url: undefined })),
+        }));
         window.localStorage.setItem(key, snapshot);
-        setAutoSaveStatus("saved");
-        setTimeout(() => setAutoSaveStatus(""), 2000);
-      } catch { /* ignore */ }
-    }, 15000);
+        setAutoSaveStatus("autosaved");
+        setLastSavedAt(new Date());
+      } catch { setAutoSaveStatus("error"); }
+    }, 12000);
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [name, elements, signers, margins, signersLayout, bgUrl, editingId]);
+  }, [name, elements, signers, margins, signersLayout, bgUrl, images, userVariables, editingId, isDirty]);
+
+  // Предупреждение при выходе со страницы с несохранёнными изменениями
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handler = (e) => {
+      if (!isDirty) return undefined;
+      e.preventDefault();
+      e.returnValue = "У вас есть несохранённые изменения. Покинуть страницу?";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   // ── Подписанты ────────────────────────────────────────────────────────────
-  const addSigner = () => {
+  const _addSigner = () => {
     if (signers.length >= 3) return;
-    setSigners((prev) => [...prev, { id: `s_${Date.now()}`, position: "Должность", fullName: "", facFile: null, facPreview: null, offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1 }]);
+    setSigners((prev) => [...prev, { id: `s_${Date.now()}`, position: "Должность", fullName: "", facFile: null, facPreview: null, offsetY: 0, facOffsetX: 0, facOffsetY: 0, facScale: 1, showLine: true, align: "split" }]);
   };
   const updateSigner = (id, field, val) => setSigners((prev) => prev.map((s) => s.id === id ? { ...s, [field]: val } : s));
-  const removeSigner = (id) => setSigners((prev) => prev.length > 1 ? prev.filter((s) => s.id !== id) : prev);
+  const removeSigner = (id) => {
+    setSigners((prev) => prev.filter((s) => s.id !== id));
+    if (selectedSignerId === id) setSelectedSignerId(null);
+  };
 
   /** Простая загрузка факсимиле — локальный blob-превью без сетевых вызовов */
   const handleFacsimile = (id, e) => {
@@ -714,8 +1064,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!file || !file.type.startsWith("image/")) return;
     setSigners((prev) => prev.map((s) => {
       if (s.id !== id) return s;
-      if (s.facPreview && s.facFile) URL.revokeObjectURL(s.facPreview);
-      return { ...s, facFile: file, facPreview: URL.createObjectURL(file), facUrl: null };
+      if (s.facPreview && s.facFile) revokeObjectUrl(s.facPreview);
+      return { ...s, facFile: file, facPreview: createTrackedObjectUrl(file), facUrl: null };
     }));
     // Сбрасываем значение input, чтобы можно было загрузить тот же файл ещё раз
     e.target.value = "";
@@ -726,12 +1076,12 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     if (!window.confirm("Удалить факсимиле этого подписанта?")) return;
     setSigners((prev) => prev.map((s) => {
       if (s.id !== id) return s;
-      if (s.facPreview && s.facFile) URL.revokeObjectURL(s.facPreview);
+      if (s.facPreview && s.facFile) revokeObjectUrl(s.facPreview);
       return { ...s, facFile: null, facPreview: null, facUrl: null };
     }));
   };
 
-  const handleFontUpload = async (e) => {
+  const _handleFontUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -747,7 +1097,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API_BASE}/certificates/upload-font`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/certificates/upload-font`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+      });
       if (!res.ok) throw new Error(await getApiErrorMessage(res, "Ошибка загрузки шрифта"));
       const uploaded = await res.json();
       setAvailableFonts((prev) => mergeFontOptions(prev, [uploaded]));
@@ -761,16 +1115,398 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     }
   };
 
+  // ── Пользовательские переменные ───────────────────────────────────────────
+  const addCustomVariable = useCallback((rawName) => {
+    const cleaned = String(rawName || "").trim().replace(/[{}]/g, "").trim();
+    if (!cleaned) {
+      setMsg("Введите название переменной"); setMsgType("error"); return;
+    }
+    if (!/^[А-Яа-яЁё A-Za-z0-9_-]+$/.test(cleaned)) {
+      setMsg("Используйте буквы, цифры, пробелы и дефис"); setMsgType("error"); return;
+    }
+    const exists = [...QUICK_VARIABLES, ...userVariables].some((v) => v.toLowerCase() === cleaned.toLowerCase());
+    if (exists) {
+      setMsg("Такая переменная уже существует"); setMsgType("error"); return;
+    }
+    setUserVariables((prev) => [...prev, cleaned]);
+    setVariableDraft("");
+    setShowVariableInput(false);
+    setMsg(`Переменная «${cleaned}» добавлена`);
+    setMsgType("success");
+  }, [userVariables]);
+
+  const removeCustomVariable = useCallback((name) => {
+    setUserVariables((prev) => prev.filter((v) => v !== name));
+  }, []);
+
+  // ── Изображения (печати, подписи, декор) ──────────────────────────────────
+  const addImage = useCallback((kind, file) => {
+    if (!file || !file.type?.startsWith("image/")) {
+      setMsg("Выберите файл изображения"); setMsgType("error"); return;
+    }
+    const url = createTrackedObjectUrl(file);
+    const presets = {
+      stamp:     { label: "Печать", widthMm: 45, heightMm: 45, x: 70, y: 75, opacity: 0.92 },
+      signature: { label: "Подпись", widthMm: 55, heightMm: 22, x: 70, y: 70, opacity: 1 },
+      image:     { label: "Изображение", widthMm: 50, heightMm: 30, x: 50, y: 60, opacity: 1 },
+    };
+    const preset = presets[kind] || presets.image;
+    const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    pushUndo();
+    setImages((prev) => [...prev, {
+      id, kind, label: preset.label,
+      file, url, x: preset.x, y: preset.y,
+      widthMm: preset.widthMm, heightMm: preset.heightMm,
+      opacity: preset.opacity,
+      zIndex: getMaxZIndex() + 1,
+    }]);
+    setSelectedImageId(id);
+    setSelectedElementId(null);
+    setSelectedSignerId(null);
+  }, [createTrackedObjectUrl, pushUndo, getMaxZIndex]);
+
+  const updateImage = useCallback((id, patch) => {
+    setImages((prev) => prev.map((img) => img.id === id ? { ...img, ...patch } : img));
+  }, []);
+
+  const moveImage = useCallback((id, newX, newY) => {
+    setImages((prev) => prev.map((img) => img.id === id ? { ...img, x: newX, y: newY } : img));
+  }, []);
+
+  const removeImage = useCallback((id) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+    if (selectedImageId === id) setSelectedImageId(null);
+  }, [selectedImageId]);
+
+  const replaceImage = useCallback((id, file) => {
+    if (!file || !file.type?.startsWith("image/")) return;
+    const url = createTrackedObjectUrl(file);
+    setImages((prev) => prev.map((img) => img.id === id ? { ...img, file, url } : img));
+  }, [createTrackedObjectUrl]);
+
+  const handleSignerPresetFacsimile = useCallback((event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type?.startsWith("image/")) return;
+    const url = createTrackedObjectUrl(file);
+    setSignerDraft((prev) => {
+      if (prev.facPreview && prev.facFile) revokeObjectUrl(prev.facPreview);
+      return { ...prev, facFile: file, facPreview: url };
+    });
+  }, [createTrackedObjectUrl]);
+
+  const resetSignerDraft = useCallback(() => {
+    setSignerDraft((prev) => {
+      if (prev.facPreview && prev.facFile) revokeObjectUrl(prev.facPreview);
+      return { position: "Директор ИМЦРО", fullName: "", facFile: null, facPreview: null, includeLine: true };
+    });
+  }, []);
+
+  const addSignerPreset = useCallback(() => {
+    const position = signerDraft.position.trim();
+    const fullName = signerDraft.fullName.trim();
+    if (!position || !fullName) {
+      setMsg("Заполните должность и ФИО подписанта");
+      setMsgType("error");
+      return;
+    }
+
+    pushUndo();
+    const groupId = `signer_${Date.now()}_${signerGroupCount + 1}`;
+    const baseY = Math.min(88, 74 + signerGroupCount * 7);
+    const baseZ = getMaxZIndex() + 1;
+    const positionId = createCanvasId("txt");
+    const nameId = createCanvasId("txt");
+    const nextText = [
+      {
+        id: positionId,
+        text: position,
+        x: 22,
+        y: baseY,
+        size: 10,
+        color: "#1e293b",
+        weight: "500",
+        fontFamily: DEFAULT_FONT_FAMILY,
+        align: "left",
+        maxWidthMm: 78,
+        maxHeightMm: 18,
+        lineHeight: 1.2,
+        signerGroupId: groupId,
+        zIndex: baseZ,
+      },
+      {
+        id: nameId,
+        text: fullName,
+        x: 78,
+        y: baseY,
+        size: 10,
+        color: "#1e293b",
+        weight: "600",
+        fontFamily: DEFAULT_FONT_FAMILY,
+        align: "right",
+        maxWidthMm: 78,
+        maxHeightMm: 18,
+        lineHeight: 1.2,
+        signerGroupId: groupId,
+        zIndex: baseZ + 1,
+      },
+    ];
+    const nextImages = [];
+    if (signerDraft.includeLine) {
+      nextImages.push({
+        id: createCanvasId("line"),
+        kind: "line",
+        label: "Линия подписи",
+        x: 50,
+        y: baseY + 1.8,
+        widthMm: 58,
+        heightMm: 0.55,
+        opacity: 1,
+        signerGroupId: groupId,
+        zIndex: baseZ + 2,
+      });
+    }
+    if (signerDraft.facFile && signerDraft.facPreview) {
+      nextImages.push({
+        id: createCanvasId("sig"),
+        kind: "signature",
+        label: "Факсимиле",
+        file: signerDraft.facFile,
+        url: signerDraft.facPreview,
+        x: 50,
+        y: baseY - 0.4,
+        widthMm: 56,
+        heightMm: 20,
+        opacity: 1,
+        signerGroupId: groupId,
+        zIndex: baseZ + 3,
+      });
+    }
+
+    setElements((prev) => [...prev, ...nextText]);
+    setImages((prev) => [...prev, ...nextImages]);
+    setSelectedElementId(positionId);
+    setSelectedImageId(null);
+    setSelectedSignerId(null);
+    setSignerPresetOpen(false);
+    setSignerDraft({ position: "Директор ИМЦРО", fullName: "", facFile: null, facPreview: null, includeLine: true });
+    setMsg("Подписант добавлен как отдельные элементы");
+    setMsgType("success");
+  }, [getMaxZIndex, pushUndo, signerDraft, signerGroupCount]);
+
+  // ── Слои ───────────────────────────────────────────────────────────────────
+  const moveLayer = useCallback((kind, id, direction) => {
+    const allItems = [
+      ...elements.map((item, index) => ({ kind: "element", id: item.id, z: typeof item.zIndex === "number" ? item.zIndex : index + 20 })),
+      ...images.map((item, index) => ({ kind: "image", id: item.id, z: typeof item.zIndex === "number" ? item.zIndex : index + 1 })),
+    ].sort((a, b) => a.z - b.z);
+    const currentIndex = allItems.findIndex((item) => item.kind === kind && item.id === id);
+    if (currentIndex === -1) return;
+
+    const applyZ = (targetKind, targetId, zIndex) => {
+      const setter = targetKind === "image" ? setImages : setElements;
+      setter((prev) => prev.map((item) => item.id === targetId ? { ...item, zIndex } : item));
+    };
+
+    if (direction === "front") {
+      applyZ(kind, id, Math.max(...allItems.map((item) => item.z), 0) + 1);
+      return;
+    }
+    if (direction === "back") {
+      applyZ(kind, id, Math.min(...allItems.map((item) => item.z), 0) - 1);
+      return;
+    }
+
+    const targetIndex = direction === "up" ? currentIndex + 1 : direction === "down" ? currentIndex - 1 : currentIndex;
+    const target = allItems[targetIndex];
+    const current = allItems[currentIndex];
+    if (!target || target.id === current.id) return;
+    applyZ(current.kind, current.id, target.z);
+    applyZ(target.kind, target.id, current.z);
+  }, [elements, images]);
+
+  const moveElementZ = useCallback((id, direction) => {
+    moveLayer("element", id, direction);
+  }, [moveLayer]);
+
+  const toggleHidden = useCallback((kind, id) => {
+    const setter = kind === "image" ? setImages : setElements;
+    setter((prev) => prev.map((item) => item.id === id ? { ...item, hidden: !item.hidden } : item));
+  }, []);
+
+  const toggleLocked = useCallback((kind, id) => {
+    const setter = kind === "image" ? setImages : setElements;
+    setter((prev) => prev.map((item) => item.id === id ? { ...item, locked: !item.locked } : item));
+  }, []);
+
+  const centerElementH = useCallback((id) => {
+    setElements((prev) => prev.map((e) => e.id === id ? { ...e, x: 50, align: "center" } : e));
+  }, []);
+  const centerElementV = useCallback((id) => {
+    setElements((prev) => prev.map((e) => e.id === id ? { ...e, y: 50 } : e));
+  }, []);
+
+  const handleInlineEdit = useCallback((id, newText) => {
+    pushUndo();
+    setElements((prev) => prev.map((e) => e.id === id ? { ...e, text: newText } : e));
+  }, [pushUndo]);
+
+  const handleElementResize = useCallback((id, kind, patchOrWidth, heightMm) => {
+    const patch = typeof patchOrWidth === "object" && patchOrWidth !== null
+      ? patchOrWidth
+      : { widthMm: patchOrWidth, heightMm };
+    if (kind === "image") {
+      setImages((prev) => prev.map((img) => img.id === id ? { ...img, ...patch } : img));
+    } else {
+      setElements((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
+    }
+  }, []);
+
+  const copyElement = useCallback(() => {
+    if (selectedElementId) {
+      const el = elements.find((e) => e.id === selectedElementId);
+      if (el) clipboardRef.current = { kind: "element", data: el };
+    } else if (selectedImageId) {
+      const img = images.find((i) => i.id === selectedImageId);
+      if (img) clipboardRef.current = { kind: "image", data: img };
+    } else if (selectedSignerId) {
+      const signer = signers.find((s) => s.id === selectedSignerId);
+      if (signer) clipboardRef.current = { kind: "signer", data: signer };
+    }
+  }, [selectedElementId, selectedImageId, selectedSignerId, elements, images, signers]);
+
+  const pasteElement = useCallback(() => {
+    const buf = clipboardRef.current;
+    if (!buf) return;
+    pushUndo();
+    if (buf.kind === "element") {
+      const newId = createCanvasId("txt");
+      const cp = { ...buf.data, id: newId, x: Math.min(95, (buf.data.x || 50) + 3), y: Math.min(95, (buf.data.y || 50) + 3), zIndex: getMaxZIndex() + 1 };
+      setElements((prev) => [...prev, cp]);
+      setSelectedElementId(newId);
+      setSelectedImageId(null);
+      setSelectedSignerId(null);
+    } else {
+      if (buf.kind === "signer") {
+        if (signers.length >= 4) return;
+        const newId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+        const cp = {
+          ...buf.data,
+          id: newId,
+          offsetY: (Number(buf.data.offsetY) || 0) + 8,
+          zIndex: (typeof buf.data.zIndex === "number" ? buf.data.zIndex : 40) + 1,
+        };
+        setSigners((prev) => [...prev, cp]);
+        setSelectedSignerId(newId);
+        setSelectedImageId(null);
+        setSelectedElementId(null);
+        return;
+      }
+      const newId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+      const cp = { ...buf.data, id: newId, x: Math.min(95, (buf.data.x || 50) + 3), y: Math.min(95, (buf.data.y || 50) + 3), zIndex: getMaxZIndex() + 1 };
+      setImages((prev) => [...prev, cp]);
+      setSelectedImageId(newId);
+      setSelectedElementId(null);
+      setSelectedSignerId(null);
+    }
+  }, [pushUndo, signers.length, getMaxZIndex]);
+
+  // Подписанты — отдельный элемент конструктора
+  const _addSignerSlot = useCallback(() => {
+    if (signers.length >= 4) return;
+    const id = `s_${Date.now()}_${signers.length}`;
+    const offset = signers.length * 12;
+    setSigners((prev) => {
+      if (prev.length >= 4) return prev;
+      return [...prev, {
+        id,
+        position: "Должность",
+        fullName: "Фамилия И.О.",
+        facFile: null, facPreview: null,
+        offsetY: offset, facOffsetX: 0, facOffsetY: 0, facScale: 1,
+        showLine: true, align: "split",
+      }];
+    });
+    setSelectedSignerId(id);
+    setSelectedElementId(null);
+    setSelectedImageId(null);
+  }, [signers.length]);
+
+  const handleSignerMove = useCallback((id, xMm, yMm) => {
+    const idx = signers.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const roundedX = Math.round(clamp(xMm, 0, PAGE_W) * 10) / 10;
+    const roundedOffset = Math.round((yMm - signersLayout.y_mm - idx * signersLayout.row_h_mm) * 10) / 10;
+    setSignersLayout((p) => ({ ...p, x_mm: roundedX }));
+    setSigners((prev) => prev.map((s) => s.id === id ? { ...s, offsetY: roundedOffset } : s));
+  }, [signers, signersLayout.y_mm, signersLayout.row_h_mm]);
+
+  const handleSignerResize = useCallback((id, patch) => {
+    const idx = signers.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const nextWidth = Math.round(clamp(Number(patch.widthMm) || signersLayout.band_mm, 25, PAGE_W) * 10) / 10;
+    const nextHeight = Math.round(clamp(Number(patch.heightMm) || signersLayout.row_h_mm, 10, 160) * 10) / 10;
+    const nextX = Math.round(clamp(Number(patch.xMm) || signersLayout.x_mm, 0, PAGE_W) * 10) / 10;
+    const nextOffset = Math.round(((Number(patch.yMm) || signersLayout.y_mm) - signersLayout.y_mm - idx * nextHeight) * 10) / 10;
+    setSignersLayout((p) => ({ ...p, x_mm: nextX, band_mm: nextWidth, row_h_mm: nextHeight }));
+    setSigners((prev) => prev.map((s) => s.id === id ? { ...s, offsetY: nextOffset } : s));
+  }, [signers, signersLayout]);
+
+  const duplicateSigner = useCallback((id) => {
+    const src = signers.find((s) => s.id === id);
+    if (!src || signers.length >= 4) return;
+    const newId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    setSigners((prev) => [...prev, {
+      ...src,
+      id: newId,
+      offsetY: (Number(src.offsetY) || 0) + 8,
+      zIndex: (typeof src.zIndex === "number" ? src.zIndex : 40) + 1,
+    }]);
+    setSelectedSignerId(newId);
+    setSelectedElementId(null);
+    setSelectedImageId(null);
+  }, [signers]);
+
+  const moveSignerLayer = useCallback((id, direction) => {
+    setSigners((prev) => {
+      const zValues = prev.map((s, i) => typeof s.zIndex === "number" ? s.zIndex : 40 + i);
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const current = zValues[idx];
+      const nextZ = direction === "front"
+        ? Math.max(...zValues, 40) + 1
+        : direction === "back"
+          ? Math.min(...zValues, 40) - 1
+          : direction === "up"
+            ? current + 1
+            : direction === "down"
+              ? current - 1
+              : current;
+      return prev.map((s) => s.id === id ? { ...s, zIndex: nextZ } : s);
+    });
+  }, []);
+
+  const toggleSignerHidden = useCallback((id) => {
+    setSigners((prev) => prev.map((s) => s.id === id ? { ...s, hidden: !s.hidden } : s));
+  }, []);
+
+  const toggleSignerLocked = useCallback((id) => {
+    setSigners((prev) => prev.map((s) => s.id === id ? { ...s, locked: !s.locked } : s));
+  }, []);
+
   // ── Сохранение ────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!bgUrl && !bgFile) { setMsg("Выберите фон для шаблона"); setMsgType("error"); return; }
     setSaving(true); setMsg(null);
     try {
       // 1. Загружаем фон если новый файл
       let finalBgUrl = bgUrl?.startsWith("blob:") || bgFile ? null : (bgUrl?.replace(API_BASE, "") || null);
       if (bgFile) {
         const fd = new FormData(); fd.append("file", bgFile);
-        const r = await fetch(`${API_BASE}/certificates/upload-background`, { method: "POST", body: fd });
+        const r = await fetch(`${API_BASE}/certificates/upload-background`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: fd,
+        });
         if (!r.ok) throw new Error(await getApiErrorMessage(r, "Ошибка загрузки фона"));
         finalBgUrl = (await r.json()).background_url;
       }
@@ -782,7 +1518,11 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         let facUrl = s.facUrl || null;
         if (s.facFile) {
           const fd = new FormData(); fd.append("file", s.facFile);
-          const r = await fetch(`${API_BASE}/certificates/upload-facsimile`, { method: "POST", body: fd });
+          const r = await fetch(`${API_BASE}/certificates/upload-facsimile`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: fd,
+          });
           if (!r.ok) throw new Error(await getApiErrorMessage(r, "Ошибка загрузки факсимиле"));
           facUrl = (await r.json()).facsimile_url;
         }
@@ -798,20 +1538,83 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         });
       }
 
-      // 3. Конвертируем элементы из % в мм
+      // 3. Загружаем новые изображения, печати, подписи и факсимиле
+      const imageElementsData = [];
+      for (const img of images) {
+        let sourceUrl = sourceUrlToApi(img.sourceUrl || img.source_url || null);
+        if (img.kind !== "line" && img.file) {
+          const fd = new FormData();
+          fd.append("file", img.file);
+          const r = await fetch(`${API_BASE}/certificates/upload-image`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: fd,
+          });
+          if (!r.ok) throw new Error(await getApiErrorMessage(r, "Ошибка загрузки изображения"));
+          const uploaded = await r.json();
+          sourceUrl = uploaded.source_url || uploaded.image_url || null;
+        }
+        imageElementsData.push({
+          id: img.id,
+          type: imageKindToElementType(img.kind),
+          text: img.label || "",
+          value: img.label || "",
+          is_variable: false,
+          x_mm: (Number(img.x || 0) / 100) * PAGE_W,
+          y_mm: (Number(img.y || 0) / 100) * PAGE_H,
+          width: Number(img.widthMm) || (img.kind === "line" ? 58 : 40),
+          height: Number(img.heightMm) || (img.kind === "line" ? 0.55 : 25),
+          max_width_mm: Number(img.widthMm) || null,
+          max_height_mm: Number(img.heightMm) || null,
+          font_size: 12,
+          color: img.color || "#1e293b",
+          font_weight: "400",
+          font_family: DEFAULT_FONT_FAMILY,
+          align: "center",
+          line_height: 1,
+          z_index: typeof img.zIndex === "number" ? img.zIndex : 1,
+          hidden: !!img.hidden,
+          locked: !!img.locked,
+          opacity: img.opacity ?? 1,
+          source_url: sourceUrl,
+          signerGroupId: img.signerGroupId || null,
+          anchor: "center",
+        });
+      }
+
+      // 4. Конвертируем текстовые элементы из % в мм
       const elementsData = elements.map((el) => {
         const align = el.align || smartAlign(el.x, safePct.xMin, safePct.xMax);
+        const widthMm = el.maxWidthMm ? Number(el.maxWidthMm) : null;
+        const heightMm = el.maxHeightMm ? Number(el.maxHeightMm) : null;
         return {
+          id: el.id,
+          type: el.type || "text",
           text: el.text,
+          value: el.value || el.text,
           is_variable: el.text.includes("{"),
           x_mm: (el.x / 100) * PAGE_W,
           y_mm: (el.y / 100) * PAGE_H,
+          width: widthMm,
+          height: heightMm,
           font_size: el.size,
           color: el.color,
           font_weight: el.weight,
           font_family: el.fontFamily || DEFAULT_FONT_FAMILY,
           align,
-          max_width_mm: el.maxWidthMm ? Number(el.maxWidthMm) : null,
+          line_height: el.lineHeight || 1.25,
+          z_index: typeof el.zIndex === "number" ? el.zIndex : 20,
+          hidden: !!el.hidden,
+          locked: !!el.locked,
+          opacity: el.opacity ?? 1,
+          italic: !!el.italic,
+          underline: !!el.underline,
+          variableName: el.variableName || null,
+          grammar_settings: el.grammarSettings || null,
+          signerGroupId: el.signerGroupId || null,
+          anchor: "center",
+          max_width_mm: widthMm,
+          max_height_mm: heightMm,
         };
       });
 
@@ -826,26 +1629,32 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         signers_name_color: signersLayout.name_color || null,
         margin_left_mm: margins.left, margin_right_mm: margins.right,
         margin_top_mm: margins.top, margin_bottom_mm: margins.bottom,
-        elements: elementsData, signers: signersData,
+        elements: [...elementsData, ...imageElementsData], signers: signersData,
       };
 
       let res;
       if (mode === "edit" && editingId) {
         // Атомарное обновление
         res = await fetch(`${API_BASE}/certificates/templates/${editingId}/full`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+          method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(payload),
         });
       } else {
         // Атомарное создание нового шаблона
         res = await fetch(`${API_BASE}/certificates/templates/full`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify(payload),
         });
         if (res.ok) {
           const created = await res.json();
-          setMode("edit"); setEditingId(created.template.id);
-          writeStoredPreviewVariables(created.template.id, detectedPlaceholders, previewVariables);
-          setMsg("Шаблон создан и сохранён!"); setMsgType("success");
+          const newId = created.template.id;
+          setMode("edit"); setEditingId(newId);
+          writeStoredPreviewVariables(newId, detectedPlaceholders, previewVariables);
+          // Очищаем autosave-draft для нового шаблона
+          try { window.localStorage.removeItem(`cert-constructor-autosave:new`); } catch { /* ignore */ }
+          setIsDirty(false); setAutoSaveStatus("saved"); setLastSavedAt(new Date());
+          clearTimeout(saveSuccessTimerRef.current);
+          setSaveSuccess(true);
+          saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 4000);
           onTemplatesSaved?.();
           return;
         }
@@ -856,8 +1665,13 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       }
       if (mode === "edit" && editingId) {
         writeStoredPreviewVariables(editingId, detectedPlaceholders, previewVariables);
+        // Очищаем autosave-draft после ручного сохранения
+        try { window.localStorage.removeItem(`cert-constructor-autosave:${editingId}`); } catch { /* ignore */ }
       }
-      setMsg(mode === "edit" ? "Шаблон обновлён!" : "Шаблон сохранён!"); setMsgType("success");
+      setIsDirty(false); setAutoSaveStatus("saved"); setLastSavedAt(new Date());
+      clearTimeout(saveSuccessTimerRef.current);
+      setSaveSuccess(true);
+      saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 4000);
       onTemplatesSaved?.();
     } catch (e) {
       setMsg(e.message || "Ошибка сохранения"); setMsgType("error");
@@ -866,1113 +1680,1719 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     }
   };
 
-  // ── Рендер ────────────────────────────────────────────────────────────────
+  const selectedElement = selectedElementId == null ? null : (elements.find((element) => element.id === selectedElementId) || null);
+  const selectedAlign = selectedElement?.align || smartAlign(selectedElement?.x || 50, safePct.xMin, safePct.xMax);
+  const selectedSigner = selectedSignerId == null ? null : (signers.find((signer) => signer.id === selectedSignerId) || null);
+  const selectedSignerIndex = selectedSigner ? signers.findIndex((signer) => signer.id === selectedSigner.id) : -1;
+  const selectedSignerYmm = selectedSigner
+    ? signersLayout.y_mm + selectedSignerIndex * signersLayout.row_h_mm + (Number(selectedSigner.offsetY) || 0)
+    : signersLayout.y_mm;
+  const _addPresetBlock = (key) => {
+    pushUndo();
+    insertVariableBlock(key);
+  };
+  const addDecorBlock = (text, overrides = {}) => {
+    pushUndo();
+    const newId = createCanvasId("txt");
+    setElements((prev) => [...prev, {
+      id: newId,
+      text,
+      x: overrides.x ?? 50,
+      y: overrides.y ?? 64,
+      size: overrides.size ?? 16,
+      color: overrides.color ?? "#17232b",
+      weight: overrides.weight ?? "400",
+      fontFamily: DEFAULT_FONT_FAMILY,
+      align: overrides.align ?? "center",
+      maxWidthMm: overrides.maxWidthMm ?? 160,
+      maxHeightMm: overrides.maxHeightMm ?? null,
+      zIndex: overrides.zIndex ?? getMaxZIndex() + 1,
+    }]);
+    setSelectedElementId(newId);
+  };
+  const updateSelectedElement = (field, value) => {
+    if (!selectedElement) return;
+    updateEl(selectedElement.id, field, value);
+  };
+  const updateSelectedSignerField = (field, value) => {
+    if (!selectedSigner) return;
+    updateSigner(selectedSigner.id, field, value);
+  };
+  const updateSelectedSignerLayout = (field, value) => {
+    if (!selectedSigner) return;
+    const numeric = Number(value);
+    if (field === "x_mm") {
+      setSignersLayout((prev) => ({ ...prev, x_mm: Math.round(clamp(numeric, 0, PAGE_W) * 10) / 10 }));
+      return;
+    }
+    if (field === "y_mm") {
+      const nextOffset = Math.round((clamp(numeric, 0, PAGE_H) - signersLayout.y_mm - selectedSignerIndex * signersLayout.row_h_mm) * 10) / 10;
+      updateSigner(selectedSigner.id, "offsetY", nextOffset);
+      return;
+    }
+    if (field === "band_mm") {
+      setSignersLayout((prev) => ({ ...prev, band_mm: Math.round(clamp(numeric, 25, PAGE_W) * 10) / 10 }));
+      return;
+    }
+    if (field === "row_h_mm") {
+      setSignersLayout((prev) => ({ ...prev, row_h_mm: Math.round(clamp(numeric, 10, 160) * 10) / 10 }));
+      return;
+    }
+    setSignersLayout((prev) => ({ ...prev, [field]: value }));
+  };
+  const _handleCanvasPreview = () => {
+    setMsg("Предпросмотр обновляется на холсте в реальном времени.");
+    setMsgType("info");
+  };
+  const _visibleVariables = useMemo(() => {
+    const merged = new Set();
+    QUICK_VARIABLES.forEach((v) => merged.add(v));
+    detectedPlaceholders.forEach((v) => merged.add(v));
+    userVariables.forEach((v) => merged.add(v));
+    return [...merged];
+  }, [detectedPlaceholders, userVariables]);
+
+  const selectedImage = images.find((img) => img.id === selectedImageId) || null;
+  const ZOOM_STOPS = [50, 75, 100, 125, 150];
+  const setZoomStep = (delta) => {
+    const idx = ZOOM_STOPS.indexOf(zoom);
+    if (idx === -1) {
+      const nearest = ZOOM_STOPS.reduce((acc, v) => (Math.abs(v - zoom) < Math.abs(acc - zoom) ? v : acc), 100);
+      setZoom(nearest);
+      return;
+    }
+    const next = Math.max(0, Math.min(ZOOM_STOPS.length - 1, idx + delta));
+    setZoom(ZOOM_STOPS[next]);
+  };
+
+  const handleSelectElement = (id) => {
+    setSelectedElementId(id);
+    setSelectedImageId(null);
+    setSelectedSignerId(null);
+  };
+
+  const handleSelectImage = (id) => {
+    setSelectedImageId(id);
+    setSelectedElementId(null);
+    setSelectedSignerId(null);
+  };
+
+  const handleSelectSigner = (id) => {
+    setSelectedSignerId(id);
+    setSelectedElementId(null);
+    setSelectedImageId(null);
+  };
+
+  const clearCanvasSelection = useCallback(() => {
+    setSelectedElementId(null);
+    setSelectedImageId(null);
+    setSelectedSignerId(null);
+    setCtxMenu(null);
+  }, []);
+
+  const handleStampFile = (e) => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (f) addImage("stamp", f);
+  };
+  const handleSignatureFile = (e) => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (f) addImage("signature", f);
+  };
+  const handleGenericImageFile = (e) => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (f) addImage("image", f);
+  };
+  const handleReplaceImageFile = (e) => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (f && selectedImageId) replaceImage(selectedImageId, f);
+  };
+
   return (
-    <div
-      className="certificate-constructor-grid"
-      onKeyDown={(e) => {
-        // Блокируем браузерные перехватчики на уровне DOM-обёртки конструктора
-        if ((e.ctrlKey || e.metaKey) && ["s", "d", "z"].includes(e.key.toLowerCase())) {
-          e.preventDefault();
+    <section
+      className="template-workbench"
+      onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && ["s", "d", "z"].includes(event.key.toLowerCase())) {
+          event.preventDefault();
         }
-      }}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(380px, 1fr) minmax(360px, 560px)",
-        gap: 40,
-        alignItems: "start",
       }}
     >
       <style>{`
-        @keyframes certificatePreviewIn {
-          from { opacity: 0; transform: translate3d(0, 10px, 0); filter: saturate(0.92); }
-          to { opacity: 1; transform: translate3d(0, 0, 0); filter: saturate(1); }
+        .template-workbench {
+          --tpl-primary: #19789C;
+          --tpl-primary-dark: #004f75;
+          --tpl-border: #cdd8df;
+          --tpl-border-soft: #e5ebef;
+          --tpl-soft: #f4f8fa;
+          --tpl-muted: #667783;
+          --tpl-text: #17232b;
+          height: 100%;
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 280px minmax(0, 1fr) 320px;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 0;
+          margin: 0;
+          background: #f4f7f9;
+          border-top: 1px solid var(--tpl-border);
+          overflow: hidden;
+          font-family: inherit;
         }
-        @keyframes elCardIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+        .template-toolbar {
+          grid-column: 1 / -1;
+          min-height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 10px 18px;
+          border-bottom: 1px solid var(--tpl-border);
+          background: #fff;
+          flex-wrap: wrap;
         }
-        @keyframes elCardPulse {
-          0%, 100% { box-shadow: 0 0 0 0px rgba(59,130,246,0); }
-          40% { box-shadow: 0 0 0 8px rgba(59,130,246,0.35); }
+        .tpl-toolbar-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
         }
-        [data-pulsing="1"] {
-          animation: elCardPulse 0.9s ease-out;
+        .tpl-toolbar-title {
+          color: var(--tpl-primary-dark);
+          font-size: 15px;
+          font-weight: 900;
+          white-space: nowrap;
         }
-        @keyframes pickerIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0)   scale(1); }
+        .tpl-back-btn {
+          width: 34px;
+          height: 34px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-primary-dark);
+          cursor: pointer;
+          font-size: 16px;
         }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .tpl-back-btn:hover { border-color: var(--tpl-primary); background: #edf6f8; }
+        .tpl-title-input {
+          min-height: 34px;
+          width: 220px;
+          padding: 0 10px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 14px;
+          font-weight: 750;
         }
-        @media (max-width: 1099px) {
-          .certificate-constructor-grid {
-            grid-template-columns: 1fr !important;
+        .tpl-title-input:focus { outline: 0; border-color: var(--tpl-primary); box-shadow: 0 0 0 3px rgba(25,120,156,.14); }
+        .tpl-template-select {
+          min-height: 34px;
+          max-width: 200px;
+          padding: 0 10px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 13px;
+        }
+        .tpl-zoom {
+          display: inline-flex;
+          align-items: center;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          overflow: hidden;
+        }
+        .tpl-zoom button {
+          width: 28px;
+          height: 32px;
+          border: 0;
+          background: transparent;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 15px;
+          cursor: pointer;
+        }
+        .tpl-zoom button:hover:not(:disabled) { background: #edf6f8; }
+        .tpl-zoom button:disabled { color: #b2bec5; cursor: not-allowed; }
+        .tpl-zoom-value {
+          min-width: 48px;
+          text-align: center;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 13px;
+          font-weight: 800;
+          border-left: 1px solid var(--tpl-border-soft);
+          border-right: 1px solid var(--tpl-border-soft);
+          height: 32px;
+          line-height: 32px;
+          background: #f8fbfc;
+        }
+        .tpl-icon-btn {
+          width: 34px;
+          height: 34px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          cursor: pointer;
+          font-size: 14px;
+          padding: 0;
+        }
+        .tpl-icon-btn:hover:not(:disabled) { border-color: var(--tpl-primary); color: var(--tpl-primary-dark); background: #edf6f8; }
+        .tpl-icon-btn:disabled { color: #b2bec5; cursor: not-allowed; }
+        .tpl-icon-btn.is-active { border-color: var(--tpl-primary); background: var(--tpl-primary); color: #fff; }
+        .tpl-icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .tpl-mode-toggle {
+          display: inline-flex;
+          align-items: center;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #f4f7f9;
+          padding: 2px;
+        }
+        .tpl-mode-toggle button {
+          min-height: 28px;
+          padding: 0 10px;
+          border: 0;
+          background: transparent;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          border-radius: 6px;
+        }
+        .tpl-mode-toggle button.is-active {
+          background: var(--tpl-primary);
+          color: #fff;
+        }
+        .tpl-save-status {
+          font-size: 12px;
+          font-weight: 800;
+          color: var(--tpl-muted);
+          padding: 0 6px;
+          white-space: nowrap;
+        }
+        .tpl-save-status--saved { color: #047857; }
+        .tpl-save-status--autosaved { color: #19789C; }
+        .tpl-save-status--saving { color: var(--tpl-primary-dark); }
+        .tpl-save-status--dirty { color: #b45309; }
+        .tpl-save-status--error { color: #b91c1c; }
+        .tpl-btn {
+          min-height: 34px;
+          padding: 0 12px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .tpl-btn:hover:not(:disabled) { border-color: var(--tpl-primary); color: var(--tpl-primary-dark); background: #edf6f8; }
+        .tpl-btn:disabled { color: #b2bec5; cursor: not-allowed; }
+        .tpl-btn.secondary { border-color: var(--tpl-primary); color: var(--tpl-primary-dark); }
+        .tpl-btn.primary {
+          border-color: var(--tpl-primary);
+          background: var(--tpl-primary);
+          color: #fff;
+          box-shadow: 0 6px 16px rgba(25,120,156,.22);
+        }
+        .tpl-btn.primary:hover:not(:disabled) { background: var(--tpl-primary-dark); border-color: var(--tpl-primary-dark); }
+        .tpl-btn.primary:disabled { background: #b2bec5; border-color: #b2bec5; box-shadow: none; color: #fff; }
+        .tpl-btn.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+        .tpl-btn.danger:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; }
+
+        .tpl-side {
+          min-height: 0;
+          background: #fff;
+          border-right: 1px solid var(--tpl-border);
+          overflow: auto;
+        }
+        .tpl-side.right {
+          border-right: 0;
+          border-left: 1px solid var(--tpl-border);
+        }
+        .tpl-section {
+          padding: 16px 16px 18px;
+          border-bottom: 1px solid var(--tpl-border-soft);
+        }
+        .tpl-section h3 {
+          margin: 0 0 10px;
+          color: var(--tpl-primary-dark);
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: .04em;
+        }
+        .tpl-section p.tpl-hint {
+          margin: 0 0 10px;
+          color: var(--tpl-muted);
+          font-size: 12px;
+          line-height: 1.45;
+        }
+        .tpl-var-grid {
+          display: grid;
+          gap: 6px;
+        }
+        .tpl-var-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 9px;
+          border: 1px solid var(--tpl-border-soft);
+          border-radius: 8px;
+          background: #f8fbfc;
+        }
+        .tpl-var-row.custom { background: #edf6f8; border-color: #cfe0e7; }
+        .tpl-var-chip {
+          min-width: 0;
+          color: var(--tpl-primary-dark);
+          font-size: 13px;
+          font-weight: 850;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .tpl-var-insert {
+          min-height: 26px;
+          padding: 0 8px;
+          border: 1px solid var(--tpl-primary);
+          background: #fff;
+          color: var(--tpl-primary-dark);
+          font: inherit;
+          font-size: 11px;
+          font-weight: 850;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .tpl-var-insert:hover { background: var(--tpl-primary); color: #fff; }
+        .tpl-var-remove {
+          width: 26px;
+          height: 26px;
+          border: 1px solid var(--tpl-border-soft);
+          background: #fff;
+          color: #b91c1c;
+          border-radius: 6px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          padding: 0;
+        }
+        .tpl-add-var {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 6px;
+          margin-top: 8px;
+        }
+        .tpl-add-var input {
+          min-height: 32px;
+          padding: 0 10px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 13px;
+        }
+        .tpl-add-var input:focus { outline: 0; border-color: var(--tpl-primary); box-shadow: 0 0 0 3px rgba(25,120,156,.14); }
+        .tpl-element-grid {
+          display: grid;
+          gap: 7px;
+        }
+        .tpl-element-btn {
+          min-height: 38px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 12px;
+          border: 1px solid var(--tpl-border-soft);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 13px;
+          font-weight: 750;
+          cursor: pointer;
+          text-align: left;
+        }
+        .tpl-element-btn:hover { border-color: var(--tpl-primary); background: #edf6f8; color: var(--tpl-primary-dark); }
+        .tpl-element-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+        .tpl-block-list {
+          display: grid;
+          gap: 6px;
+          max-height: 280px;
+          overflow: auto;
+        }
+        .tpl-block-row {
+          display: grid;
+          grid-template-columns: 18px minmax(0, 1fr) auto auto;
+          gap: 8px;
+          align-items: center;
+          padding: 8px 10px;
+          border: 1px solid var(--tpl-border-soft);
+          border-radius: 8px;
+          background: #fff;
+          cursor: pointer;
+          transition: border .14s ease, background .14s ease;
+        }
+        .tpl-block-row:hover { border-color: var(--tpl-primary); background: #f3f9fb; }
+        .tpl-block-row.is-active { border-color: var(--tpl-primary); background: #edf6f8; }
+        .tpl-block-row .tpl-block-kind {
+          color: var(--tpl-primary-dark);
+          font-size: 12px;
+          font-weight: 900;
+        }
+        .tpl-block-row .tpl-block-label {
+          min-width: 0;
+          color: var(--tpl-text);
+          font-size: 13px;
+          font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .tpl-block-row .tpl-block-tag {
+          font-size: 10px;
+          font-weight: 900;
+          text-transform: uppercase;
+          color: var(--tpl-muted);
+          letter-spacing: .04em;
+        }
+        .tpl-block-row .tpl-block-tag.variable { color: var(--tpl-primary-dark); }
+        .tpl-block-row .tpl-block-delete {
+          width: 24px;
+          height: 24px;
+          border: 0;
+          background: transparent;
+          color: #b91c1c;
+          cursor: pointer;
+          font-size: 14px;
+          padding: 0;
+          border-radius: 6px;
+        }
+        .tpl-block-row .tpl-block-delete:hover { background: #fef2f2; }
+
+        .tpl-canvas-area {
+          min-width: 0;
+          min-height: 0;
+          overflow: auto;
+          background-color: #eef3f6;
+          background-image: radial-gradient(rgba(143,179,191,.6) 1px, transparent 1px);
+          background-size: 22px 22px;
+          padding: 32px 24px;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+        }
+        .tpl-canvas-frame {
+          width: 100%;
+          max-width: calc(560px * var(--tpl-zoom, 1));
+          margin: 0 auto;
+          transition: max-width .18s ease;
+        }
+        .tpl-canvas-sheet {
+          background: #fff;
+          border: 1px solid #cdd8df;
+          box-shadow: 0 24px 60px rgba(15,23,42,.14);
+          padding: 12px;
+          border-radius: 4px;
+        }
+
+        .tpl-props {
+          display: grid;
+          gap: 12px;
+        }
+        .tpl-props label {
+          display: grid;
+          gap: 5px;
+          color: #52636d;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: .04em;
+          text-transform: uppercase;
+        }
+        .tpl-props input, .tpl-props select, .tpl-props textarea {
+          min-height: 34px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 14px;
+          font-weight: 600;
+          padding: 7px 10px;
+          outline: 0;
+        }
+        .tpl-props textarea { resize: vertical; }
+        .tpl-props input:focus, .tpl-props select:focus, .tpl-props textarea:focus {
+          border-color: var(--tpl-primary);
+          box-shadow: 0 0 0 3px rgba(25,120,156,.14);
+        }
+        .tpl-prop-grid-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .tpl-prop-color {
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+        }
+        .tpl-prop-color input[type="color"] { padding: 2px; width: 42px; height: 34px; }
+        .tpl-toggle-row {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 4px;
+          padding: 3px;
+          border: 1px solid var(--tpl-border);
+          border-radius: 8px;
+          background: #f4f7f9;
+        }
+        .tpl-toggle-row.tpl-toggle-row-4 {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .tpl-toggle-row button {
+          min-height: 30px;
+          border: 0;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--tpl-text);
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .tpl-toggle-row button.is-active {
+          background: #fff;
+          color: var(--tpl-primary-dark);
+          box-shadow: 0 2px 6px rgba(15,23,42,.08);
+        }
+        .tpl-empty-props {
+          padding: 18px 14px;
+          color: var(--tpl-muted);
+          font-size: 13px;
+          line-height: 1.5;
+          text-align: center;
+        }
+        .tpl-divider { height: 1px; background: var(--tpl-border-soft); margin: 6px 0; }
+        .tpl-action-section {
+          display: grid;
+          gap: 8px;
+        }
+        .tpl-action-title {
+          color: #52636d;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: .04em;
+          text-transform: uppercase;
+        }
+        .tpl-action-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .tpl-action-grid .tpl-btn {
+          width: 100%;
+          min-height: 36px;
+          justify-content: center;
+          text-align: center;
+          padding: 0 10px;
+        }
+        .tpl-checkbox-row {
+          display: flex !important;
+          grid-template-columns: none !important;
+          align-items: center;
+          gap: 8px !important;
+          min-height: 34px;
+          color: var(--tpl-text) !important;
+          font-size: 13px !important;
+          font-weight: 800 !important;
+          letter-spacing: 0 !important;
+          text-transform: none !important;
+        }
+        .tpl-checkbox-row input[type="checkbox"] {
+          width: 16px;
+          min-height: 16px;
+          height: 16px;
+          padding: 0;
+          accent-color: var(--tpl-primary);
+        }
+
+        .tpl-layers-popover {
+          position: absolute;
+          top: 56px;
+          right: 24px;
+          width: 380px;
+          max-height: 460px;
+          background: #fff;
+          border: 1px solid var(--tpl-border);
+          border-radius: 10px;
+          box-shadow: 0 18px 36px rgba(15,23,42,.16);
+          z-index: 40;
+          overflow: auto;
+          padding: 12px;
+        }
+        .tpl-layers-popover h4 {
+          margin: 0 0 8px;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+          color: var(--tpl-primary-dark);
+        }
+        .tpl-layer-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto auto auto auto auto auto;
+          gap: 2px;
+          align-items: center;
+          padding: 5px 6px;
+          border: 1px solid var(--tpl-border-soft);
+          border-radius: 6px;
+          margin-bottom: 4px;
+          background: #fff;
+          cursor: pointer;
+        }
+        .tpl-layer-row.is-active { border-color: var(--tpl-primary); background: #edf6f8; }
+        .tpl-layer-row span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--tpl-text);
+        }
+        .tpl-layer-row button {
+          width: 22px;
+          height: 22px;
+          border: 0;
+          background: transparent;
+          color: var(--tpl-muted);
+          cursor: pointer;
+          padding: 0;
+          font-size: 13px;
+        }
+        .tpl-layer-row button:hover { color: var(--tpl-primary-dark); background: #f0f4f6; border-radius: 4px; }
+        .tpl-layer-row .delete-btn:hover { color: #b91c1c; background: #fef2f2; }
+
+        @media (max-width: 1280px) {
+          .template-workbench {
+            grid-template-columns: 240px minmax(0, 1fr) 280px;
           }
-          .certificate-preview-card {
-            position: relative !important;
-            top: auto !important;
-            max-height: none !important;
+        }
+        @media (max-width: 1040px) {
+          .template-workbench {
+            grid-template-columns: 1fr;
+            margin: 0;
           }
+          .tpl-side, .tpl-side.right { border: 0; border-bottom: 1px solid var(--tpl-border); max-height: none; }
+          .tpl-canvas-area { padding: 16px; }
         }
       `}</style>
-      {/* Описание модуля + полоса горячих клавиш */}
-      <div style={{ gridColumn: "1 / -1", marginBottom: 8 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
-          Конструктор шаблонов
-        </h2>
-        <p style={{ fontSize: 15, color: "#64748B", margin: "0 0 8px" }}>
-          Создайте или отредактируйте внешний вид грамоты. Справа отображается предпросмотр — он обновляется в реальном времени.
-          Перетаскивайте элементы прямо на превью. Правый клик — контекстное меню.
-        </p>
-        <div style={{
-          display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
-          padding: "6px 12px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0",
-        }}>
-          {[
-            ["Ctrl+S", "Сохранить"],
-            ["Ctrl+Z", "Отмена"],
-            ["Ctrl+Shift+Z", "Повтор"],
-            ["Ctrl+D", "Дублировать"],
-            ["Del", "Удалить"],
-            ["Esc", "Снять выделение"],
-            ["2×клик", "Открыть настройки"],
-          ].map(([key, label]) => (
-            <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748B" }}>
-              <kbd style={{
-                background: "#fff", border: "1px solid #D1D5DB", borderRadius: 4,
-                padding: "1px 5px", fontSize: 10, fontWeight: 700, fontFamily: "inherit",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-              }}>{key}</kbd>
-              <span style={{ fontWeight: 500 }}>{label}</span>
-            </span>
-          ))}
-          {autoSaveStatus === "saved" && (
-            <span style={{ marginLeft: "auto", fontSize: 11, color: "#059669", fontWeight: 600 }}>✓ Автосохранено</span>
+
+      <div className="template-toolbar">
+        <div className="tpl-toolbar-group" style={{ minWidth: 0, flex: 1 }}>
+          <span className="tpl-toolbar-title">Конструктор шаблонов</span>
+          <input
+            className="tpl-title-input"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            aria-label="Название шаблона"
+            placeholder="Название шаблона"
+          />
+          <select
+            className="tpl-template-select"
+            value={editingId ?? ""}
+            disabled={loadingTemplate}
+            onChange={(event) => loadTemplate(Number(event.target.value) || null)}
+            aria-label="Загрузить шаблон"
+            title="Открыть существующий шаблон"
+          >
+            <option value="">+ Новый шаблон</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>{template.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="tpl-toolbar-group">
+          <button type="button" className="tpl-icon-btn" onClick={undo} disabled={undoStack.length === 0} title="Отменить (Ctrl+Z)" aria-label="Отменить">
+            <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 5 5v0a5 5 0 0 1-5 5h-4"/></svg>
+          </button>
+          <button type="button" className="tpl-icon-btn" onClick={redo} disabled={redoStack.length === 0} title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить">
+            <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5M20 9H9a5 5 0 0 0-5 5v0a5 5 0 0 0 5 5h4"/></svg>
+          </button>
+          <div className="tpl-zoom" title="Масштаб холста">
+            <button type="button" onClick={() => setZoomStep(-1)} disabled={zoom <= ZOOM_STOPS[0]} aria-label="Уменьшить">−</button>
+            <span className="tpl-zoom-value">{zoom}%</span>
+            <button type="button" onClick={() => setZoomStep(1)} disabled={zoom >= ZOOM_STOPS[ZOOM_STOPS.length - 1]} aria-label="Увеличить">+</button>
+          </div>
+          <button
+            type="button"
+            className={`tpl-icon-btn${showGrid ? " is-active" : ""}`}
+            onClick={() => setShowGrid((value) => !value)}
+            title="Сетка"
+            aria-label="Сетка"
+            aria-pressed={showGrid}
+          >
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M4 16h16M10 4v16M16 4v16"/></svg>
+          </button>
+          <button
+            type="button"
+            className={`tpl-icon-btn${layersOpen ? " is-active" : ""}`}
+            onClick={() => setLayersOpen((value) => !value)}
+            title="Слои"
+            aria-label="Слои"
+            aria-pressed={layersOpen}
+          >
+            <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5ZM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
+          </button>
+          <div className="tpl-mode-toggle" role="group" aria-label="Режим конструктора">
+            <button
+              type="button"
+              className={editorMode === "edit" ? "is-active" : ""}
+              onClick={() => setEditorMode("edit")}
+              title="В этом режиме видны переменные {ФИО} и подсказки"
+            >Редактирование</button>
+            <button
+              type="button"
+              className={editorMode === "preview" ? "is-active" : ""}
+              onClick={() => setEditorMode("preview")}
+              title="В этом режиме подставляются тестовые значения переменных"
+            >Просмотр</button>
+          </div>
+        </div>
+
+        <div className="tpl-toolbar-group">
+          <input
+            ref={bgInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (isObjectUrl(bgUrl)) revokeObjectUrl(bgUrl);
+              setBgFile(file);
+              setBgUrl(createTrackedObjectUrl(file));
+            }}
+          />
+          <span className={`tpl-save-status tpl-save-status--${
+            saveSuccess ? "saved" :
+            autoSaveStatus === "saving" || saving ? "saving" :
+            autoSaveStatus === "error" ? "error" :
+            isDirty ? "dirty" : "idle"
+          }`}>
+            {(() => {
+              if (saving || autoSaveStatus === "saving") return "Сохраняется…";
+              if (saveSuccess) return lastSavedAt
+                ? `Шаблон успешно сохранён • ${lastSavedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+                : "Шаблон успешно сохранён";
+              if (autoSaveStatus === "saved") return lastSavedAt
+                ? `Сохранено ${lastSavedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+                : "Сохранено";
+              if (autoSaveStatus === "autosaved") return lastSavedAt
+                ? `Черновик ${lastSavedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+                : "Черновик сохранён";
+              if (autoSaveStatus === "error") return "Ошибка сохранения";
+              if (isDirty) return "Есть несохранённые изменения";
+              return "";
+            })()}
+          </span>
+          <button type="button" className="tpl-btn secondary" onClick={() => bgInputRef.current?.click()}>
+            Загрузить фон
+          </button>
+          {editingId && (
+            <button type="button" className="tpl-btn danger" onClick={handleDeleteTemplate} disabled={saving || loadingTemplate}>
+              Удалить
+            </button>
           )}
+          <button type="button" className="tpl-btn primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Сохранение..." : "Сохранить шаблон"}
+          </button>
         </div>
       </div>
 
-      {/* Онбординг — показывается при первом открытии */}
-      {showOnboarding && (
-        <div style={{
-          gridColumn: "1 / -1", marginBottom: 4,
-          background: "linear-gradient(135deg, #EAF7FA 0%, #F0FDF4 100%)",
-          border: "1px solid #A9D9E7",
-          borderRadius: 12,
-          padding: "16px 20px",
-          position: "relative",
-        }}>
-          <button
-            type="button"
-            onClick={() => {
-              setShowOnboarding(false);
-              try { window.localStorage.setItem("constructor-onboarding-v1-dismissed", "1"); } catch { /* ignore */ }
-            }}
-            style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1 }}
-            title="Закрыть подсказку"
-          >×</button>
-          <div style={{ fontWeight: 800, fontSize: 14, color: "#19789C", marginBottom: 10 }}>
-            Быстрый старт
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
-            {[
-              ["1️⃣", "Загрузите фон грамоты", "PNG или JPG с бланком"],
-              ["2️⃣", "Добавьте текстовые блоки", "Кнопка «+ Добавить блок»"],
-              ["3️⃣", "Используйте переменные", "{ФИО}, {Класс} — заменятся при генерации"],
-              ["4️⃣", "Перетаскивайте блоки", "Прямо на превью справа"],
-              ["5️⃣", "2× клик на блоке", "Откроет его настройки в панели"],
-              ["6️⃣", "Сохраните шаблон", "Ctrl+S или кнопка «Сохранить»"],
-            ].map(([icon, title, desc]) => (
-              <div key={title} style={{ background: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "8px 10px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#145F7D", marginBottom: 2 }}>{icon} {title}</div>
-                <div style={{ fontSize: 11, color: "#64748B" }}>{desc}</div>
+      {draftOffer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="draft-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(11,31,42,0.52)",
+            backdropFilter: "blur(2px)",
+            padding: "16px",
+          }}
+        >
+          <div style={{
+            background: "#fff",
+            borderRadius: 14,
+            boxShadow: "0 24px 64px rgba(11,31,42,0.22)",
+            padding: "32px 32px 28px",
+            maxWidth: 440,
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <span style={{
+                width: 44, height: 44, borderRadius: "50%",
+                background: "#edf6f8",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#19789C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </span>
+              <div>
+                <h2 id="draft-modal-title" style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800, color: "#0b1f2a", lineHeight: 1.2 }}>
+                  Обнаружен несохранённый черновик
+                </h2>
+                <p style={{ margin: 0, fontSize: 14, color: "#4a6370", lineHeight: 1.55 }}>
+                  Найден черновик шаблона{draftOffer.data?.name ? ` «${draftOffer.data.name}»` : ""}.
+                  {" "}Хотите восстановить его?
+                </p>
               </div>
-            ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+              <button
+                type="button"
+                className="tpl-btn secondary"
+                onClick={dismissDraft}
+                autoFocus
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="tpl-btn primary"
+                onClick={restoreDraft}
+              >
+                Восстановить
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      <div>
+      {layersOpen && (
+        <div className="tpl-layers-popover" role="dialog" aria-label="Слои">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h4 style={{ margin: 0 }}>Слои на холсте</h4>
+            <button type="button" className="tpl-icon-btn" style={{ width: 26, height: 26 }} onClick={() => setLayersOpen(false)} aria-label="Закрыть">×</button>
+          </div>
+          <p style={{ margin: "8px 0 10px", color: "#667783", fontSize: 11, lineHeight: 1.4 }}>
+            Сверху списка — верхние слои. Они перекрывают нижние на холсте и в PDF.
+          </p>
+          {elements.length === 0 && images.length === 0 && signers.length === 0 && (
+            <p style={{ margin: 0, color: "#667783", fontSize: 12 }}>Добавьте элементы на холст, чтобы они появились здесь.</p>
+          )}
+          {layerItems.map((item) => {
+            const isLocked = !!item.locked;
+            const isHidden = !!item.hidden;
+            const isActive = item.kind === "image" ? selectedImageId === item.id : selectedElementId === item.id;
+            const selectItem = item.kind === "image" ? handleSelectImage : handleSelectElement;
+            const removeItem = item.kind === "image" ? removeImage : removeEl;
+            return (
+              <div
+                key={`${item.kind}-${item.id}`}
+                className={`tpl-layer-row${isActive ? " is-active" : ""}`}
+                onClick={() => selectItem(item.id)}
+                style={isHidden ? { opacity: 0.5 } : undefined}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: item.kind === "image" ? "#004f75" : "#19789C", fontSize: 11, fontWeight: 900 }}>{item.icon}</span>
+                  <span style={{ minWidth: 0 }}>
+                    {item.group ? `Подписант · ${item.label}` : item.label}
+                  </span>
+                </span>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveLayer(item.kind, item.id, "front"); }} title="На передний план" style={{ fontSize: 11 }}>⤒</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveLayer(item.kind, item.id, "up"); }} title="Выше">▲</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveLayer(item.kind, item.id, "down"); }} title="Ниже">▼</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveLayer(item.kind, item.id, "back"); }} title="На задний план" style={{ fontSize: 11 }}>⤓</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); toggleHidden(item.kind, item.id); }} title={isHidden ? "Показать" : "Скрыть"} style={{ color: isHidden ? "#b91c1c" : undefined }}>{isHidden ? "○" : "●"}</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); toggleLocked(item.kind, item.id); }} title={isLocked ? "Разблокировать" : "Заблокировать"} style={{ color: isLocked ? "#b45309" : undefined }}>{isLocked ? "■" : "□"}</button>
+                <button type="button" className="delete-btn" onClick={(e) => { e.stopPropagation(); pushUndo(); removeItem(item.id); }} title="Удалить">×</button>
+              </div>
+            );
+          })}
+          {SHOW_LEGACY_LAYER_SECTIONS && [...elements].reverse().map((el) => {
+            const isVar = (el.text || "").includes("{");
+            const isLocked = !!el.locked;
+            const isHidden = !!el.hidden;
+            return (
+              <div
+                key={`el-${el.id}`}
+                className={`tpl-layer-row${selectedElementId === el.id ? " is-active" : ""}`}
+                onClick={() => handleSelectElement(el.id)}
+                style={isHidden ? { opacity: 0.5 } : undefined}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: isVar ? "#19789C" : "#667783", fontSize: 11, fontWeight: 900 }}>{isVar ? "▣" : "T"}</span>
+                  {el.text}
+                </span>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveElementZ(el.id, "front"); }} title="На передний план" style={{ fontSize: 11 }}>⤒</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveElementZ(el.id, "up"); }} title="Выше">▲</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveElementZ(el.id, "down"); }} title="Ниже">▼</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveElementZ(el.id, "back"); }} title="На задний план" style={{ fontSize: 11 }}>⤓</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleHidden("element", el.id); }} title={isHidden ? "Показать" : "Скрыть"} style={{ color: isHidden ? "#b91c1c" : undefined }}>{isHidden ? "🚫" : "👁"}</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleLocked("element", el.id); }} title={isLocked ? "Разблокировать" : "Заблокировать"} style={{ color: isLocked ? "#b45309" : undefined }}>{isLocked ? "🔒" : "🔓"}</button>
+                <button type="button" className="delete-btn" onClick={(e) => { e.stopPropagation(); pushUndo(); removeEl(el.id); }} title="Удалить">×</button>
+              </div>
+            );
+          })}
+          {SHOW_LEGACY_LAYER_SECTIONS && [...signers].sort((a, b) => (typeof (b.zIndex) === "number" ? b.zIndex : 40) - (typeof (a.zIndex) === "number" ? a.zIndex : 40)).map((signer, index) => {
+            const isLocked = !!signer.locked;
+            const isHidden = !!signer.hidden;
+            return (
+              <div
+                key={`signer-${signer.id}`}
+                className={`tpl-layer-row${selectedSignerId === signer.id ? " is-active" : ""}`}
+                onClick={() => handleSelectSigner(signer.id)}
+                style={isHidden ? { opacity: 0.5 } : undefined}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "#004f75", fontSize: 11, fontWeight: 900 }}>П</span>
+                  {signer.fullName || `Подписант ${index + 1}`}
+                </span>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveSignerLayer(signer.id, "front"); }} title="На передний план" style={{ fontSize: 11 }}>⤒</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveSignerLayer(signer.id, "up"); }} title="Выше">▲</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveSignerLayer(signer.id, "down"); }} title="Ниже">▼</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveSignerLayer(signer.id, "back"); }} title="На задний план" style={{ fontSize: 11 }}>⤓</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleSignerHidden(signer.id); }} title={isHidden ? "Показать" : "Скрыть"} style={{ color: isHidden ? "#b91c1c" : undefined }}>{isHidden ? "🚫" : "👁"}</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleSignerLocked(signer.id); }} title={isLocked ? "Разблокировать" : "Заблокировать"} style={{ color: isLocked ? "#b45309" : undefined }}>{isLocked ? "🔒" : "🔓"}</button>
+                <button type="button" className="delete-btn" onClick={(e) => { e.stopPropagation(); pushUndo(); removeSigner(signer.id); }} title="Удалить">×</button>
+              </div>
+            );
+          })}
+          {SHOW_LEGACY_LAYER_SECTIONS && [...images].reverse().map((img) => {
+            const isLocked = !!img.locked;
+            const isHidden = !!img.hidden;
+            return (
+              <div
+                key={`img-${img.id}`}
+                className={`tpl-layer-row${selectedImageId === img.id ? " is-active" : ""}`}
+                onClick={() => handleSelectImage(img.id)}
+                style={isHidden ? { opacity: 0.5 } : undefined}
+              >
+                <span>🖼 {img.label || img.kind}</span>
+                <button type="button" onClick={(e) => { e.stopPropagation(); moveLayer("image", img.id, "front"); }} title="На передний план" style={{ fontSize: 11 }}>⤒</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); moveLayer("image", img.id, "up"); }} title="Выше">▲</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); moveLayer("image", img.id, "down"); }} title="Ниже">▼</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); moveLayer("image", img.id, "back"); }} title="На задний план" style={{ fontSize: 11 }}>⤓</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleHidden("image", img.id); }} title={isHidden ? "Показать" : "Скрыть"} style={{ color: isHidden ? "#b91c1c" : undefined }}>{isHidden ? "🚫" : "👁"}</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggleLocked("image", img.id); }} title={isLocked ? "Разблокировать" : "Заблокировать"} style={{ color: isLocked ? "#b45309" : undefined }}>{isLocked ? "🔒" : "🔓"}</button>
+                <button type="button" className="delete-btn" onClick={(e) => { e.stopPropagation(); removeImage(img.id); }} title="Удалить">×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        {/* Выбор шаблона для редактирования */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0F172A" }}>
-              {mode === "edit" ? `Редактирование: «${name}»` : "Создать новый шаблон"}
-            </h3>
+      <aside className="tpl-side" aria-label="Элементы и переменные">
+        <div className="tpl-section">
+          <h3>Переменные</h3>
+          <p className="tpl-hint">Подставляются при выпуске грамоты. Колонки Excel должны совпадать с названиями.</p>
+          <div className="tpl-var-grid">
+            {QUICK_VARIABLES.map((key) => (
+              <div className="tpl-var-row" key={`base-${key}`}>
+                <span className="tpl-var-chip">{`{${key}}`}</span>
+                <button type="button" className="tpl-var-insert" onClick={() => { pushUndo(); insertVariableBlock(key); }} title="Вставить на холст">Вставить</button>
+                <span style={{ width: 26 }} />
+              </div>
+            ))}
+            {userVariables.map((key) => (
+              <div className="tpl-var-row custom" key={`user-${key}`}>
+                <span className="tpl-var-chip">{`{${key}}`}</span>
+                <button type="button" className="tpl-var-insert" onClick={() => { pushUndo(); insertVariableBlock(key); }} title="Вставить на холст">Вставить</button>
+                <button type="button" className="tpl-var-remove" onClick={() => removeCustomVariable(key)} title="Убрать переменную">×</button>
+              </div>
+            ))}
+          </div>
+          {showVariableInput ? (
+            <div className="tpl-add-var">
+              <input
+                value={variableDraft}
+                onChange={(event) => setVariableDraft(event.target.value)}
+                placeholder="Например: Школа"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") { event.preventDefault(); addCustomVariable(variableDraft); }
+                  if (event.key === "Escape") { setShowVariableInput(false); setVariableDraft(""); }
+                }}
+                autoFocus
+              />
+              <button type="button" className="tpl-btn primary" onClick={() => addCustomVariable(variableDraft)} style={{ minHeight: 32, padding: "0 12px" }}>
+                Добавить
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                padding: "10px 24px",
-                background: saving ? "#CBD5E1" : "linear-gradient(135deg,#059669,#10B981)",
-                color: "#fff", border: "none", borderRadius: 10,
-                fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontSize: 14,
-                boxShadow: saving ? "none" : "0 4px 12px rgba(5,150,105,0.3)",
-                fontFamily: "inherit",
-              }}
+              className="tpl-element-btn"
+              style={{ marginTop: 8, justifyContent: "center", color: "var(--tpl-primary-dark)", borderStyle: "dashed", borderColor: "#b9cbd4" }}
+              onClick={() => setShowVariableInput(true)}
             >
-              {saving ? "Сохраняем…" : mode === "edit" ? "Сохранить изменения" : "Сохранить шаблон"}
+              + Добавить переменную
             </button>
-          </div>
-          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#94A3B8" }}>
-            {mode === "edit"
-              ? "Вносите изменения — предпросмотр обновляется автоматически. Нажмите «Сохранить изменения» когда всё готово."
-              : "Создайте оформление с нуля или выберите существующий шаблон для редактирования ниже."}
-          </p>
+          )}
+        </div>
 
-          {/* Библиотека шаблонов */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Загрузить существующий шаблон для редактирования</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select
-                disabled={loadingTemplate}
-                onChange={(e) => loadTemplate(Number(e.target.value) || null)}
-                value={editingId ?? ""}
-                style={{ ...inputStyle, flex: 1, background: "#fff" }}
-              >
-                <option value="">— Создать новый —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              {mode === "edit" && (
-                <>
-                  <button type="button" onClick={resetToNew}
-                    style={{ padding: "0 16px", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 10, cursor: "pointer", fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>
-                    + Новый
+        <div className="tpl-section">
+          <h3>Элементы</h3>
+          <div className="tpl-element-grid">
+            <button type="button" className="tpl-element-btn" onClick={() => { pushUndo(); addDecorBlock("Новый текст", { y: 46, size: 20 }); }}>
+              <svg viewBox="0 0 24 24"><path d="M4 6h16M9 6v14M14 6v14M4 18h6M14 18h6"/></svg>
+              Добавить текст
+            </button>
+            <button type="button" className="tpl-element-btn" onClick={() => { pushUndo(); insertVariableBlock("ФИО"); }}>
+              <svg viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h8"/></svg>
+              Вставить переменную
+            </button>
+            <input type="file" accept="image/*" ref={stampInputRef} style={{ display: "none" }} onChange={handleStampFile} />
+            <button type="button" className="tpl-element-btn" onClick={() => stampInputRef.current?.click()}>
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>
+              Загрузить печать
+            </button>
+            <input type="file" accept="image/*" ref={signatureInputRef} style={{ display: "none" }} onChange={handleSignatureFile} />
+            <button type="button" className="tpl-element-btn" onClick={() => signatureInputRef.current?.click()}>
+              <svg viewBox="0 0 24 24"><path d="M3 18c4-2 6-8 9-8s4 4 9 2"/></svg>
+              Загрузить подпись
+            </button>
+            <input type="file" accept="image/*" ref={imageInputRef} style={{ display: "none" }} onChange={handleGenericImageFile} />
+            <button type="button" className="tpl-element-btn" onClick={() => imageInputRef.current?.click()}>
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 17 4-5 4 4 3-3 5 5"/><circle cx="9" cy="10" r="1.4"/></svg>
+              Добавить изображение
+            </button>
+            <button type="button" className="tpl-element-btn" onClick={() => bgInputRef.current?.click()}>
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 14l6-4 5 4 4-3 3 3"/></svg>
+              Загрузить фон
+            </button>
+            <button
+              type="button"
+              className="tpl-element-btn"
+              onClick={() => {
+                resetSignerDraft();
+                setSignerPresetOpen(true);
+              }}
+              disabled={signerGroupCount >= 4}
+              title={signerGroupCount >= 4 ? "Максимум 4 подписанта" : "Добавить подписанта"}
+            >
+              <svg viewBox="0 0 24 24"><path d="M4 19c2-3 5-4 8-4s6 1 8 4M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
+              Добавить подписанта {signerGroupCount > 0 ? `(${signerGroupCount}/4)` : ""}
+            </button>
+            {signerPresetOpen && (
+              <div className="tpl-props" style={{ gridColumn: "1 / -1", display: "grid", gap: 10, border: "1px solid var(--tpl-border-soft)", borderRadius: 8, padding: 10, background: "#f8fbfc" }}>
+                <input type="file" accept="image/*" ref={signerFacInputRef} style={{ display: "none" }} onChange={handleSignerPresetFacsimile} />
+                <label>
+                  Должность
+                  <input
+                    value={signerDraft.position}
+                    onChange={(event) => setSignerDraft((prev) => ({ ...prev, position: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  ФИО подписанта
+                  <input
+                    value={signerDraft.fullName}
+                    onChange={(event) => setSignerDraft((prev) => ({ ...prev, fullName: event.target.value }))}
+                  />
+                </label>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => signerFacInputRef.current?.click()}>
+                    {signerDraft.facPreview ? "Заменить факсимиле" : "Загрузить факсимиле"}
                   </button>
                   <button
                     type="button"
-                    onClick={handleDeleteTemplate}
-                    disabled={loadingTemplate}
-                    style={{ padding: "0 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, cursor: loadingTemplate ? "not-allowed" : "pointer", fontWeight: 700, color: "#B91C1C", whiteSpace: "nowrap", opacity: loadingTemplate ? 0.7 : 1 }}>
-                    Удалить
+                    className="tpl-btn"
+                    onClick={() => setSignerDraft((prev) => {
+                      if (prev.facPreview && prev.facFile) revokeObjectUrl(prev.facPreview);
+                      return { ...prev, facFile: null, facPreview: null };
+                    })}
+                    disabled={!signerDraft.facPreview}
+                  >
+                    Убрать факсимиле
                   </button>
-                </>
-              )}
-            </div>
-            {loadingTemplate && <div style={{ fontSize: 14, color: "#94A3B8", marginTop: 6 }}>Загрузка шаблона…</div>}
-          </div>
-
-          {/* Миниатюры шаблонов */}
-          {templates.length > 0 && (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-              {templates.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => loadTemplate(t.id)}
-                  title={t.name}
-                  style={{
-                    width: 72, height: 100, borderRadius: 8, overflow: "hidden", cursor: "pointer",
-                    border: editingId === t.id ? "3px solid #19789C" : "2px solid #E2E8F0",
-                    background: "#F1F5F9", flexShrink: 0, position: "relative",
-                    transition: "border-color 0.15s, transform 0.1s",
-                    transform: editingId === t.id ? "scale(1.05)" : "scale(1)",
-                  }}
-                >
-                  {t.background_url ? (
-                    <img src={`${API_BASE}${t.background_url}`} alt={t.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📄</div>
-                  )}
-                  <div style={{
-                    position: "absolute", bottom: 0, left: 0, right: 0,
-                    background: "rgba(0,0,0,0.55)", color: "#fff",
-                    fontSize: 9, padding: "3px 4px", textAlign: "center",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>{t.name}</div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {msg && <AlertBanner type={msgType}>{msg}</AlertBanner>}
-        </div>
-
-        {/* Основные настройки */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Основные настройки</h3>
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>
-              <span style={{ display: "flex", alignItems: "center" }}>
-                Название шаблона
-                <Tooltip text="Внутреннее название для вашего удобства. Будет отображаться в списке при выборе оформления грамоты." />
-              </span>
-            </label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />
-          </div>
-          <div>
-            <label style={labelStyle}>
-              <span style={{ display: "flex", alignItems: "center" }}>
-                Фоновое изображение грамоты
-                <Tooltip text="Загрузите PNG или JPG-файл с бланком грамоты. Текст и подписи будут добавлены поверх этого изображения. Рекомендуемый размер: 2480×3508 пикселей (A4 @ 300 DPI)." />
-              </span>
-            </label>
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Загрузить фоновое изображение"
-              onClick={() => bgInputRef.current?.click()}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") bgInputRef.current?.click(); }}
-              onDragEnter={(e) => {
-                e.preventDefault();
-                bgDragCounter.current++;
-                if (bgDragCounter.current === 1) setBgDrag(true);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                bgDragCounter.current--;
-                if (bgDragCounter.current === 0) setBgDrag(false);
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                bgDragCounter.current = 0;
-                setBgDrag(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f && f.type.startsWith("image/")) {
-                  setBgFile(f);
-                  setBgUrl(URL.createObjectURL(f));
-                }
-              }}
-              style={{
-                border: `2px dashed ${bgDrag ? "#059669" : bgUrl ? "#059669" : "#CBD5E1"
-                  }`,
-                borderRadius: 12,
-                padding: "28px 20px",
-                textAlign: "center",
-                cursor: "pointer",
-                background: bgDrag ? "#F0FDF4" : bgUrl ? "#F0FDF4" : "#F8FAFC",
-                marginTop: 8,
-                transition: "border-color 0.15s, background 0.15s",
-                outline: "none",
-              }}
-            >
-              <input
-                ref={bgInputRef}
-                type="file"
-                accept="image/png,image/jpeg"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) { setBgFile(f); setBgUrl(URL.createObjectURL(f)); }
-                }}
-              />
-              {bgDrag ? (
-                <>
-                  <div style={{ fontSize: 28, marginBottom: 6, color: "#059669" }}>↓</div>
-                  <div style={{ fontSize: 14, color: "#059669", fontWeight: 700 }}>Отпустите файл здесь</div>
-                  <div style={{ fontSize: 12, color: "#10B981", marginTop: 4 }}>PNG или JPG</div>
-                </>
-              ) : bgUrl ? (
-                <>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
-                  <div style={{ fontSize: 14, color: "#059669", fontWeight: 700 }}>Фон загружен</div>
-                  <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>Нажмите или перетащите новый файл для замены</div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>🖼️</div>
-                  <div style={{ fontSize: 14, color: "#334155", fontWeight: 600 }}>Перетащите файл или нажмите для выбора</div>
-                  <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>PNG или JPG, рекомендуется A4 @ 300 DPI</div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Шрифты */}
-        <div style={{ ...sectionBox("#F8FAFC", "#CBD5E1"), marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700 }}>Шрифты</h3>
-          <p style={{ fontSize: 13, color: "#475569", margin: "0 0 14px", lineHeight: 1.5 }}>
-            Загрузите TTF или OTF, затем выберите его в любом текстовом блоке или в блоке подписей.
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <label style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "9px 14px",
-              background: uploadingFont ? "#E2E8F0" : "#fff",
-              border: "1px solid #CBD5E1",
-              borderRadius: 8,
-              cursor: uploadingFont ? "not-allowed" : "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#334155",
-            }}>
-              {uploadingFont ? "Загрузка…" : "Загрузить шрифт"}
-              <input
-                type="file"
-                accept=".ttf,.otf,font/ttf,font/otf"
-                disabled={uploadingFont}
-                onChange={handleFontUpload}
-                style={{ display: "none" }}
-              />
-            </label>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {availableFonts.map((font) => (
-                <span
-                  key={font.font_family}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    background: "#fff",
-                    border: "1px solid #E2E8F0",
-                    fontSize: 12,
-                    color: "#475569",
-                    fontFamily: `"${font.font_family}", DejaVu Sans, Arial, sans-serif`,
-                  }}
-                >
-                  {font.font_family}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Поля грамоты */}
-        <div style={{ ...sectionBox("#FEF2F2", "#FECACA"), marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700 }}>Отступы по краям</h3>
-          <p style={{ fontSize: 13, color: "#7F1D1D", margin: "0 0 14px", lineHeight: 1.5 }}>
-            Задайте «безопасную зону» — текст не выйдет за эти границы.
-            Красная рамка в предпросмотре показывает рабочую область.
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {[["left", "Слева"], ["right", "Справа"], ["top", "Сверху"], ["bottom", "Снизу"]].map(([k, label]) => (
-              <label key={k} style={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
-                {label}: {margins[k]} мм
-                <input
-                  type="range"
-                  min={0}
-                  max={120}
-                  value={margins[k]}
-                  onChange={(e) => setMargins((p) => ({ ...p, [k]: Number(e.target.value) }))}
-                  style={{ width: "100%", marginTop: 4 }}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Блок подписей */}
-        <div style={{ ...sectionBox("#F0FDF4", "#BBF7D0"), marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700 }}>Расположение блока подписей</h3>
-          <p style={{ fontSize: 13, color: "#14532D", margin: "0 0 14px", lineHeight: 1.5 }}>
-            Настройте положение подписей, расстояние между должностью и ФИО и единый размер шрифта.
-            Должность всегда слева, ФИО — всегда справа.
-          </p>
-          <div style={{ display: "grid", gap: 12 }}>
-            {[
-              ["x_mm", "Положение блока по X", -50, 300, "мм"],
-              ["y_mm", "Положение блока по Y", -50, 350, "мм"],
-              ["band_mm", "Расстояние между «Должность» и «ФИО»", 40, 280, "мм"],
-              ["font_size", "Размер шрифта", 5, 72, "pt"],
-            ].map(([k, label, lo, hi, unit]) => (
-              <label key={k} style={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
-                {label}: {signersLayout[k]} {unit}
-                <input
-                  type="range"
-                  min={lo}
-                  max={hi}
-                  step={k === "font_size" ? 0.5 : 1}
-                  value={signersLayout[k]}
-                  onChange={(e) => setSignersLayout((p) => ({ ...p, [k]: Number(e.target.value) }))}
-                  style={{ width: "100%", marginTop: 4 }}
-                />
-              </label>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 16 }}>
-            <label style={{ fontSize: 14, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>
-              Шрифт подписей
-            </label>
-            <select
-              value={signersLayout.font_family || DEFAULT_FONT_FAMILY}
-              onChange={(e) => setSignersLayout((p) => ({ ...p, font_family: e.target.value }))}
-              style={{ ...inputStyle, padding: "8px 10px", fontSize: 14, background: "#fff" }}
-            >
-              {availableFonts.map((font) => (
-                <option key={font.font_family} value={font.font_family}>{font.font_family}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Цвета текста подписантов */}
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#334155", marginBottom: 10 }}>Цвет текста подписантов</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>Общий цвет</label>
-                <input type="color" value={signersLayout.text_color} onChange={(e) => setSignersLayout((p) => ({ ...p, text_color: e.target.value }))}
-                  style={{ width: "100%", height: 36, padding: 0, border: "1px solid #D1D5DB", cursor: "pointer", borderRadius: 6 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>Должность
-                  <Tooltip text="Оставьте пустым — будет использоваться общий цвет. Если задать — переопределит общий цвет только для должности." />
-                </label>
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <input type="color" value={signersLayout.position_color || signersLayout.text_color} onChange={(e) => setSignersLayout((p) => ({ ...p, position_color: e.target.value }))}
-                    style={{ width: "100%", height: 36, padding: 0, border: "1px solid #D1D5DB", cursor: "pointer", borderRadius: 6 }} />
-                  {signersLayout.position_color && (
-                    <button type="button" onClick={() => setSignersLayout((p) => ({ ...p, position_color: "" }))}
-                      title="Сбросить на общий цвет"
-                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>ФИО
-                  <Tooltip text="Оставьте пустым — будет использоваться общий цвет. Если задать — переопределит общий цвет только для ФИО." />
-                </label>
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <input type="color" value={signersLayout.name_color || signersLayout.text_color} onChange={(e) => setSignersLayout((p) => ({ ...p, name_color: e.target.value }))}
-                    style={{ width: "100%", height: 36, padding: 0, border: "1px solid #D1D5DB", cursor: "pointer", borderRadius: 6 }} />
-                  {signersLayout.name_color && (
-                    <button type="button" onClick={() => setSignersLayout((p) => ({ ...p, name_color: "" }))}
-                      title="Сбросить на общий цвет"
-                      style={{ background: "#FEE2E2", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 14, color: "#EF4444", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Подписанты */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                Подписанты
-                <Tooltip text="Руководители, которые подписывают грамоту. Укажите их должность и ФИО. Можно добавить факсимиле — изображение подписи в формате PNG с прозрачным фоном." />
-              </span>
-            </h3>
-          </div>
-          <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 14px", lineHeight: 1.5 }}>
-            Максимум 3 подписанта. У каждого: должность, ФИО и (опционально) факсимиле.
-          </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            {signers.length < 3 && (
-              <button type="button" onClick={addSigner}
-                style={{ padding: "8px 18px", background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
-                + Добавить подписанта
-              </button>
-            )}
-          </div>
-          {signers.map((s, idx) => (
-            <div key={s.id} style={{ border: "1px solid #E2E8F0", borderRadius: 12, padding: 14, marginBottom: 10, background: "#FAFAFA", position: "relative" }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#475569", marginBottom: 10 }}>Подписант {idx + 1}</div>
-              {signers.length > 1 && (
-                <button type="button" onClick={() => removeSigner(s.id)}
-                  style={{ ...dangerBtn, position: "absolute", top: 10, right: 10 }}>Удалить</button>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-                <div>
-                  <label style={{ ...labelStyle, fontSize: 14 }}>Должность</label>
-                  <input type="text" value={s.position} onChange={(e) => updateSigner(s.id, "position", e.target.value)}
-                    placeholder="Директор" style={{ ...inputStyle, padding: "10px 12px", fontSize: 14 }} />
-                </div>
-                <div>
-                  <label style={{ ...labelStyle, fontSize: 14 }}>ФИО</label>
-                  <input type="text" value={s.fullName} onChange={(e) => updateSigner(s.id, "fullName", e.target.value)}
-                    placeholder="Иванов И.И." style={{ ...inputStyle, padding: "10px 12px", fontSize: 14 }} />
-                </div>
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <label style={{ ...labelStyle, fontSize: 14 }}>Факсимиле</label>
-                  {(s.facPreview || s.facUrl) && (
-                    <button
-                      type="button"
-                      onClick={() => clearFacsimile(s.id)}
-                      title="Удалить факсимиле"
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 4,
-                        padding: "4px 10px", background: "#FEE2E2", color: "#B91C1C",
-                        border: "1px solid #FECACA", borderRadius: 6,
-                        cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                      }}
-                    >
-                      🗑️ Удалить
-                    </button>
-                  )}
-                </div>
-                <input type="file" accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => handleFacsimile(s.id, e)}
-                  style={{ width: "100%", padding: "6px", background: "#fff", borderRadius: 8, border: "1px solid #CBD5E1" }} />
-                {s.facPreview && (
-                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{
-                      borderRadius: 8, padding: 6, border: "1px solid #E2E8F0", background: "#F8FAFC",
-                      backgroundImage: "linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%)",
-                      backgroundSize: "10px 10px", backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
-                    }}>
-                      <img src={s.facPreview} alt="факсимиле" style={{ maxHeight: 48, maxWidth: 120, objectFit: "contain", display: "block" }} />
-                    </div>
-                    <span style={{ fontSize: 11, color: "#94A3B8" }}>Загружено</span>
+                {signerDraft.facPreview && (
+                  <div style={{ display: "flex", justifyContent: "center", padding: 6, borderRadius: 6, background: "#fff", border: "1px solid var(--tpl-border-soft)" }}>
+                    <img src={signerDraft.facPreview} alt="Факсимиле" style={{ maxWidth: 150, maxHeight: 54, objectFit: "contain" }} />
                   </div>
                 )}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>
-                  X факсимиле: {s.facOffsetX} мм
+                <label className="tpl-checkbox-row">
                   <input
-                    type="range"
-                    min={-150}
-                    max={150}
-                    value={s.facOffsetX}
-                    onChange={(e) => updateSigner(s.id, "facOffsetX", Number(e.target.value))}
-                    style={{ width: "100%", marginTop: 4 }}
+                    type="checkbox"
+                    checked={!!signerDraft.includeLine}
+                    onChange={(event) => setSignerDraft((prev) => ({ ...prev, includeLine: event.target.checked }))}
                   />
+                  Добавить линию подписи
                 </label>
-                <label style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>
-                  Y факсимиле: {s.facOffsetY} мм
-                  <input
-                    type="range"
-                    min={-150}
-                    max={150}
-                    value={s.facOffsetY}
-                    onChange={(e) => updateSigner(s.id, "facOffsetY", Number(e.target.value))}
-                    style={{ width: "100%", marginTop: 4 }}
-                  />
-                </label>
-                <label style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>
-                  Масштаб: {Number(s.facScale).toFixed(1)}x
-                  <input
-                    type="range"
-                    min={0.1}
-                    max={6}
-                    step={0.1}
-                    value={s.facScale}
-                    onChange={(e) => updateSigner(s.id, "facScale", Number(e.target.value))}
-                    style={{ width: "100%", marginTop: 4 }}
-                  />
-                </label>
-              </div>
-              <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>
-                Сдвиг строки вниз: {s.offsetY} мм
-                <input type="range" min={-150} max={200} value={s.offsetY}
-                  onChange={(e) => updateSigner(s.id, "offsetY", Number(e.target.value))}
-                  style={{ width: "100%", marginTop: 4 }} />
-              </label>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ ...sectionBox("#F8FAFC", "#E2E8F0"), marginBottom: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Переменные шаблона</h3>
-            <Tooltip text={
-              "Переменные заменяются на данные при генерации грамоты.\n\n" +
-              "Формат: {НазваниеКолонки} — берётся из Excel.\n\n" +
-              "Склонение:\n" +
-              "• {ФИО:дательный} → Иванову Ивану\n" +
-              "• {ФИО:родительный} → Иванова Ивана\n" +
-              "• {ФИО:именительный} → Иванов Иван\n\n" +
-              "Слова по полу:\n" +
-              "• {род:ученику|ученице}\n" +
-              "• {род:награждён|награждена}\n\n" +
-              "Пол определяется автоматически по окончанию ФИО."
-            } />
-          </div>
-          <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.8, marginBottom: 12, padding: "10px 14px", background: "#EAF7FA", borderRadius: 8, border: "1px solid #A9D9E7" }}>
-            <div style={{ fontWeight: 700, color: "#145F7D", marginBottom: 6, fontSize: 13 }}>Как вставлять переменные</div>
-            <div>Вставьте переменную в текст блока — она автоматически заменится на реальные данные при генерации.</div>
-            <div style={{ marginTop: 6 }}>
-              📊 <strong>Из Excel:</strong> имя переменной должно точно совпадать с заголовком колонки.
-              Пример: колонка «Класс» → <code style={{ background: "#D1EEF5", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>{"{Класс}"}</code>
-            </div>
-            <div style={{ marginTop: 6 }}>
-              🔤 <strong>Склонение ФИО:</strong> по умолчанию система автоматически склоняет ФИО в зависимости от текста грамоты.
-              При необходимости можно явно указать падеж:{" "}
-              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:дательный}"}</code>,{" "}
-              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:родительный}"}</code>,{" "}
-              <code style={{ background: "#D1EEF5", padding: "1px 4px", borderRadius: 3 }}>{"{ФИО:винительный}"}</code> и т.д.
-            </div>
-          </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 8 }}>
-            🚀 Быстрая вставка — нажмите для добавления блока:
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {QUICK_VARIABLES.map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => insertVariableBlock(key)}
-                title={VARIABLE_HINTS[key] || `Вставить переменную {${key}}`}
-                style={{
-                  padding: "7px 10px",
-                  border: "1px solid #CBD5E1",
-                  background: "#fff",
-                  color: "#334155",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                  transition: "border-color 150ms, background 150ms",
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.background = "#EAF7FA"; e.currentTarget.style.borderColor = "#78C2D8"; }}
-                onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#CBD5E1"; }}
-              >
-                {`{${key}}`}
-              </button>
-            ))}
-          </div>
-          <div style={{ marginTop: 14, padding: "10px 12px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D", marginBottom: 8 }}>
-              ⚥ Слова по полу — выбираются автоматически по ФИО участника:
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {QUICK_GENDER_VARIANTS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => insertGenderVariantBlock(item.value)}
-                  title={`Вставить: ${item.value}\nПри генерации выберет нужный вариант по полу ФИО`}
-                  style={{
-                    padding: "7px 10px",
-                    border: "1px solid #86EFAC",
-                    background: "#fff",
-                    color: "#166534",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "inherit",
-                    transition: "border-color 150ms, background 150ms",
-                  }}
-                  onMouseOver={(e) => { e.currentTarget.style.background = "#F0FDF4"; e.currentTarget.style.borderColor = "#4ADE80"; }}
-                  onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#86EFAC"; }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginTop: 8 }}>
-              Формат: <code style={{ background: "#DCFCE7", padding: "1px 4px", borderRadius: 3 }}>{"{род:вариантМ|вариантЖ}"}</code> — при генерации выбирает нужный по полу ФИО.
-            </div>
-          </div>
-        </div>
-
-        {/* ── Переменные для предпросмотра ── */}
-        {detectedPlaceholders.length > 0 && (
-          <div style={{ ...sectionBox("#FFF7ED", "#FED7AA"), marginBottom: 24 }}>
-            <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700 }}>Тестовые данные для предпросмотра</h3>
-            <p style={{ fontSize: 13, color: "#92400E", margin: "0 0 14px", lineHeight: 1.5 }}>
-              Введите любые примерные значения — справа сразу будет виден реальный вид грамоты.
-              Проверьте, что длинные имена нормально вписываются в шаблон.
-            </p>
-            {detectedPlaceholders.some((key) => key.toLowerCase().replace(/\s+/g, "") === "фио" || key.toLowerCase() === "fio") && (
-              <div style={{
-                marginBottom: 14,
-                padding: "12px 14px",
-                background: "#FFFFFF",
-                border: "1px solid #FED7AA",
-                borderRadius: 8,
-                color: "#7C2D12",
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}>
-                <div style={{ fontWeight: 800, marginBottom: 4 }}>Склонение ФИО применяется автоматически</div>
-                <div>
-                  По началу текста выбрано: <strong>{fioDeclensionPreview.caseLabel}</strong>, {fioDeclensionPreview.genderLabel}.
-                </div>
-                <div>
-                  Пример: <strong>{fioDeclensionPreview.declinedFio || fioDeclensionPreview.originalFio}</strong>
-                </div>
-                <div style={{ color: "#A16207", marginTop: 4 }}>
-                  Контекст: {fioDeclensionPreview.context || "добавьте формулировку вроде «Вручается» или «Награждается»"}
-                </div>
-                <div style={{ color: "#A16207", marginTop: 4 }}>
-                  Слова по полу: {applyGenderVariantsPreview("{род:ученику|ученице}", fioDeclensionPreview.gender || "male")}
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn primary" onClick={addSignerPreset}>
+                    Добавить на холст
+                  </button>
+                  <button type="button" className="tpl-btn" onClick={() => { resetSignerDraft(); setSignerPresetOpen(false); }}>
+                    Отмена
+                  </button>
                 </div>
               </div>
             )}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-              {detectedPlaceholders.map((key) => (
-                <span
-                  key={key}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "5px 9px",
-                    borderRadius: 8,
-                    background: "#FFFFFF",
-                    border: "1px solid #FED7AA",
-                    color: "#9A3412",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  {`{${key}}`}
-                </span>
-              ))}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {detectedPlaceholders.map((key) => (
-                <label key={key} style={{ fontSize: 14, fontWeight: 600, color: "#78350F" }}>
-                  {`{${key}}`}
+          </div>
+        </div>
+
+        {editorMode === "preview" && (
+          <div className="tpl-section">
+            <h3>Тестовые значения переменных</h3>
+            <p className="tpl-hint">Используются только для просмотра в конструкторе. На PDF не влияют.</p>
+            <div className="tpl-props">
+              {(detectedPlaceholders.length ? detectedPlaceholders : ["ФИО", "Мероприятие"]).map((key) => (
+                <label key={key}>
+                  {key}
                   <input
-                    type="text"
                     value={previewVariables[key] ?? ""}
-                    onChange={(e) => setPreviewVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={`Пример значения для ${key}…`}
-                    style={{ ...inputStyle, marginTop: 4, fontSize: 14 }}
+                    onChange={(event) => setPreviewVariables((prev) => ({ ...prev, [key]: event.target.value }))}
+                    placeholder={DEFAULT_PREVIEW_VARIABLES[key] || `Тестовое значение для «${key}»`}
                   />
-                  <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#A16207", fontWeight: 500 }}>
-                    На грамоте: {effectivePreviewVariables[key] || `{${key}}`}
-                  </span>
                 </label>
               ))}
             </div>
           </div>
         )}
 
-        {/* Текстовые блоки */}
-        <div style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                Текстовые блоки
-                <Tooltip text="Каждый блок — отдельная строка текста на грамоте. Настройте текст, размер, цвет и положение. Используйте {ФИО} и {Мероприятие} — они подставятся автоматически." />
-              </span>
-            </h3>
-            <button type="button" onClick={addElement}
-              style={{ padding: "8px 18px", background: "#E0E7FF", color: "#4338CA", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
-              Добавить блок
-            </button>
-          </div>
-          <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 16px", lineHeight: 1.5 }}>
-            Текст <code style={{ background: "#F1F5F9", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>{'{' + 'ФИО}'}</code> и{" "}
-            <code style={{ background: "#F1F5F9", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>{'{' + 'Мероприятие' + '}'}</code>{" "}
-            будут автоматически заменяться при выпуске каждой грамоты.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {elements.map((el) => (
-              <div key={el.id}
-                data-element-card-id={el.id}
-                style={{
-                background: selectedElementId === el.id ? "#EAF7FA" : "#fff",
-                border: selectedElementId === el.id ? "2px solid #2E9ABA" : "1px solid #E2E8F0",
-                borderRadius: 12, padding: 16, position: "relative",
-                animation: "elCardIn 200ms ease-out",
-                transition: "border-color 150ms, background 150ms, box-shadow 150ms",
-                boxShadow: selectedElementId === el.id ? "0 0 0 3px rgba(59,130,246,0.15)" : undefined,
-                cursor: "pointer",
-              }}
-                onClick={() => setSelectedElementId(el.id === selectedElementId ? null : el.id)}
-                onContextMenu={(e) => { e.preventDefault(); handleElementContextMenu(el.id, e.clientX, e.clientY); }}
-              >
-                <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); removeEl(el.id); }}
-                  title="Удалить блок (Del)"
-                  style={{ position: "absolute", top: 10, right: 10, background: "#FEE2E2", color: "#EF4444", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontWeight: "bold", fontSize: 16 }}>
-                  ×
-                </button>
-                <div style={{ marginBottom: 12, paddingRight: 36, position: "relative" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <label style={{ ...labelStyle, fontSize: 14 }}>Текст</label>
-                    <button
-                      type="button"
-                      title="Вставить переменную или слово по полу"
-                      onClick={(e) => { e.stopPropagation(); setPickerOpenId((prev) => prev === el.id ? null : el.id); }}
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 4,
-                        padding: "4px 10px", background: pickerOpenId === el.id ? "#EAF7FA" : "#F8FAFC",
-                        border: `1px solid ${pickerOpenId === el.id ? "#78C2D8" : "#CBD5E1"}`,
-                        borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                        color: pickerOpenId === el.id ? "#19789C" : "#475569",
-                        fontFamily: "inherit", transition: "background 150ms, border-color 150ms",
-                      }}
-                    >
-                      <span style={{ fontSize: 14, fontFamily: "monospace", fontWeight: 900 }}>{"{}"}</span>
-                      Вставить
-                    </button>
+        {signers.length > 0 && (
+          <div className="tpl-section">
+            <h3>Подписанты ({signers.length}/4)</h3>
+            <p className="tpl-hint">Должность, ФИО и факсимиле каждого подписанта попадают в PDF.</p>
+            <div className="tpl-props">
+              {signers.map((s, i) => (
+                <div key={s.id} style={{ border: "1px solid var(--tpl-border-soft)", borderRadius: 8, padding: 10, display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <strong style={{ color: "var(--tpl-primary-dark)", fontSize: 12, fontWeight: 900 }}>Подписант №{i + 1}</strong>
+                    <button type="button" className="tpl-block-delete" onClick={() => removeSigner(s.id)} title="Удалить подписанта" aria-label="Удалить подписанта">×</button>
                   </div>
-                  <textarea
-                    ref={(node) => { if (node) textareaRefs.current[el.id] = node; else delete textareaRefs.current[el.id]; }}
-                    value={el.text}
-                    onFocus={() => setSelectedElementId(el.id)}
-                    onChange={(e) => updateEl(el.id, "text", e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ ...inputStyle, padding: "10px", resize: "vertical", minHeight: 56, fontSize: 14 }}
-                  />
-                  {/* Инлайн-пикер переменных */}
-                  {pickerOpenId === el.id && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: 9000,
-                        background: "#fff", borderRadius: 12, border: "1px solid #A9D9E7",
-                        boxShadow: "0 8px 32px rgba(30,64,175,0.13)",
-                        overflow: "hidden", animation: "pickerIn 180ms ease-out",
-                        marginTop: 4,
-                      }}
-                    >
-                      {/* Заголовок */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px 8px", borderBottom: "1px solid #EAF7FA" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#19789C" }}>Вставить переменную в текст</span>
-                        <button type="button" onClick={() => setPickerOpenId(null)}
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94A3B8", lineHeight: 1, padding: "0 2px" }}
-                        >×</button>
-                      </div>
-
-                      <div style={{ padding: "10px 14px 12px" }}>
-                        {/* --- Произвольная переменная --- */}
-                        <div style={{ marginBottom: 12, display: "flex", gap: 6 }}>
-                          <input
-                            type="text"
-                            placeholder='Своя переменная, напр. {Результат}'
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                const raw = e.target.value.trim();
-                                if (!raw) return;
-                                const text = raw.startsWith("{") ? raw : `{${raw.replace(/[{}]/g, "")}}`;
-                                insertAtCursor(el.id, text);
-                                e.target.value = "";
-                              }
-                            }}
-                            style={{
-                              flex: 1, padding: "7px 10px", border: "1px solid #E2E8F0",
-                              borderRadius: 7, fontSize: 13, fontFamily: "monospace", outline: "none",
-                            }}
-                          />
-                          <button
-                            type="button"
-                            title="Вставить (Enter)"
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // не уводим фокус с textarea
-                              const inp = e.currentTarget.previousSibling;
-                              const raw = inp.value.trim();
-                              if (!raw) return;
-                              const text = raw.startsWith("{") ? raw : `{${raw.replace(/[{}]/g, "")}}`;
-                              insertAtCursor(el.id, text);
-                              inp.value = "";
-                            }}
-                            style={{
-                              padding: "7px 12px", background: "#19789C", color: "#fff",
-                              border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-                            }}
-                          >↵</button>
-                        </div>
-
-                        {/* --- Примеры переменных --- */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>Примеры переменных</div>
-                          <span style={{ fontSize: 10, background: "#FEF9C3", color: "#854D0E", border: "1px solid #FDE68A", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>пример</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 8 }}>
-                          Переменная должна совпадать с заголовком колонки в Excel
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                          {PICKER_VARIABLES.map(({ key, desc }) => (
-                            <button
-                              key={key}
-                              type="button"
-                              title={desc}
-                              onClick={() => insertAtCursor(el.id, `{${key}}`)}
-                              style={{
-                                padding: "6px 11px",
-                                background: "#EAF7FA", color: "#19789C",
-                                border: "1px solid #A9D9E7", borderRadius: 7,
-                                cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-                                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
-                              }}
-                            >
-                              <span style={{ fontFamily: "monospace", fontWeight: 900 }}>{`{${key}}`}</span>
-                              <span style={{ fontSize: 10, fontWeight: 400, color: "#4FB0CA" }}>{desc}</span>
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* --- Слова по полу --- */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>Слова по полу</div>
-                          <span style={{ fontSize: 10, background: "#F0FDF4", color: "#166534", border: "1px solid #86EFAC", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>пример</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 8 }}>
-                          Нужное слово выбирается автоматически по полу участника (по ФИО)
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {PICKER_GENDER_VARIANTS.map(({ label, value }) => (
-                            <button
-                              key={value}
-                              type="button"
-                              title={`Вставить: ${value}`}
-                              onClick={() => insertAtCursor(el.id, value)}
-                              style={{
-                                padding: "6px 10px",
-                                background: "#F0FDF4", color: "#166534",
-                                border: "1px solid #86EFAC", borderRadius: 7,
-                                cursor: "pointer", fontFamily: "inherit",
-                                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
-                              }}
-                            >
-                              <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-                              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#15803D", opacity: 0.8 }}>{value}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 8 }}>
-                          Можно добавить своё: <code style={{ background: "#F1F5F9", padding: "1px 4px", borderRadius: 3 }}>{"{род:Слово1|Слово2}"}</code>
-                        </div>
-                      </div>
+                  <label>
+                    Должность
+                    <input value={s.position} onChange={(e) => setSigners((prev) => prev.map((x) => x.id === s.id ? { ...x, position: e.target.value } : x))} />
+                  </label>
+                  <label>
+                    ФИО
+                    <input value={s.fullName} onChange={(e) => setSigners((prev) => prev.map((x) => x.id === s.id ? { ...x, fullName: e.target.value } : x))} />
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id={`fac-${s.id}`}
+                      style={{ display: "none" }}
+                      onChange={(e) => handleFacsimile(s.id, e)}
+                    />
+                    <button type="button" className="tpl-btn" onClick={() => document.getElementById(`fac-${s.id}`)?.click()} style={{ flex: 1 }}>
+                      {s.facPreview ? "Заменить факсимиле" : "Загрузить факсимиле"}
+                    </button>
+                    {s.facPreview && (
+                      <button type="button" className="tpl-btn danger" onClick={() => clearFacsimile(s.id)} title="Удалить факсимиле">×</button>
+                    )}
+                  </div>
+                  {s.facPreview && (
+                    <div style={{ display: "flex", justifyContent: "center", padding: 6, background: "#f4f7f9", borderRadius: 6 }}>
+                      <img src={s.facPreview} alt="факсимиле" style={{ maxWidth: 120, maxHeight: 48, objectFit: "contain" }} />
                     </div>
                   )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>
-                    X: {el.x.toFixed(1)}%
-                    <input type="range" min={0} max={100} step={0.5} value={el.x}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => {
-                        const clamped = clamp(Number(e.target.value), safePct.xMin, safePct.xMax);
-                        updateEl(el.id, "x", clamped);
-                      }}
-                      style={{ width: "100%", marginTop: 4 }} />
-                  </label>
-                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>
-                    Y: {el.y.toFixed(1)}%
-                    <input type="range" min={0} max={100} step={0.5} value={el.y}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => {
-                        const clamped = clamp(Number(e.target.value), safePct.yMin, safePct.yMax);
-                        updateEl(el.id, "y", clamped);
-                      }}
-                      style={{ width: "100%", marginTop: 4 }} />
-                  </label>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>Шрифт</label>
-                    <select
-                      value={el.fontFamily || DEFAULT_FONT_FAMILY}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => updateEl(el.id, "fontFamily", e.target.value)}
-                      style={{ ...inputStyle, padding: "8px 10px", fontSize: 14, background: "#fff" }}
-                    >
-                      {availableFonts.map((font) => (
-                        <option key={font.font_family} value={font.font_family}>{font.font_family}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>Размер (pt)</label>
-                    <input type="number" min={6} max={120} value={el.size}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => updateEl(el.id, "size", Number(e.target.value))}
-                      style={{ ...inputStyle, padding: "8px 10px", fontSize: 14 }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>Начертание</label>
-                    <select value={el.weight}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => updateEl(el.id, "weight", e.target.value)}
-                      style={{ ...inputStyle, padding: "8px 10px", fontSize: 14, background: "#fff" }}>
-                      <option value="400">Обычный</option>
-                      <option value="600">Полужирный</option>
-                      <option value="700">Жирный</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>Цвет</label>
-                    <input type="color" value={el.color}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedElementId(el.id)}
-                      onChange={(e) => updateEl(el.id, "color", e.target.value)}
-                      style={{ width: "100%", height: 38, padding: 0, border: "none", cursor: "pointer", borderRadius: 6 }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══ ПРАВАЯ ПАНЕЛЬ — sticky preview ═══ */}
-      <div style={{ position: "relative", alignSelf: "stretch", minHeight: 240 }}>
-        <div
-          className="certificate-preview-card"
-          style={{
-            ...cardStyle,
-            padding: 24,
-            position: "sticky",
-            top: 148,
-            maxHeight: "calc(100vh - 172px)",
-            overflow: "auto",
-            transform: "translate3d(0, 0, 0)",
-            willChange: "transform, opacity",
-            transition: "transform 280ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 280ms ease, opacity 200ms ease, filter 280ms ease",
-            zIndex: 20,
-            animation: "certificatePreviewIn 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0F172A" }}>
-              Предпросмотр
-            </h3>
-            <span style={{
-              background: "#F0FDF4", color: "#059669",
-              border: "1px solid #BBF7D0",
-              fontSize: 11, fontWeight: 700,
-              padding: "3px 10px", borderRadius: 99,
-              letterSpacing: "0.04em",
-            }}>● LIVE</span>
-          </div>
-          <AccuratePreview
-            bgUrl={bgUrl}
-            elements={elements}
-            signers={signers}
-            signersLayout={signersLayout}
-            margins={margins}
-            previewVariables={effectivePreviewVariables}
-            fontFaces={availableFonts}
-            selectedElementId={selectedElementId}
-            onElementSelect={setSelectedElementId}
-            onElementMove={handleElementMove}
-            onElementContextMenu={handleElementContextMenu}
-            onElementDoubleClick={handleElementDoubleClick}
-            onSignersMove={handleSignersMove}
-          />
-          <div style={{ marginTop: 12, padding: "8px 12px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
-            <div style={{ fontSize: 10.5, color: "#94A3B8", lineHeight: 1.5, fontWeight: 500, letterSpacing: "0.01em" }}>
-              <span style={{ fontWeight: 600, color: "#64748B" }}>Легенда:</span>{" "}
-              <span style={{ color: "#EF4444" }}>■</span> рабочая зона{" · "}
-              пунктир = переменная{" · "}
-              сетка = мм{" · "}
-              1pt ≈ 1.33px
+              ))}
             </div>
           </div>
+        )}
+
+        <div className="tpl-section">
+          <h3>Блоки на холсте ({elements.length + images.length + signers.length})</h3>
+          {elements.length === 0 && images.length === 0 && signers.length === 0 ? (
+            <p style={{ margin: 0, color: "var(--tpl-muted)", fontSize: 12 }}>Добавьте элементы, чтобы они появились в списке.</p>
+          ) : (
+            <div className="tpl-block-list">
+              {elements.map((element) => {
+                const isVar = (element.text || "").includes("{");
+                return (
+                  <div
+                    key={`b-${element.id}`}
+                    className={`tpl-block-row${selectedElementId === element.id ? " is-active" : ""}`}
+                    onClick={() => handleSelectElement(element.id)}
+                  >
+                    <span className="tpl-block-kind">{isVar ? "▣" : "T"}</span>
+                    <span className="tpl-block-label">{element.text}</span>
+                    <span className={`tpl-block-tag${isVar ? " variable" : ""}`}>{isVar ? "Переменная" : "Текст"}</span>
+                    <button
+                      type="button"
+                      className="tpl-block-delete"
+                      onClick={(e) => { e.stopPropagation(); pushUndo(); removeEl(element.id); }}
+                      title="Удалить блок"
+                      aria-label="Удалить блок"
+                    >×</button>
+                  </div>
+                );
+              })}
+              {images.map((img) => (
+                <div
+                  key={`bi-${img.id}`}
+                  className={`tpl-block-row${selectedImageId === img.id ? " is-active" : ""}`}
+                  onClick={() => handleSelectImage(img.id)}
+                >
+                  <span className="tpl-block-kind">⬚</span>
+                  <span className="tpl-block-label">{img.label}</span>
+                  <span className="tpl-block-tag">{img.kind === "stamp" ? "Печать" : img.kind === "signature" ? "Подпись" : "Изобр."}</span>
+                  <button
+                    type="button"
+                    className="tpl-block-delete"
+                    onClick={(e) => { e.stopPropagation(); removeImage(img.id); }}
+                    title="Удалить"
+                    aria-label="Удалить изображение"
+                  >×</button>
+                </div>
+              ))}
+              {signers.map((signer, index) => (
+                <div
+                  key={`bs-${signer.id}`}
+                  className={`tpl-block-row${selectedSignerId === signer.id ? " is-active" : ""}`}
+                  onClick={() => handleSelectSigner(signer.id)}
+                >
+                  <span className="tpl-block-kind">П</span>
+                  <span className="tpl-block-label">{signer.fullName || `Подписант №${index + 1}`}</span>
+                  <span className="tpl-block-tag">Подписант</span>
+                  <button
+                    type="button"
+                    className="tpl-block-delete"
+                    onClick={(e) => { e.stopPropagation(); removeSigner(signer.id); }}
+                    title="Удалить подписанта"
+                    aria-label="Удалить подписанта"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div
+        className="tpl-canvas-area"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          if (event.target.closest?.("[data-canvas-item='true']")) return;
+          clearCanvasSelection();
+        }}
+      >
+        <div className="tpl-canvas-frame" style={{ "--tpl-zoom": zoom / 100 }}>
+          <div className="tpl-canvas-sheet">
+            <AccuratePreview
+              bgUrl={bgUrl}
+              elements={elements}
+              signers={signers}
+              signersLayout={signersLayout}
+              margins={margins}
+              previewVariables={effectivePreviewVariables}
+              fontFaces={availableFonts}
+              selectedElementId={selectedElementId}
+              onElementSelect={handleSelectElement}
+              onElementMove={handleElementMove}
+              onElementContextMenu={handleElementContextMenu}
+              onElementDoubleClick={handleElementDoubleClick}
+              onElementInlineEdit={handleInlineEdit}
+              onElementResize={handleElementResize}
+              onSignersMove={handleSignersMove}
+              selectedSignerId={selectedSignerId}
+              onSignerSelect={handleSelectSigner}
+              onSignerMove={handleSignerMove}
+              onSignerResize={handleSignerResize}
+              onCanvasDeselect={clearCanvasSelection}
+              showGrid={editorMode === "edit" && showGrid}
+              showSafeZone={editorMode === "edit" && showGrid}
+              showRulers={editorMode === "edit" && showGrid}
+              showLiteralVariables={editorMode === "edit"}
+              hideSigners={signers.length === 0}
+              maxWidth={9999}
+              images={images}
+              selectedImageId={selectedImageId}
+              onImageSelect={handleSelectImage}
+              onImageMove={moveImage}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Контекстное меню */}
+      <aside className="tpl-side right" aria-label="Свойства выделенного блока">
+        <div className="tpl-section">
+          <h3>Свойства</h3>
+
+          {selectedImage ? (
+            <div className="tpl-props">
+              <p className="tpl-hint" style={{ margin: 0 }}>
+                {selectedImage.kind === "line" ? "Линия подписи" : selectedImage.kind === "stamp" ? "Печать организации" : selectedImage.kind === "signature" ? "Подпись" : "Изображение"} · {selectedImage.file?.name || selectedImage.label || "элемент"}
+              </p>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  X (%)
+                  <input type="number" min={0} max={100} value={Math.round(selectedImage.x)} onChange={(e) => updateImage(selectedImage.id, { x: Number(e.target.value) })} />
+                </label>
+                <label>
+                  Y (%)
+                  <input type="number" min={0} max={100} value={Math.round(selectedImage.y)} onChange={(e) => updateImage(selectedImage.id, { y: Number(e.target.value) })} />
+                </label>
+              </div>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Ширина (мм)
+                  <input type="number" min={selectedImage.kind === "line" ? 10 : 5} max={210} value={selectedImage.widthMm} onChange={(e) => updateImage(selectedImage.id, { widthMm: Number(e.target.value) })} />
+                </label>
+                <label>
+                  Высота (мм)
+                  <input type="number" min={selectedImage.kind === "line" ? 0.2 : 5} max={297} step={selectedImage.kind === "line" ? 0.1 : 1} value={selectedImage.heightMm} onChange={(e) => updateImage(selectedImage.id, { heightMm: Number(e.target.value) })} />
+                </label>
+              </div>
+              <label>
+                Прозрачность
+                <input type="range" min={0.2} max={1} step={0.05} value={selectedImage.opacity ?? 1} onChange={(e) => updateImage(selectedImage.id, { opacity: Number(e.target.value) })} />
+              </label>
+              <input type="file" accept="image/*" ref={imageReplaceInputRef} style={{ display: "none" }} onChange={handleReplaceImageFile} />
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Порядок и видимость</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => moveLayer("image", selectedImage.id, "front")}>На передний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => moveLayer("image", selectedImage.id, "back")}>На задний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => toggleHidden("image", selectedImage.id)}>{selectedImage.hidden ? "Показать" : "Скрыть"}</button>
+                  <button type="button" className="tpl-btn" onClick={() => toggleLocked("image", selectedImage.id)}>{selectedImage.locked ? "Разблокировать" : "Заблокировать"}</button>
+                </div>
+              </div>
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Действия</div>
+                <div className="tpl-action-grid">
+                  {selectedImage.kind !== "line" && (
+                    <button type="button" className="tpl-btn" onClick={() => imageReplaceInputRef.current?.click()}>Заменить</button>
+                  )}
+                  <button type="button" className="tpl-btn danger" onClick={() => removeImage(selectedImage.id)}>{selectedImage.kind === "line" ? "Удалить линию" : "Удалить изображение"}</button>
+                </div>
+              </div>
+            </div>
+          ) : selectedSigner ? (
+            <div className="tpl-props">
+              <p className="tpl-hint" style={{ margin: 0 }}>
+                Подписант · {selectedSigner.fullName || "ФИО не заполнено"}
+              </p>
+              <label>
+                Должность
+                <input value={selectedSigner.position || ""} onChange={(event) => updateSelectedSignerField("position", event.target.value)} />
+              </label>
+              <label>
+                ФИО
+                <input value={selectedSigner.fullName || ""} onChange={(event) => updateSelectedSignerField("fullName", event.target.value)} />
+              </label>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Позиция X (мм)
+                  <input type="number" min={0} max={210} value={Math.round(signersLayout.x_mm)} onChange={(event) => updateSelectedSignerLayout("x_mm", Number(event.target.value))} />
+                </label>
+                <label>
+                  Позиция Y (мм)
+                  <input type="number" min={0} max={297} value={Math.round(selectedSignerYmm)} onChange={(event) => updateSelectedSignerLayout("y_mm", Number(event.target.value))} />
+                </label>
+              </div>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Ширина (мм)
+                  <input type="number" min={25} max={210} value={Math.round(signersLayout.band_mm)} onChange={(event) => updateSelectedSignerLayout("band_mm", Number(event.target.value))} />
+                </label>
+                <label>
+                  Высота (мм)
+                  <input type="number" min={10} max={160} value={Math.round(signersLayout.row_h_mm)} onChange={(event) => updateSelectedSignerLayout("row_h_mm", Number(event.target.value))} />
+                </label>
+              </div>
+              <label>
+                Шрифт
+                <select value={signersLayout.font_family || DEFAULT_FONT_FAMILY} onChange={(event) => updateSelectedSignerLayout("font_family", event.target.value)}>
+                  {availableFonts.map((font) => (
+                    <option key={font.font_family} value={font.font_family}>{font.font_family}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Размер
+                  <input type="number" min={5} max={36} value={signersLayout.font_size} onChange={(event) => updateSelectedSignerLayout("font_size", Number(event.target.value))} />
+                </label>
+                <label>
+                  Цвет
+                  <div className="tpl-prop-color">
+                    <input type="color" value={signersLayout.text_color} onChange={(event) => updateSelectedSignerLayout("text_color", event.target.value)} />
+                    <input value={signersLayout.text_color} onChange={(event) => updateSelectedSignerLayout("text_color", event.target.value)} />
+                  </div>
+                </label>
+              </div>
+              <label>
+                Выравнивание
+                <div className="tpl-toggle-row tpl-toggle-row-4">
+                  {[["split", "Колонки"], ["left", "Слева"], ["center", "Центр"], ["right", "Справа"]].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={(selectedSigner.align || "split") === value ? "is-active" : ""}
+                      onClick={() => updateSelectedSignerField("align", value)}
+                    >{label}</button>
+                  ))}
+                </div>
+              </label>
+              <label className="tpl-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={selectedSigner.showLine !== false}
+                  onChange={(event) => updateSelectedSignerField("showLine", event.target.checked)}
+                />
+                Линия подписи
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                id={`fac-props-${selectedSigner.id}`}
+                style={{ display: "none" }}
+                onChange={(event) => handleFacsimile(selectedSigner.id, event)}
+              />
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Факсимиле</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => document.getElementById(`fac-props-${selectedSigner.id}`)?.click()}>
+                    {selectedSigner.facPreview ? "Заменить" : "Загрузить"}
+                  </button>
+                  <button type="button" className="tpl-btn danger" onClick={() => clearFacsimile(selectedSigner.id)} disabled={!selectedSigner.facPreview}>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+              {selectedSigner.facPreview && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "center", padding: 8, background: "#f4f7f9", borderRadius: 8 }}>
+                    <img src={selectedSigner.facPreview} alt="факсимиле" style={{ maxWidth: 160, maxHeight: 58, objectFit: "contain" }} />
+                  </div>
+                  <div className="tpl-prop-grid-2">
+                    <label>
+                      Факсимиле X (мм)
+                      <input type="number" min={-80} max={80} step={0.5} value={selectedSigner.facOffsetX || 0} onChange={(event) => updateSelectedSignerField("facOffsetX", Number(event.target.value))} />
+                    </label>
+                    <label>
+                      Факсимиле Y (мм)
+                      <input type="number" min={-80} max={80} step={0.5} value={selectedSigner.facOffsetY || 0} onChange={(event) => updateSelectedSignerField("facOffsetY", Number(event.target.value))} />
+                    </label>
+                  </div>
+                  <label>
+                    Размер факсимиле
+                    <input type="range" min={0.2} max={3} step={0.05} value={selectedSigner.facScale || 1} onChange={(event) => updateSelectedSignerField("facScale", Number(event.target.value))} />
+                  </label>
+                </>
+              )}
+              <div className="tpl-divider" />
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Порядок и видимость</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); moveSignerLayer(selectedSigner.id, "front"); }}>На передний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); moveSignerLayer(selectedSigner.id, "back"); }}>На задний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); toggleSignerHidden(selectedSigner.id); }}>{selectedSigner.hidden ? "Показать" : "Скрыть"}</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); toggleSignerLocked(selectedSigner.id); }}>{selectedSigner.locked ? "Разблокировать" : "Заблокировать"}</button>
+                </div>
+              </div>
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Действия</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); duplicateSigner(selectedSigner.id); }}>Дублировать блок</button>
+                  <button type="button" className="tpl-btn danger" onClick={() => { pushUndo(); removeSigner(selectedSigner.id); }}>Удалить подписанта</button>
+                </div>
+              </div>
+            </div>
+          ) : selectedElement ? (
+            <div className="tpl-props">
+              <label>
+                Текст
+                <textarea
+                  rows={3}
+                  value={selectedElement.text}
+                  onChange={(event) => updateSelectedElement("text", event.target.value)}
+                />
+              </label>
+              {(selectedElement.text || "").includes("{") && (
+                <p className="tpl-hint" style={{ margin: 0 }}>
+                  Этот блок содержит переменную. При выпуске грамоты значение будет подставлено автоматически.
+                </p>
+              )}
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Позиция X (%)
+                  <input type="number" min={0} max={100} value={Math.round(selectedElement.x)} onChange={(event) => updateSelectedElement("x", Number(event.target.value))} />
+                </label>
+                <label>
+                  Позиция Y (%)
+                  <input type="number" min={0} max={100} value={Math.round(selectedElement.y)} onChange={(event) => updateSelectedElement("y", Number(event.target.value))} />
+                </label>
+              </div>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Ширина (мм)
+                  <input type="number" min={5} max={210} value={selectedElement.maxWidthMm || ""} onChange={(event) => updateSelectedElement("maxWidthMm", Number(event.target.value) || null)} placeholder="авто" />
+                </label>
+                <label>
+                  Высота (мм)
+                  <input type="number" min={5} max={280} value={selectedElement.maxHeightMm || ""} onChange={(event) => updateSelectedElement("maxHeightMm", Number(event.target.value) || null)} placeholder="авто" />
+                </label>
+              </div>
+              <label>
+                Шрифт
+                <select value={selectedElement.fontFamily || DEFAULT_FONT_FAMILY} onChange={(event) => updateSelectedElement("fontFamily", event.target.value)}>
+                  {availableFonts.map((font) => (
+                    <option key={font.font_family} value={font.font_family}>{font.font_family}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="tpl-prop-grid-2">
+                <label>
+                  Размер
+                  <input type="number" min={6} max={120} value={selectedElement.size} onChange={(event) => updateSelectedElement("size", Number(event.target.value))} />
+                </label>
+                <label>
+                  Цвет
+                  <div className="tpl-prop-color">
+                    <input type="color" value={selectedElement.color} onChange={(event) => updateSelectedElement("color", event.target.value)} />
+                    <input value={selectedElement.color} onChange={(event) => updateSelectedElement("color", event.target.value)} />
+                  </div>
+                </label>
+              </div>
+              <label>
+                Начертание
+                <div className="tpl-toggle-row">
+                  <button
+                    type="button"
+                    className={selectedElement.weight !== "400" ? "is-active" : ""}
+                    onClick={() => updateSelectedElement("weight", selectedElement.weight !== "400" ? "400" : "700")}
+                    title="Жирный"
+                    aria-pressed={selectedElement.weight !== "400"}
+                  ><strong>B</strong></button>
+                  <button
+                    type="button"
+                    className={selectedElement.italic ? "is-active" : ""}
+                    onClick={() => updateSelectedElement("italic", !selectedElement.italic)}
+                    title="Курсив"
+                    aria-pressed={!!selectedElement.italic}
+                  ><i>I</i></button>
+                  <button
+                    type="button"
+                    className={selectedElement.underline ? "is-active" : ""}
+                    onClick={() => updateSelectedElement("underline", !selectedElement.underline)}
+                    title="Подчёркивание"
+                    aria-pressed={!!selectedElement.underline}
+                  ><u>U</u></button>
+                </div>
+              </label>
+              <label>
+                Выравнивание
+                <div className="tpl-toggle-row">
+                  {[["left", "Слева"], ["center", "Центр"], ["right", "Справа"]].map(([value, lbl]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={selectedAlign === value ? "is-active" : ""}
+                      onClick={() => updateSelectedElement("align", value)}
+                    >{lbl}</button>
+                  ))}
+                </div>
+              </label>
+              <div className="tpl-prop-grid-2">
+                <button type="button" className="tpl-btn" onClick={() => { pushUndo(); centerElementH(selectedElement.id); }} title="Поставить по центру по горизонтали">
+                  ↔ По центру X
+                </button>
+                <button type="button" className="tpl-btn" onClick={() => { pushUndo(); centerElementV(selectedElement.id); }} title="Поставить по центру по вертикали">
+                  ↕ По центру Y
+                </button>
+              </div>
+              <label>
+                Межстрочный интервал
+                <input type="number" min={1} max={2} step={0.05} value={selectedElement.lineHeight || 1.25} onChange={(event) => updateSelectedElement("lineHeight", Number(event.target.value) || 1.25)} />
+              </label>
+              {(selectedElement.text || "").includes("{") && (
+                <label>
+                  Падеж переменной
+                  <select
+                    value={(() => {
+                      const m = (selectedElement.text || "").match(/\{[^}]*\|\s*([^}]+)\}/);
+                      return m ? m[1].trim() : "";
+                    })()}
+                    onChange={(e) => {
+                      const cs = e.target.value;
+                      const newText = (selectedElement.text || "").replace(/\{([^}|]+)(?:\s*\|[^}]*)?\}/g, (_, name) => (cs ? `{${name.trim()} | ${cs}}` : `{${name.trim()}}`));
+                      updateSelectedElement("text", newText);
+                    }}
+                  >
+                    {GRAMMAR_CASES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="tpl-divider" />
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Порядок и видимость</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); moveElementZ(selectedElement.id, "front"); }}>На передний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); moveElementZ(selectedElement.id, "back"); }}>На задний план</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); toggleHidden("element", selectedElement.id); }}>{selectedElement.hidden ? "Показать" : "Скрыть"}</button>
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); toggleLocked("element", selectedElement.id); }}>{selectedElement.locked ? "Разблокировать" : "Заблокировать"}</button>
+                </div>
+              </div>
+              <div className="tpl-action-section">
+                <div className="tpl-action-title">Действия</div>
+                <div className="tpl-action-grid">
+                  <button type="button" className="tpl-btn" onClick={() => { pushUndo(); duplicateEl(selectedElement.id); }}>Дублировать блок</button>
+                  <button type="button" className="tpl-btn danger" onClick={() => { pushUndo(); removeEl(selectedElement.id); }}>Удалить блок</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="tpl-empty-props">
+              Выберите элемент на холсте, чтобы изменить его параметры.
+            </div>
+          )}
+          {msg && <div style={{ marginTop: 12 }}><AlertBanner type={msgType}>{msg}</AlertBanner></div>}
+        </div>
+      </aside>
+
       {ctxMenu && (
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           onClose={() => setCtxMenu(null)}
           items={[
-            { icon: "📋", label: "Дублировать", shortcut: "Ctrl+D", onClick: () => { pushUndo(); duplicateEl(ctxMenu.elementId); } },
-            { icon: "↔️", label: "Выровнять по центру X", onClick: () => { pushUndo(); centerEl(ctxMenu.elementId); } },
+            { icon: "К", label: "Дублировать", shortcut: "Ctrl+D", onClick: () => { pushUndo(); duplicateEl(ctxMenu.elementId); } },
+            { icon: "X", label: "Выровнять по центру X", onClick: () => { pushUndo(); centerEl(ctxMenu.elementId); } },
             { separator: true },
-            { icon: "🗑️", label: "Удалить", shortcut: "Del", danger: true, onClick: () => { pushUndo(); removeEl(ctxMenu.elementId); } },
+            { icon: "×", label: "Удалить", shortcut: "Del", danger: true, onClick: () => { pushUndo(); removeEl(ctxMenu.elementId); } },
           ]}
         />
       )}
-    </div>
+    </section>
   );
 }

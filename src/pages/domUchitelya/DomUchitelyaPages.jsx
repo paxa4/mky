@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import Footer from "../../components/Footer.jsx";
 import Header from "../../features/nav/Header.jsx";
+import Breadcrumbs from "../../components/Breadcrumbs.jsx";
 import NewsCard from "../../features/news/NewsCard.jsx";
 
-export const DOMU_SECTIONS = [
+const DOMU_SECTIONS = [
   { path: "/dom-uchitelya/o-dome/", title: "О здании", text: "Адрес, руководитель, контакты и режим работы." },
   { path: "/dom-uchitelya/programma/", title: "Программа мероприятий", text: "Анонсы встреч, семинаров и городских событий." },
   { path: "/dom-uchitelya/master-klassy/", title: "Мастер-классы", text: "Практические занятия для педагогов и наставников." },
@@ -82,9 +83,7 @@ function DomuStyles() {
     <style>{`
       .domu-page { min-height: 100vh; display: flex; flex-direction: column; color: #0f172a; background: linear-gradient(180deg, #fbfdff 0%, #f4f7fb 52%, #eef4fb 100%); }
       .domu-main { flex: 1; }
-      .domu-shell { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 34px 0 70px; }
-      .domu-breadcrumb { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; color: #64748b; font-size: 14px; font-weight: 800; align-items: center; }
-      .domu-breadcrumb a { color: #1e3a8a; text-decoration: none; }
+      .domu-shell { width: min(var(--app-page-max, 1180px), calc(100% - 28px)); margin: 0 auto; padding: 34px 0 70px; }
       .domu-hero { overflow: hidden; border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.08); }
       .domu-hero-grid { display: grid; gap: 0; }
       .domu-hero-copy { padding: 30px 20px; display: grid; gap: 18px; align-content: center; }
@@ -92,7 +91,7 @@ function DomuStyles() {
       .domu-hero h1 { font-size: clamp(38px, 10vw, 78px); line-height: .95; letter-spacing: 0; margin: 0; }
       .domu-hero p, .domu-lead { color: #475569; font-size: 16px; line-height: 1.62; font-weight: 650; }
       .domu-hero img { width: 100%; min-height: 260px; height: 100%; object-fit: cover; display: block; }
-      .domu-contact-grid, .domu-grid, .domu-news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); justify-content: start; gap: 12px; }
+      .domu-contact-grid, .domu-grid, .domu-news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); justify-content: stretch; gap: 14px; width: 100%; }
       .domu-card { border: 1px solid #dbe6f5; border-radius: 8px; background: rgba(255,255,255,.94); padding: 18px; box-shadow: 0 16px 36px rgba(15,23,42,.06); }
       .domu-contact span { display: block; color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 7px; }
       .domu-contact strong { font-size: 17px; line-height: 1.35; }
@@ -109,12 +108,12 @@ function DomuStyles() {
       .domu-list li { padding: 14px 16px; border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; color: #334155; font-weight: 750; }
       .domu-empty { border: 1px solid #dbe6f5; border-radius: 8px; background: #fff; color: #475569; padding: 20px; font-weight: 750; line-height: 1.55; }
       @media (min-width: 720px) {
-        .domu-shell { width: min(1180px, calc(100% - 44px)); padding-top: 46px; }
+        .domu-shell { width: min(var(--app-page-max, 1180px), calc(100% - 44px)); padding-top: 46px; }
         .domu-hero-grid { grid-template-columns: minmax(0, 1.02fr) minmax(320px, .8fr); }
         .domu-hero-copy { padding: 54px; min-height: 520px; }
       }
       @media (max-width: 520px) {
-        .domu-shell { width: min(100% - 24px, 1180px); }
+        .domu-shell { width: min(100% - 24px, var(--app-page-max, 1180px)); }
       }
     `}</style>
   );
@@ -125,11 +124,7 @@ export function DomUchitelyaHome(props) {
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
-        <nav className="domu-breadcrumb" aria-label="Навигация">
-          <Link to="/">Главная</Link>
-          <span>→</span>
-          <span>Дом учителя</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "Дом учителя" }]} />
         <section className="domu-hero">
           <div className="domu-hero-grid">
             <div className="domu-hero-copy">
@@ -190,18 +185,10 @@ export function DomUchitelyaHome(props) {
 
 export function DomUchitelyaStaticPage({ section, ...props }) {
   const copy = pageCopy[section.path] || { lead: section.text, items: [] };
-  const sectionValue = section.path.split("/").filter(Boolean).pop();
-  const news = (props.newsItems || []).filter((item) => item.dom_uchitelya_section === sectionValue);
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
-        <nav className="domu-breadcrumb" aria-label="Навигация">
-          <Link to="/">Главная</Link>
-          <span>→</span>
-          <Link to="/dom-uchitelya/">Дом учителя</Link>
-          <span>→</span>
-          <span>{section.title}</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "Дом учителя", to: "/dom-uchitelya/" }, { label: section.title }]} />
         <section className="domu-content">
           <span className="domu-eyebrow">Дом учителя</span>
           <h1>{section.title}</h1>
@@ -209,17 +196,6 @@ export function DomUchitelyaStaticPage({ section, ...props }) {
           <ul className="domu-list">
             {copy.items.map(item => <li key={item}>{item}</li>)}
           </ul>
-        </section>
-        <section>
-          <div className="domu-section-head">
-            <h2>Материалы раздела</h2>
-          </div>
-          <div className="domu-news-grid">
-            {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />)}
-          </div>
-          {!news.length && (
-            <div className="domu-empty">В этом разделе пока нет опубликованных материалов.</div>
-          )}
         </section>
       </div>
     </DomuShell>
@@ -231,13 +207,7 @@ export function DomUchitelyaNewsPage(props) {
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
-        <nav className="domu-breadcrumb" aria-label="Навигация">
-          <Link to="/">Главная</Link>
-          <span>→</span>
-          <Link to="/dom-uchitelya/">Дом учителя</Link>
-          <span>→</span>
-          <span>Новости</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "Дом учителя", to: "/dom-uchitelya/" }, { label: "Новости" }]} />
         <div className="domu-section-head" style={{ marginTop: 0 }}>
           <h2>Новости Дома учителя</h2>
         </div>
@@ -257,11 +227,7 @@ export function CommonNewsPage(props) {
   return (
     <DomuShell {...props}>
       <div className="domu-shell">
-        <nav className="domu-breadcrumb" aria-label="Навигация">
-          <Link to="/">Главная</Link>
-          <span>→</span>
-          <span>Новости</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "Новости" }]} />
         <div className="domu-section-head" style={{ marginTop: 0 }}>
           <h2>Новости</h2>
         </div>
@@ -269,7 +235,7 @@ export function CommonNewsPage(props) {
           {news.map(item => <NewsCard key={item.id} news={item} onClick={() => props.onOpenArticle?.(item)} onAuthorClick={props.onOpenAuthor} />)}
         </div>
         {!news.length && (
-          <div className="domu-empty">В общей ленте пока нет опубликованных материалов.</div>
+          <div className="domu-empty">Новости пока не опубликованы.</div>
         )}
       </div>
     </DomuShell>

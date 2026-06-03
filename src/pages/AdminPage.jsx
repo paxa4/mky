@@ -58,7 +58,7 @@ function IssueModule({ templates }) {
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 12, color: subTab === key ? "#2E9ABA" : "#94A3B8", lineHeight: 1.5, fontWeight: 400 }}>
+            <div style={{ fontSize: 12, color: subTab === key ? "#19789C" : "#94A3B8", lineHeight: 1.5, fontWeight: 400 }}>
               {hint}
             </div>
           </button>
@@ -131,7 +131,7 @@ export default function AdminPage({
   }, [location.pathname, navigate]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #EAF7FA 100%)", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFFFFF 0%, #edf6f8 100%)", display: "flex", flexDirection: "column" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <Header

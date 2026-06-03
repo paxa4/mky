@@ -13,17 +13,16 @@ import TpmpkAdmin from "./pages/admin/tpmpk/TpmpkAdmin.jsx";
 import DomUchitelyaAdmin from "./pages/admin/domUchitelya/DomUchitelyaAdmin.jsx";
 import {
   CommonNewsPage,
-  DOMU_SECTIONS,
   DomUchitelyaHome,
   DomUchitelyaNewsPage,
   DomUchitelyaStaticPage,
 } from "./pages/domUchitelya/DomUchitelyaPages.jsx";
+import { DOMU_SECTIONS } from "./pages/domUchitelya/domuSections.js";
 import {
   ArchivHomePage,
   ArchivSectionPage,
   DeyatelnostHomePage,
   DeyatelnostSectionPage,
-  getMethodikaArticleBackPath,
   KonkursyHomePage,
   KonkursySectionPage,
   MethodikaHomePage,
@@ -32,6 +31,7 @@ import {
   NokoHomePage,
   NokoSectionPage,
 } from "./pages/hubs/HubPages.jsx";
+import { getMethodikaArticleBackPath } from "./pages/hubs/hubUtils.js";
 import SvedeniyaPage from "./pages/SvedeniyaPage.jsx";
 import BlankiPage from "./pages/tpmpk/BlankiPage.jsx";
 import DlyaPedagogovPage from "./pages/tpmpk/DlyaPedagogovPage.jsx";
@@ -81,16 +81,16 @@ const CATEGORY_STYLE = {
   "Курсы": { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" },
   "Достижения": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
   "Новости": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
-  "Проекты": { categoryColor: "#19789C", categoryBg: "#EAF7FA" },
+  "Проекты": { categoryColor: "#19789C", categoryBg: "#edf6f8" },
   "Семинары": { categoryColor: "#D97706", categoryBg: "#FFFBEB" },
   "События": { categoryColor: "#059669", categoryBg: "#ECFDF5" },
 };
 
 CATEGORY_STYLE["Дом учителя"] = { categoryColor: "#047857", categoryBg: "#ECFDF5" };
-CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#19789C", categoryBg: "#EAF7FA" };
+CATEGORY_STYLE["Методическое пространство"] = { categoryColor: "#19789C", categoryBg: "#edf6f8" };
 CATEGORY_STYLE["НОКО"] = { categoryColor: "#7C3AED", categoryBg: "#F5F3FF" };
 CATEGORY_STYLE["Олимпиады и конкурсы"] = { categoryColor: "#B45309", categoryBg: "#FEF3C7" };
-CATEGORY_STYLE["Деятельность"] = { categoryColor: "#19789C", categoryBg: "#EAF7FA" };
+CATEGORY_STYLE["Деятельность"] = { categoryColor: "#19789C", categoryBg: "#edf6f8" };
 CATEGORY_STYLE["Архив"] = { categoryColor: "#374151", categoryBg: "#F3F4F6" };
 
 const DEFAULT_CATEGORIES = [
@@ -411,7 +411,7 @@ function AppRoutes() {
   useEffect(() => {
     if (!getStoredUser()) return;
     apiMe().catch(() => {
-      // apiMe itself clears only truly unauthorized sessions; network hiccups keep the current UI intact.
+      // Keep the remembered account in place; individual API errors are handled near the request.
     });
   }, []);
 

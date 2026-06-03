@@ -1,83 +1,201 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin } from "../../auth.js";
 import { SVEDENIYA_QUICK_LINKS } from "../../pages/svedeniya/svedeniyaData.js";
+import {
+  ARCHIV_ROUTES,
+  DEYATELNOST_ROUTES,
+  DOMU_SECTIONS,
+  KONKURSY_ROUTES,
+  METHODIKA_STATIC_PAGES,
+  NOKO_ROUTES,
+} from "../admin/articleTaxonomy.js";
+
+const link = (label, path) => ({ label, path });
+
+const TPMPK_LINKS = [
+  link("ТПМПК", "/tpmpk/"),
+  link("Запись на обследование", "/tpmpk/zapis"),
+  link("Документы", "/tpmpk/dokumenty/"),
+  link("Бланки и формы", "/tpmpk/blanki/"),
+  link("График работы", "/tpmpk/grafik/"),
+  link("Состав комиссии", "/tpmpk/sostav/"),
+  link("Нормативные акты", "/tpmpk/npa/"),
+  link("Вопросы и ответы", "/tpmpk/faq/"),
+  link("Для родителей", "/tpmpk/dlya-roditeley/"),
+  link("Для педагогов", "/tpmpk/dlya-pedagogov/"),
+  link("Контакты", "/tpmpk/kontakty/"),
+];
 
 const COLUMNS = [
   {
     title: "Об организации",
     links: [
-      "Основные сведения",
-      "Структура и органы управления",
-      "Документы",
-      "Образование",
-      "Руководство",
-      "Материально-техническое обеспечение",
-      "Платные образовательные услуги",
-      "Доступная среда",
+      link("Основные сведения", "/sveden/common/"),
+      link("Структура и органы управления", "/sveden/struct/"),
+      link("Документы", "/sveden/document/"),
+      link("Образование", "/sveden/education/"),
+      link("Руководство", "/sveden/employees/"),
+      link("Материально-техническое обеспечение", "/sveden/objects/"),
+      link("Платные образовательные услуги", "/sveden/paid_edu/"),
+      link("Доступная среда", "/sveden/ovz/"),
     ],
   },
   {
     title: "Подразделения",
     links: [
-      "ТПМПК",
-      "Профсоюз",
-      "Оценка качества образования",
-      "Мониторинг и статистика",
-      "Методические объединения",
+      link("ТПМПК", "/tpmpk/"),
+      link("Дом учителя", "/dom-uchitelya/"),
+      link("Методическое пространство", "/metodika/"),
+      link("НОКО", "/noko/"),
+      link("Олимпиады и конкурсы", "/konkursy/"),
+      link("Деятельность", "/deyatelnost/"),
+      link("Архив", "/archiv/"),
     ],
   },
   {
     title: "Мероприятия",
     links: [
-      "Олимпиады",
-      "Конкурсы",
-      "Конференции",
-      "План работы",
-      "Программы развития",
-      "Событийный календарь",
+      link("Новости и события", "/novosti/"),
+      link("Календарь конкурсов", "/konkursy/kalendar/"),
+      link("Итоги конкурсов", "/konkursy/itogi/"),
+      link("Для обучающихся", "/konkursy/students/"),
+      link("Для педагогов", "/konkursy/teachers/"),
+      link("Событийный календарь", "/#calendar"),
     ],
   },
   {
     title: "НОКО",
-    links: [
-      "Организационно-правовые документы",
-      "ГИА 9 класс",
-      "ГИА 11 класс",
-      "Всероссийские проверочные работы",
-      "Функциональная грамотность",
-      "ФИОКО",
-    ],
+    links: [link("НОКО", "/noko/"), ...NOKO_ROUTES.map((item) => link(item.title, item.path))],
   },
   {
-    title: "Наставничество",
-    links: [
-      "Нормативные документы",
-      "Найти наставника",
-      "Совет наставников",
-      "Школы наставничества",
-      "Опыт наставников",
-      "Конкурсы",
-    ],
+    title: "Дом учителя",
+    links: [link("Дом учителя", "/dom-uchitelya/"), link("Новости", "/dom-uchitelya/novosti/"), ...DOMU_SECTIONS.map((item) => link(item.label, `/dom-uchitelya/${item.value}/`))],
   },
 ];
 
-function handleLinkClick(label, onClose) {
-  if (label === "Событийный календарь") {
-    document.getElementById("calendar")?.scrollIntoView({ behavior: "smooth" });
-    onClose();
-  }
+const METHODIKA_LINKS = [
+  link("Методическое пространство", "/metodika/"),
+  ...METHODIKA_STATIC_PAGES.map((item) => link(item.title, item.path)),
+];
+
+const ACTIVITY_LINKS = [
+  link("Деятельность", "/deyatelnost/"),
+  ...DEYATELNOST_ROUTES.map((item) => link(item.title, item.path)),
+  link("Архив", "/archiv/"),
+  ...ARCHIV_ROUTES.map((item) => link(item.title, item.path)),
+];
+
+const CONTEST_LINKS = [
+  link("Олимпиады и конкурсы", "/konkursy/"),
+  ...KONKURSY_ROUTES.map((item) => link(item.title, item.path)),
+];
+
+function normalizePath(pathname) {
+  if (!pathname) return "/";
+  return pathname.endsWith("/") ? pathname : `${pathname}/`;
 }
 
-function goPath(path) {
-  window.location.href = path;
-}
+export default function MegaMenu({ open, onClose, currentUser }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [query, setQuery] = useState("");
 
-export default function MegaMenu({ open, onClose }) {
+  const roleLinks = useMemo(() => {
+    const items = [];
+    if (canAccessAdmin(currentUser)) {
+      items.push(
+        link("Админ-панель", "/admin/"),
+        link("Статьи", "/admin/articles"),
+        link("Генератор грамот", "/admin/certificates"),
+        link("Конструктор шаблонов", "/admin/templates"),
+        link("Демо чат-бота", "/admin/chat"),
+      );
+    }
+    if (canAccessDomuAdmin(currentUser)) items.push(link("Админка Дома учителя", "/admin/dom-uchitelya/"));
+    if (canAccessTpmpkAdmin(currentUser)) items.push(link("Кабинет ТПМПК", "/admin/tpmpk/"));
+    return items;
+  }, [currentUser]);
+
+  const blueLinks = roleLinks.length ? roleLinks : [
+    link("Запись на ТПМПК", "/tpmpk/zapis"),
+    link("Новости", "/novosti/"),
+    link("Дом учителя", "/dom-uchitelya/"),
+  ];
+
+  const allLinks = useMemo(
+    () => [
+      ...COLUMNS.flatMap((column) => column.links),
+      ...METHODIKA_LINKS,
+      ...ACTIVITY_LINKS,
+      ...CONTEST_LINKS,
+      ...TPMPK_LINKS,
+      ...roleLinks,
+      ...SVEDENIYA_QUICK_LINKS.map((item) => link(item.label, item.path)),
+    ],
+    [roleLinks],
+  );
+
+  const filteredLinks = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    if (!value) return [];
+    return allLinks.filter((item) => item.label.toLowerCase().includes(value)).slice(0, 8);
+  }, [allLinks, query]);
+
+  const primaryLinks = [
+    link("Главная", "/"),
+    link("Сведения об организации", "/sveden/"),
+    link("Новости и события", "/novosti/"),
+    link("ТПМПК", "/tpmpk/"),
+    link("Дом учителя", "/dom-uchitelya/"),
+    link("Методическое пространство", "/metodika/"),
+    link("НОКО", "/noko/"),
+    link("Олимпиады и конкурсы", "/konkursy/"),
+  ];
+
+  const compactGroups = [
+    { title: "Сведения", links: SVEDENIYA_QUICK_LINKS.map((item) => link(item.label, item.path)) },
+    { title: "ТПМПК", links: TPMPK_LINKS.slice(1) },
+    { title: "Мероприятия", links: COLUMNS[2].links },
+    { title: "Дом учителя", links: [link("Новости", "/dom-uchitelya/novosti/"), ...DOMU_SECTIONS.slice(0, 6).map((item) => link(item.label, `/dom-uchitelya/${item.value}/`))] },
+    { title: "Материалы", links: [...METHODIKA_LINKS, ...ACTIVITY_LINKS, ...CONTEST_LINKS].slice(0, 12) },
+  ];
+
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  function goPath(path) {
+    if (!path) return;
+    onClose();
+    navigate(path);
+    if (path.includes("#calendar")) {
+      window.setTimeout(() => document.getElementById("calendar")?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+  }
+
+  function isActive(path) {
+    if (!path || path.includes("#")) return false;
+    const current = normalizePath(location.pathname);
+    const target = normalizePath(path);
+    return target === "/" ? current === "/" : current.startsWith(target);
+  }
+
+  function renderLinkButton(item, className) {
+    return (
+      <button
+        className={`${className}${isActive(item.path) ? " is-active" : ""}`}
+        type="button"
+        key={`${item.path}-${item.label}`}
+        onClick={() => goPath(item.path)}
+      >
+        {item.label}
+      </button>
+    );
+  }
 
   if (!open) return null;
 
@@ -86,14 +204,14 @@ export default function MegaMenu({ open, onClose }) {
       <style>{`
         .mega-overlay {
           position: fixed;
-          top: 73px;
+          top: 83px;
           left: 0;
           right: 0;
           bottom: 0;
           z-index: 210;
           background: #f8fafc;
           overflow-y: auto;
-          padding: 30px 24px;
+          padding: 18px 22px;
           animation: megaFadeIn 0.18s ease-out;
         }
 
@@ -103,11 +221,12 @@ export default function MegaMenu({ open, onClose }) {
         }
 
         .mega-container {
-          max-width: 1400px;
+          max-width: 1280px;
           margin: 0 auto;
         }
 
         .mega-search-wrap {
+          position: relative;
           background: #fff;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
@@ -115,32 +234,79 @@ export default function MegaMenu({ open, onClose }) {
           align-items: center;
           gap: 12px;
           padding: 12px 16px;
-          margin-bottom: 24px;
+          margin-bottom: 14px;
           box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
         }
 
-        .mega-sveden-band {
+        .mega-search-results {
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          right: 0;
+          z-index: 2;
           display: grid;
-          grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
-          gap: 16px;
-          margin-bottom: 18px;
+          gap: 6px;
+          padding: 10px;
+          border: 1px solid #dbe5f1;
+          border-radius: 12px;
+          background: #fff;
+          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
         }
 
-        .mega-sveden-card {
+        .mega-search-result {
+          min-height: 38px;
+          border: 0;
+          border-radius: 8px;
+          background: #f8fbff;
+          color: #0f172a;
+          text-align: left;
+          padding: 0 12px;
+          font: 800 13px/1.25 inherit;
+          cursor: pointer;
+        }
+
+        .mega-compact-grid {
+          display: grid;
+          grid-template-columns: 1.05fr repeat(4, minmax(0, 1fr));
+          gap: 12px;
+          align-items: stretch;
+        }
+
+        .mega-hero-card,
+        .mega-group-card {
           background: #fff;
           border: 1px solid #dbe5f1;
           border-radius: 12px;
-          padding: 18px;
+          padding: 14px;
           display: grid;
-          gap: 10px;
+          align-content: start;
+          gap: 9px;
           box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
         }
 
-        .mega-sveden-card p {
+        .mega-hero-card p {
           color: #475569;
           font-size: 13px;
           line-height: 1.5;
           font-weight: 650;
+        }
+
+        .mega-group-card {
+          min-height: 0;
+        }
+
+        .mega-primary-grid,
+        .mega-link-grid {
+          display: grid;
+          gap: 7px;
+        }
+
+        .mega-primary-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .mega-link-grid {
+          grid-template-columns: 1fr;
         }
 
         .mega-sveden-open {
@@ -155,25 +321,23 @@ export default function MegaMenu({ open, onClose }) {
           cursor: pointer;
         }
 
-        .mega-sveden-links {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-
         .mega-sveden-link {
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           background: #f8fbff;
-          padding: 11px 12px;
+          min-height: 34px;
+          padding: 8px 10px;
           color: #334155;
           text-align: left;
-          font: 850 12.5px/1.35 inherit;
+          font: 850 12px/1.3 inherit;
           cursor: pointer;
+          overflow-wrap: anywhere;
         }
 
         .mega-sveden-link:hover,
-        .mega-sveden-open:hover {
+        .mega-sveden-link.is-active,
+        .mega-sveden-open:hover,
+        .mega-search-result:hover {
           background: #0f2f78;
           color: #fff;
         }
@@ -229,7 +393,7 @@ export default function MegaMenu({ open, onClose }) {
         }
 
         .m-card-blue {
-          background: #19789C;
+          background: #1d4ed8;
           color: #fff;
           box-shadow: 0 10px 26px rgba(29, 78, 216, 0.24);
         }
@@ -252,6 +416,7 @@ export default function MegaMenu({ open, onClose }) {
           cursor: pointer;
           font-family: inherit;
           line-height: 1.38;
+          overflow-wrap: anywhere;
         }
 
         .m-link {
@@ -275,34 +440,29 @@ export default function MegaMenu({ open, onClose }) {
         }
 
         .m-link:hover,
-        .m-bold-link:hover {
+        .m-link.is-active,
+        .m-bold-link:hover,
+        .m-bold-link.is-active {
           color: #2563eb;
         }
 
-        .m-link-blue:hover {
+        .m-link-blue:hover,
+        .m-link-blue.is-active {
           opacity: 0.82;
         }
 
         @media (max-width: 1200px) {
-          .mega-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        }
-
-        @media (max-width: 900px) {
-          .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .mega-compact-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .mega-hero-card { grid-column: span 3; }
         }
 
         @media (max-width: 600px) {
           .mega-overlay {
-            top: 65px;
+            top: 67px;
             padding: 18px 14px;
           }
-          .mega-sveden-band {
-            grid-template-columns: 1fr;
-          }
-          .mega-sveden-links {
-            grid-template-columns: 1fr;
-          }
-          .mega-grid { grid-template-columns: 1fr; }
+          .mega-compact-grid { grid-template-columns: 1fr; }
+          .mega-hero-card { grid-column: auto; }
         }
       `}</style>
 
@@ -313,85 +473,46 @@ export default function MegaMenu({ open, onClose }) {
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
             </svg>
-            <input type="text" className="mega-search-input" placeholder="Поиск" autoFocus />
+            <input
+              type="text"
+              className="mega-search-input"
+              placeholder="Поиск по разделам"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+            />
             <button className="mega-search-close" onClick={onClose} type="button" title="Закрыть меню" aria-label="Закрыть меню">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
+            {filteredLinks.length > 0 && (
+              <div className="mega-search-results">
+                {filteredLinks.map((item) => renderLinkButton(item, "mega-search-result"))}
+              </div>
+            )}
           </div>
 
-          <div className="mega-sveden-band">
-            <div className="mega-sveden-card">
-              <div className="m-title">Сведения об ОО &gt;</div>
-              <p>Официальный раздел с 13 обязательными подразделами, встроенный в общий сайт и доступный по маршруту /sveden/.</p>
-              <button className="mega-sveden-open" type="button" onClick={() => goPath("/sveden/")}>
-                Открыть раздел
-              </button>
-            </div>
-
-            <div className="mega-sveden-links">
-              {SVEDENIYA_QUICK_LINKS.map((item) => (
-                <button
-                  className="mega-sveden-link"
-                  type="button"
-                  key={item.path}
-                  onClick={() => goPath(item.path)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mega-grid">
-            {COLUMNS.slice(0, 2).map((column) => (
-              <div className="m-card" key={column.title}>
-                <div className="m-title">{column.title} &gt;</div>
-                {column.links.map((link) => (
-                  <button className="m-link" type="button" key={link} onClick={() => handleLinkClick(link, onClose)}>
-                    {link}
-                  </button>
-                ))}
-              </div>
-            ))}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div className="m-card">
-                {COLUMNS[2].links.slice(0, 5).map((link) => (
-                  <button className="m-bold-link" type="button" key={link} onClick={() => handleLinkClick(link, onClose)}>
-                    {link}
-                  </button>
-                ))}
-              </div>
-              <div className="m-card">
-                <button className="m-bold-link" type="button" onClick={() => handleLinkClick("Событийный календарь", onClose)}>
-                  Событийный календарь &gt;
-                </button>
-              </div>
-            </div>
-
-            {COLUMNS.slice(3).map((column) => (
-              <div className="m-card" key={column.title}>
-                <div className="m-title">{column.title} &gt;</div>
-                {column.links.map((link) => (
-                  <button className="m-link" type="button" key={link} onClick={() => handleLinkClick(link, onClose)}>
-                    {link}
-                  </button>
-                ))}
-              </div>
-            ))}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div className="m-card">
-                <div className="m-title">Профориентационная деятельность &gt;</div>
+          <div className="mega-compact-grid">
+            <section className="mega-hero-card">
+              <div className="m-title">Быстрый переход &gt;</div>
+              <p>Основные разделы сайта, личные кабинеты и востребованные сервисы собраны в компактной сетке.</p>
+              <div className="mega-primary-grid">
+                {primaryLinks.map((item) => renderLinkButton(item, "mega-sveden-link"))}
               </div>
               <div className="m-card-blue">
-                <button className="m-link-blue" type="button">Августовские педагогические совещания</button>
-                <button className="m-link-blue" type="button">Компьютериада</button>
-                <button className="m-link-blue" type="button">Генератор грамот</button>
+                {blueLinks.map((item) => renderLinkButton(item, "m-link-blue"))}
               </div>
-            </div>
+            </section>
+
+            {compactGroups.map((group) => (
+              <section className="mega-group-card" key={group.title}>
+                <div className="m-title">{group.title} &gt;</div>
+                <div className="mega-link-grid">
+                  {group.links.map((item) => renderLinkButton(item, "mega-sveden-link"))}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
       </div>

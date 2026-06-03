@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import Footer from "../../components/Footer.jsx";
 import Header from "../../features/nav/Header.jsx";
+import Breadcrumbs from "../../components/Breadcrumbs.jsx";
 import { getTpmpkPage } from "./tpmpkPagesData.js";
 
 function Seo({ title, description }) {
@@ -90,13 +91,18 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
       <Seo title={page.title} description={page.meta} />
       <style>{`
         .ti-page {
+          --ti-primary: #19789C;
+          --ti-primary-dark: #004f75;
+          --ti-primary-soft: #edf6f8;
+          --ti-primary-line: #b8d4dd;
+          --ti-primary-shadow: rgba(25, 120, 156, 0.2);
           min-height: 100vh;
           display: flex;
           flex-direction: column;
           color: #0f172a;
           background:
-            radial-gradient(circle at 14% 8%, rgba(124, 58, 237, 0.07), transparent 28%),
-            linear-gradient(180deg, #fbfdff 0%, #f3f7fc 54%, #eef4fb 100%);
+            radial-gradient(circle at 14% 8%, rgba(25, 120, 156, 0.08), transparent 28%),
+            linear-gradient(180deg, #fbfdff 0%, #f3f9fb 54%, var(--ti-primary-soft) 100%);
         }
 
         .ti-main {
@@ -107,22 +113,6 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: min(1120px, calc(100% - 28px));
           margin: 0 auto;
           padding: 30px 0 70px;
-        }
-
-        .ti-breadcrumb {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
-          color: #64748b;
-          font-size: 13px;
-          font-weight: 850;
-          margin-bottom: 14px;
-        }
-
-        .ti-breadcrumb a {
-          color: #1e3a8a;
-          text-decoration: none;
         }
 
         .ti-hero,
@@ -148,7 +138,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: min(360px, 74vw);
           height: 180px;
           border-radius: 999px;
-          background: linear-gradient(125deg, rgba(30, 58, 138, 0.1), rgba(124, 58, 237, 0.12));
+          background: linear-gradient(125deg, rgba(25, 120, 156, 0.12), rgba(0, 79, 117, 0.1));
           transform: rotate(-8deg);
           pointer-events: none;
         }
@@ -159,8 +149,8 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: fit-content;
           padding: 7px 11px;
           border-radius: 999px;
-          background: #f5f3ff;
-          color: #6d28d9;
+          background: var(--ti-primary-soft);
+          color: var(--ti-primary-dark);
           font-size: 12px;
           font-weight: 950;
           letter-spacing: 0.04em;
@@ -208,18 +198,33 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           justify-content: center;
           text-decoration: none;
           font-weight: 950;
+          transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease, color .16s ease;
         }
 
         .ti-primary {
           color: #fff;
-          background: #1e3a8a;
-          box-shadow: 0 16px 34px rgba(30,58,138,0.2);
+          background: linear-gradient(135deg, var(--ti-primary), var(--ti-primary-dark));
+          box-shadow: 0 16px 34px var(--ti-primary-shadow);
         }
 
         .ti-secondary {
-          color: #1e3a8a;
+          color: var(--ti-primary-dark);
           background: #fff;
-          border: 1px solid #d7e2f2;
+          border: 1px solid var(--ti-primary-line);
+        }
+
+        .ti-primary:hover,
+        .ti-secondary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 18px 34px rgba(25, 120, 156, .14);
+        }
+
+        .ti-primary:focus-visible,
+        .ti-secondary:focus-visible,
+        .ti-mini-card:focus-visible,
+        .ti-faq summary:focus-visible {
+          outline: 3px solid rgba(25, 120, 156, .2);
+          outline-offset: 3px;
         }
 
         .ti-content {
@@ -264,8 +269,8 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-check-list li:hover,
         .ti-table-row:not(.ti-table-head):hover {
           transform: translateY(-1px);
-          border-color: #c4b5fd;
-          box-shadow: 0 14px 30px rgba(30,58,138,.08);
+          border-color: var(--ti-primary-line);
+          box-shadow: 0 14px 30px rgba(25, 120, 156, .1);
         }
 
         .ti-mini-card h3 {
@@ -307,8 +312,8 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: 12px;
           height: 12px;
           border-radius: 999px;
-          background: #7c3aed;
-          box-shadow: 0 0 0 5px #f5f3ff;
+          background: var(--ti-primary);
+          box-shadow: 0 0 0 5px var(--ti-primary-soft);
         }
 
         .ti-table {
@@ -401,13 +406,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
 
       <main className="ti-main">
         <div className="ti-shell">
-          <nav className="ti-breadcrumb" aria-label="Хлебные крошки">
-            <Link to="/">Главная</Link>
-            <span aria-hidden="true">/</span>
-            <Link to="/tpmpk">ТПМПК</Link>
-            <span aria-hidden="true">/</span>
-            <span>{page.title}</span>
-          </nav>
+          <Breadcrumbs items={[{ label: "Главная", to: "/" }, { label: "ТПМПК", to: "/tpmpk" }, { label: page.title }]} />
 
           <section className="ti-hero">
             <span className="ti-eyebrow">{page.eyebrow}</span>

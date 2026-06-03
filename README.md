@@ -1,58 +1,55 @@
-# Проект MKY - EduIrk
+# Frontend MKY / EduIrk
 
-Единая информационная система для образовательных организаций г. Иркутска.
+React/Vite frontend проекта MKY / EduIrk: публичные страницы, административные интерфейсы, редактор статей, генератор грамот и demo-чат.
 
----
+## Docker
 
-## 🚀 Быстрый запуск (Через Docker)
-Самый простой способ запустить весь проект одной командой.
+Сначала запустите backend на http://localhost:8000.
 
-**Требования:** Установленный Docker Desktop.
+Из корня frontend-репозитория:
 
-### Стандартный запуск
-1. Откройте терминал в корневой папке проекта.
-2. Выполните команду:
-   ```bash
-   docker compose up -d --build
-   ```
+```bash
+docker build --build-arg VITE_API_URL=http://localhost:8000 -t mky-frontend .
+docker run --rm -p 5173:80 mky-frontend
+```
 
-### ⚡ Запуск БЕЗ RAG (Ускоренный)
-Если вам не нужен ИИ-помощник и вы хотите запустить проект быстрее:
-1. Откройте `docker-compose.yml`.
-2. В разделе `backend` -> `environment` установите `ENABLE_RAG: "false"`.
-3. Запустите:
-   ```bash
-   docker compose up -d --build
-   ```
-*Это пропустит загрузку тяжелых ML-библиотек и моделей.*
+После запуска frontend доступен на http://localhost:5173.
 
----
+## Локальный Запуск
 
-## 💻 Локальный запуск (Без Docker)
+Сначала запустите backend на http://localhost:8000. Затем:
 
-### 🐍 Backend (FastAPI)
-1. Перейдите в папку: `cd backend`
-2. Создайте и активируйте окружение:
-   ```bash
-   python -m venv venv
-   # Windows: venv\Scripts\activate
-   # Linux/macOS: source venv/bin/activate
-   ```
-3. Установите зависимости: `pip install -r requirements.txt`
-4. **Запуск без RAG (Рекомендуется для скорости):**
-   - **Windows:** `set ENABLE_RAG=false && uvicorn main:app --reload`
-   - **Linux/macOS:** `ENABLE_RAG=false uvicorn main:app --reload`
+```bash
+npm install
+npm run dev
+```
 
-### ⚛️ Frontend (React/Vite)
-1. Перейдите в папку: `cd frontend`
-2. Установите зависимости: `npm install`
-3. Запустите: `npm run dev`
+Frontend будет доступен на http://localhost:5173.
 
----
+По умолчанию API-адрес: http://localhost:8000. Для другого адреса задайте:
 
-## 🛠 Краткая справка
-- **Frontend:** [http://localhost:5173](http://localhost:5173)
-- **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Отключение RAG** значительно ускоряет установку зависимостей и время старта бэкенда.
+```bash
+VITE_API_URL=http://localhost:8000 npm run dev
+```
 
-© 2026 MKY Team
+Если при входе появляется `Failed to fetch`, backend не отвечает или запущен не на том адресе. Проверьте http://localhost:8000/docs.
+
+## Тестовые Пользователи
+
+При запущенном backend с `ENABLE_DEV_TEST_USERS=true` доступны:
+
+- `admin@mky.test` / `admin123`
+- `methodist@mky.test` / `methodist123`
+- `domu@mky.test` / `domu123`
+- `operator@mky.test` / `operator123`
+- `user@mky.test` / `user123`
+
+## Проверки
+
+```bash
+npm run build
+npx eslint src
+node scripts/auth.test.mjs
+```
+
+Demo-чат остается только frontend UI: ответы статические, сетевые запросы к backend assistant/RAG API не выполняются.

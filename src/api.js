@@ -1,12 +1,18 @@
 import { API_BASE } from "./constants/index.js";
-import { AUTH_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEYS } from "./auth.js";
+import { AUTH_REFRESH_TOKEN_STORAGE_KEYS, AUTH_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEYS } from "./auth.js";
 
 const TOKEN_STORAGE_KEY = "access_token";
 const MKY_TOKEN_STORAGE_KEY = "mky_access_token";
+const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
+const MKY_REFRESH_TOKEN_STORAGE_KEY = "mky_refresh_token";
 export const AUTH_SESSION_EXPIRED_EVENT = "mky:auth-session-expired";
 
 function getToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY) || localStorage.getItem(MKY_TOKEN_STORAGE_KEY);
+}
+
+function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || localStorage.getItem(MKY_REFRESH_TOKEN_STORAGE_KEY);
 }
 
 export function getAuthHeaders(headers = {}) {
@@ -14,20 +20,48 @@ export function getAuthHeaders(headers = {}) {
   return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
 }
 
+function updateStoredUserTokens({ access_token, refresh_token } = {}) {
+  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!raw) return;
+  try {
+    const user = JSON.parse(raw);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      ...user,
+      ...(access_token ? { access_token } : {}),
+      ...(refresh_token ? { refresh_token } : {}),
+    }));
+  } catch {
+    // If a legacy value is malformed, token storage below is still enough for API calls.
+  }
+}
+
 function saveToken(token) {
-  if (!token) return;
-  localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  localStorage.setItem(MKY_TOKEN_STORAGE_KEY, token);
+  if (!token?.access_token && typeof token !== "string") return;
+  const accessToken = typeof token === "string" ? token : token.access_token;
+  const refreshToken = typeof token === "string" ? "" : token.refresh_token;
+
+  if (accessToken) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+    localStorage.setItem(MKY_TOKEN_STORAGE_KEY, accessToken);
+  }
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+    localStorage.setItem(MKY_REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+  }
+  updateStoredUserTokens({ access_token: accessToken, refresh_token: refreshToken });
 }
 
 function removeToken() {
   localStorage.removeItem(TOKEN_STORAGE_KEY);
   localStorage.removeItem(MKY_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(MKY_REFRESH_TOKEN_STORAGE_KEY);
 }
 
 function clearStoredAuthSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
   AUTH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
 function notifyAuthSessionExpired() {
@@ -113,7 +147,7 @@ export async function apiLogin(email, password) {
   const data = await readJson(res);
   if (!res.ok) throw new Error(getErrorMessage(data, "Неверный email или пароль"));
   if (!data?.access_token) throw new Error("Сервер не вернул токен авторизации");
-  saveToken(data.access_token);
+  saveToken(data);
   return data;
 }
 
@@ -129,6 +163,7 @@ export async function apiLoginWithProfile(email, password) {
   return {
     ...profile,
     access_token: token.access_token,
+    refresh_token: token.refresh_token,
     token_type: token.token_type,
   };
 }
@@ -137,13 +172,29 @@ export function apiLogout() {
   removeToken();
 }
 
-export async function apiMe(token = getToken()) {
-  const res = await fetch(`${API_BASE}/auth/me`, {
+export async function apiMe(token = getToken(), options = {}) {
+  let sessionExpiredNotified = false;
+  let res = await fetch(`${API_BASE}/auth/me`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+
+  if (res.status === 401 && !options.skipAuthRefresh && getRefreshToken()) {
+    try {
+      const refreshed = await refreshAuthToken();
+      res = await fetch(`${API_BASE}/auth/me`, {
+        headers: refreshed?.access_token ? { Authorization: `Bearer ${refreshed.access_token}` } : getAuthHeaders(),
+      });
+    } catch {
+      if (options.expireSessionOnUnauthorized) {
+        notifyAuthSessionExpired();
+        sessionExpiredNotified = true;
+      }
+    }
+  }
+
   if (!res.ok) {
     const data = await readJson(res);
-    if (res.status === 401) notifyAuthSessionExpired();
+    if (res.status === 401 && options.expireSessionOnUnauthorized && !sessionExpiredNotified) notifyAuthSessionExpired();
     const error = new Error(getErrorMessage(data, "Не авторизован"));
     error.status = res.status;
     throw error;
@@ -151,12 +202,47 @@ export async function apiMe(token = getToken()) {
   return res.json();
 }
 
-export async function authFetch(input, options = {}) {
-  const response = await fetch(input, {
-    ...options,
-    headers: getAuthHeaders(options.headers || {}),
+async function refreshAuthToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
   });
-  if (response.status === 401) notifyAuthSessionExpired();
+  const data = await readJson(res);
+  if (!res.ok || !data?.access_token) {
+    const error = new Error(getErrorMessage(data, "Не удалось обновить сессию"));
+    error.status = res.status;
+    throw error;
+  }
+  saveToken(data);
+  return data;
+}
+
+export async function authFetch(input, options = {}) {
+  const { expireSessionOnUnauthorized = false, skipAuthRefresh = false, ...fetchOptions } = options;
+  const request = {
+    ...fetchOptions,
+    headers: getAuthHeaders(fetchOptions.headers || {}),
+  };
+  let response = await fetch(input, request);
+
+  if (response.status === 401 && !skipAuthRefresh && getRefreshToken()) {
+    try {
+      await refreshAuthToken();
+      response = await fetch(input, {
+        ...fetchOptions,
+        headers: getAuthHeaders(fetchOptions.headers || {}),
+      });
+    } catch {
+      if (expireSessionOnUnauthorized) notifyAuthSessionExpired();
+    }
+  } else if (response.status === 401 && expireSessionOnUnauthorized) {
+    notifyAuthSessionExpired();
+  }
+
   return response;
 }
 
@@ -455,5 +541,30 @@ export async function apiAssistantQualityStats(params = {}) {
     throw new Error(getErrorMessage(data, fallback));
   }
 
+  return data;
+}
+
+export async function apiGetAssistantSettings() {
+  const res = await authFetch(`${API_BASE}/assistant/settings`, {
+    expireSessionOnUnauthorized: true,
+  });
+  const data = await readJson(res);
+  if (!res.ok) {
+    throw new Error(getErrorMessage(data, "Не удалось загрузить настройки ассистента"));
+  }
+  return data;
+}
+
+export async function apiUpdateAssistantSettings(settings) {
+  const res = await authFetch(`${API_BASE}/assistant/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+    expireSessionOnUnauthorized: true,
+  });
+  const data = await readJson(res);
+  if (!res.ok) {
+    throw new Error(getErrorMessage(data, "Не удалось сохранить настройки ассистента"));
+  }
   return data;
 }

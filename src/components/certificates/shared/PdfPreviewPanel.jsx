@@ -45,7 +45,7 @@ export default function PdfPreviewPanel({ fileUrl, onDownload, accentColor = "#1
         <iframe
           src={fullUrl}
           style={{ width: "100%", height: "min(640px, calc(100vh - 220px))", border: "none", minHeight: 420 }}
-          title="Предпросмотр сертификата"
+          title="Предпросмотр грамоты"
         />
       </div>
       <button
