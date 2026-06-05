@@ -4,6 +4,14 @@ import Footer from "../../components/Footer.jsx";
 import Breadcrumbs from "../../components/Breadcrumbs.jsx";
 import NewsCard from "../../features/news/NewsCard.jsx";
 import {
+  ImcroContactPanel,
+  ImcroContainer,
+  ImcroNewsPanel,
+  ImcroPage,
+  ImcroSection,
+  ImcroServiceCard,
+} from "../../components/imcro/ImcroPublicComponents.jsx";
+import {
   ARCHIV_ROUTES,
   DEYATELNOST_ROUTES,
   KONKURSY_ROUTES,
@@ -12,6 +20,102 @@ import {
   NOKO_ROUTES,
   methodikaSubjectBySlug,
 } from "../../features/admin/articleTaxonomy.js";
+import "./NokoPage.css";
+
+const NOKO_NEWS_ITEMS = [
+  {
+    date: "24.08.2024",
+    title: "Опубликованы новые методические рекомендации по НОКО",
+    href: "/novosti/",
+  },
+  {
+    date: "26.08.2024",
+    title: "Вебинар: «Анализ результатов НОКО за первый квартал»",
+    href: "/novosti/",
+  },
+  {
+    date: "29.08.2024",
+    title: "Обновление статистических данных по качеству образования",
+    href: "/novosti/",
+  },
+];
+
+const NOKO_MATERIAL_CARDS = [
+  {
+    title: "Оперативная информация",
+    description: "Актуальные приказы, распоряжения и срочные уведомления для руководителей образовательных учреждений.",
+    href: "/noko/operativnaya-informaciya/",
+    icon: "clipboard",
+  },
+  {
+    title: "ГИА 9 класс",
+    description: "Методические материалы, демоверсии, спецификации и кодификаторы для подготовки к ОГЭ.",
+    href: "/noko/gia-9/",
+    icon: "graduation",
+  },
+  {
+    title: "ГИА 11 (12) класс",
+    description: "Банк заданий, нормативные документы и аналитические отчёты по результатам ЕГЭ.",
+    href: "/noko/gia-11/",
+    icon: "certificate",
+  },
+  {
+    title: "Сборники и альманахи",
+    description: "Тематические публикации, лучшие практики и исследовательские статьи по качеству образования.",
+    href: "/noko/sborniki/",
+    icon: "book",
+  },
+];
+
+const NOKO_CONTACTS = [
+  { label: "Ответственный специалист", value: "Иванова Анна Петровна" },
+  { label: "Должность", value: "начальник отдела НОКО" },
+  { label: "Телефон", value: "+7 (123) 456-78-90", href: "tel:+71234567890" },
+  { label: "Кабинет", value: "124" },
+  { label: "Электронная почта", value: "noko@imzro.edu.ru", href: "mailto:noko@imzro.edu.ru" },
+  { label: "Рабочие часы", value: "Пн–Пт: 09:00–18:00" },
+  { label: "Перерыв", value: "13:00–14:00" },
+];
+
+function NokoIcon({ name }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+
+  switch (name) {
+    case "graduation":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+          <path d="m3 9 9-4 9 4-9 4-9-4Z" />
+          <path d="M7 11v4.5c0 1.2 2.2 2.5 5 2.5s5-1.3 5-2.5V11" />
+        </svg>
+      );
+    case "certificate":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+          <path d="M5 4h14v12H5z" />
+          <path d="M8 8h8" />
+          <path d="M8 12h5" />
+          <path d="m16 16 1.5 4 1.5-2 2 .8-1.5-4" />
+        </svg>
+      );
+    case "book":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H7a3 3 0 0 0-3 3V5.5Z" />
+          <path d="M4 19a3 3 0 0 1 3-3h13" />
+        </svg>
+      );
+    case "clipboard":
+    default:
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+          <path d="M8 4h8l1 3H7l1-3Z" />
+          <path d="M7 5H5v16h14V5h-2" />
+          <path d="M8 11h8" />
+          <path d="M8 15h6" />
+        </svg>
+      );
+  }
+}
 
 function HubShell({ currentUser, onGoAuth, onGoAdmin, onGoProfile, children }) {
   return (
@@ -219,7 +323,72 @@ function GenericHubSection({ homePath, homeLabel, section, newsItems = [], kind,
 }
 
 export function NokoHomePage(props) {
-  return <GenericHubHome {...props} eyebrow="НОКО" title="Независимая оценка качества образования" lead="Раздел НОКО: оперативная информация, ГИА и тематические сборники." sections={NOKO_ROUTES} />;
+  return (
+    <ImcroPage className="noko-page">
+      <Header
+        currentUser={props.currentUser}
+        onGoAuth={props.onGoAuth}
+        onGoAdmin={props.onGoAdmin}
+        onGoProfile={props.onGoProfile}
+      />
+
+      <main className="noko-main">
+        <ImcroContainer>
+          <ImcroSection className="noko-hero-section">
+            <div className="noko-hero-grid">
+              <div className="noko-hero-copy">
+                <nav className="noko-breadcrumbs" aria-label="Хлебные крошки">
+                  <Link to="/">Главная</Link>
+                  <span aria-hidden="true">/</span>
+                  <span>НОКО</span>
+                </nav>
+                <h1>Независимая оценка качества образования</h1>
+                <p>
+                  Раздел НОКО: оперативная информация, материалы ГИА и тематические сборники для педагогов и руководителей.
+                </p>
+              </div>
+
+              <ImcroNewsPanel
+                className="noko-news-panel"
+                title="Последние новости"
+                items={NOKO_NEWS_ITEMS}
+                allHref="/novosti/"
+              />
+            </div>
+          </ImcroSection>
+
+          <ImcroSection className="noko-materials-section">
+            <div className="noko-section-head">
+              <h2>Материалы и разделы</h2>
+            </div>
+            <div className="noko-materials-grid imcro-grid-4">
+              {NOKO_MATERIAL_CARDS.map((card) => (
+                <ImcroServiceCard
+                  key={card.href}
+                  title={card.title}
+                  description={card.description}
+                  href={card.href}
+                  icon={<NokoIcon name={card.icon} />}
+                  ctaText="Перейти"
+                />
+              ))}
+            </div>
+          </ImcroSection>
+
+          <ImcroSection className="noko-contact-section">
+            <ImcroContactPanel
+              className="noko-contact-panel"
+              title="Контакты отдела"
+              description="По вопросам независимой оценки качества образования, проведению ГИА и методической поддержке."
+              contacts={NOKO_CONTACTS}
+            />
+          </ImcroSection>
+        </ImcroContainer>
+      </main>
+
+      <Footer />
+    </ImcroPage>
+  );
 }
 
 export function NokoSectionPage({ section, ...props }) {
