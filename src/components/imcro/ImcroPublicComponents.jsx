@@ -60,6 +60,8 @@ function normalizeContacts(contacts) {
   return [];
 }
 
+const DRAG_THRESHOLD_PX = 8;
+
 export function ImcroPage({ children, className = "" }) {
   return <div className={cx("imcro-public-page", className)}>{children}</div>;
 }
@@ -164,9 +166,26 @@ export function ImcroEventBanner({
   title,
   description,
   icon,
+  imageSrc,
+  imageAlt,
   href,
   className = "",
 }) {
+  if (imageSrc) {
+    return (
+      <LinkedBox
+        className={cx("imcro-event-banner", "imcro-event-banner--image", "imcro-card-hover", className)}
+        href={href}
+      >
+        <img className="imcro-event-banner__image" src={imageSrc} alt={imageAlt || title} loading="lazy" />
+        <span className="imcro-event-banner__sr">
+          {title}
+          {description ? `. ${description}` : ""}
+        </span>
+      </LinkedBox>
+    );
+  }
+
   return (
     <LinkedBox className={cx("imcro-event-banner", "imcro-card-hover", className)} href={href}>
       {renderIcon(icon, "imcro-event-banner__icon")}
@@ -223,39 +242,141 @@ export function ImcroActivityCarousel({
   className = "",
 }) {
   const railRef = useRef(null);
+  const dragRef = useRef({
+    hasDragged: false,
+    isDragging: false,
+    moved: false,
+    pointerId: null,
+    scrollLeft: 0,
+    startX: 0,
+    suppressClick: false,
+  });
 
   function scrollRail(direction) {
-    railRef.current?.scrollBy({
-      left: direction * 320,
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const card = rail.querySelector(".imcro-activity-carousel__card");
+    const cardWidth = card?.getBoundingClientRect().width || 280;
+    const railStyle = globalThis.getComputedStyle?.(rail);
+    const gap = Number.parseFloat(railStyle?.columnGap || railStyle?.gap || "0") || 0;
+
+    rail.scrollBy({
+      left: direction * Math.round((cardWidth + gap) * 2),
       behavior: "smooth",
     });
+  }
+
+  function endDrag(event) {
+    const rail = railRef.current;
+    if (!rail || !dragRef.current.isDragging) return;
+
+    const hasDragged = dragRef.current.hasDragged || dragRef.current.moved;
+
+    dragRef.current.isDragging = false;
+    dragRef.current.hasDragged = false;
+    rail.classList.remove("is-dragging");
+
+    dragRef.current.pointerId = null;
+
+    if (hasDragged) {
+      dragRef.current.suppressClick = true;
+      event.preventDefault();
+      globalThis.setTimeout?.(() => {
+        dragRef.current.suppressClick = false;
+      }, 0);
+    }
+  }
+
+  function handlePointerDown(event) {
+    if (event.pointerType && event.pointerType !== "mouse") return;
+    if (event.button !== 0) return;
+    const rail = railRef.current;
+    if (!rail) return;
+
+    dragRef.current = {
+      hasDragged: false,
+      isDragging: true,
+      moved: false,
+      pointerId: event.pointerId,
+      scrollLeft: rail.scrollLeft,
+      startX: event.clientX,
+      suppressClick: dragRef.current.suppressClick,
+    };
+  }
+
+  function handlePointerMove(event) {
+    const rail = railRef.current;
+    if (!rail || !dragRef.current.isDragging) return;
+
+    const deltaX = event.clientX - dragRef.current.startX;
+    if (Math.abs(deltaX) < DRAG_THRESHOLD_PX && !dragRef.current.hasDragged) {
+      return;
+    }
+
+    if (!dragRef.current.hasDragged) {
+      dragRef.current.hasDragged = true;
+      dragRef.current.moved = true;
+      rail.classList.add("is-dragging");
+    }
+
+    rail.scrollLeft = dragRef.current.scrollLeft - deltaX;
+    event.preventDefault();
+  }
+
+  function handleClickCapture(event) {
+    if (!dragRef.current.suppressClick) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current.moved = false;
+    dragRef.current.suppressClick = false;
   }
 
   return (
     <section className={cx("imcro-activity-carousel", className)}>
       <div className="imcro-activity-carousel__head">
         {title && <h2 className="imcro-activity-carousel__title">{title}</h2>}
-        <div className="imcro-activity-carousel__controls" aria-label="Управление каруселью">
-          <button type="button" onClick={() => scrollRail(-1)} aria-label="Предыдущие направления">
-            {"<"}
-          </button>
-          <button type="button" onClick={() => scrollRail(1)} aria-label="Следующие направления">
-            {">"}
-          </button>
-        </div>
       </div>
 
-      <div className="imcro-activity-carousel__rail" ref={railRef}>
-        {items.map((item, index) => (
-          <LinkedBox
-            key={`${item.title || "activity"}-${index}`}
-            className="imcro-activity-carousel__card"
-            href={item.href}
-          >
-            {renderIcon(item.icon, "imcro-activity-carousel__icon")}
-            <span className="imcro-activity-carousel__card-title">{item.title}</span>
-          </LinkedBox>
-        ))}
+      <div className="imcro-activity-carousel__stage">
+        <button
+          className="imcro-activity-carousel__arrow imcro-activity-carousel__arrow--prev"
+          type="button"
+          onClick={() => scrollRail(-1)}
+          aria-label="Предыдущие направления"
+        >
+          {"<"}
+        </button>
+        <div
+          className="imcro-activity-carousel__rail"
+          ref={railRef}
+          onClickCapture={handleClickCapture}
+          onPointerCancel={endDrag}
+          onPointerDown={handlePointerDown}
+          onPointerLeave={endDrag}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+        >
+          {items.map((item, index) => (
+            <LinkedBox
+              key={`${item.title || "activity"}-${index}`}
+              className="imcro-activity-carousel__card"
+              href={item.href}
+            >
+              {renderIcon(item.icon, "imcro-activity-carousel__icon")}
+              <span className="imcro-activity-carousel__card-title">{item.title}</span>
+            </LinkedBox>
+          ))}
+        </div>
+        <button
+          className="imcro-activity-carousel__arrow imcro-activity-carousel__arrow--next"
+          type="button"
+          onClick={() => scrollRail(1)}
+          aria-label="Следующие направления"
+        >
+          {">"}
+        </button>
       </div>
     </section>
   );

@@ -87,22 +87,25 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
   if (!page) return null;
 
   return (
-    <div className="ti-page">
+    <div className={`ti-page ti-page--${page.slug}`}>
       <Seo title={page.title} description={page.meta} />
       <style>{`
         .ti-page {
-          --ti-primary: #19789c;
-          --ti-primary-dark: #004f75;
-          --ti-primary-soft: #edf6f8;
-          --ti-primary-line: #b8d4dd;
-          --ti-primary-shadow: rgba(25, 120, 156, 0.2);
+          --ti-page-bg: var(--imcro-color-bg, #477799);
+          --ti-primary: var(--imcro-color-primary, #1F5073);
+          --ti-primary-dark: var(--imcro-color-primary, #1F5073);
+          --ti-surface: var(--imcro-color-surface, #FFFFFF);
+          --ti-text: var(--imcro-color-text, #1a1c1c);
+          --ti-muted: var(--imcro-color-text-muted, #42474e);
+          --ti-border: var(--imcro-color-border, rgba(31, 80, 115, 0.16));
+          --ti-primary-soft: rgba(31, 80, 115, 0.08);
+          --ti-primary-line: var(--ti-border);
+          --ti-primary-shadow: rgba(31, 80, 115, 0.18);
           min-height: 100vh;
           display: flex;
           flex-direction: column;
-          color: #0f172a;
-          background:
-            radial-gradient(circle at 14% 8%, rgba(25, 120, 156, 0.08), transparent 28%),
-            linear-gradient(180deg, #fbfdff 0%, #f3f9fb 54%, var(--ti-primary-soft) 100%);
+          color: var(--ti-text);
+          background: var(--ti-page-bg);
         }
 
         .ti-main {
@@ -117,10 +120,10 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
 
         .ti-hero,
         .ti-card {
-          border: 1px solid #dbe6f5;
-          border-radius: 8px;
-          background: rgba(255,255,255,0.94);
-          box-shadow: 0 18px 48px rgba(15, 23, 42, 0.07);
+          border: 1px solid var(--ti-border);
+          border-radius: var(--imcro-radius-card, 16px);
+          background: var(--ti-surface);
+          box-shadow: var(--imcro-shadow-card, 0 4px 20px rgba(0, 0, 0, 0.08));
         }
 
         .ti-hero {
@@ -138,7 +141,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           width: min(360px, 74vw);
           height: 180px;
           border-radius: 999px;
-          background: linear-gradient(125deg, rgba(25, 120, 156, 0.12), rgba(0, 79, 117, 0.1));
+          background: linear-gradient(125deg, rgba(31, 80, 115, 0.12), rgba(31, 80, 115, 0.08));
           transform: rotate(-8deg);
           pointer-events: none;
         }
@@ -150,7 +153,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           padding: 7px 11px;
           border-radius: 999px;
           background: var(--ti-primary-soft);
-          color: var(--ti-primary-dark);
+          color: var(--ti-primary);
           font-size: 12px;
           font-weight: 950;
           letter-spacing: 0.04em;
@@ -162,7 +165,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           z-index: 1;
           max-width: 780px;
           margin: 0;
-          color: #0f172a;
+          color: var(--ti-text);
           font-size: clamp(34px, 7vw, 64px);
           line-height: 1;
           letter-spacing: 0;
@@ -173,7 +176,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
           z-index: 1;
           max-width: 720px;
           margin: 0;
-          color: #475569;
+          color: var(--ti-muted);
           font-size: clamp(16px, 2.4vw, 20px);
           line-height: 1.55;
           font-weight: 700;
@@ -203,27 +206,27 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
 
         .ti-primary {
           color: #fff;
-          background: linear-gradient(135deg, var(--ti-primary), var(--ti-primary-dark));
+          background: var(--ti-primary);
           box-shadow: 0 16px 34px var(--ti-primary-shadow);
         }
 
         .ti-secondary {
-          color: var(--ti-primary-dark);
-          background: #fff;
+          color: var(--ti-primary);
+          background: var(--ti-surface);
           border: 1px solid var(--ti-primary-line);
         }
 
         .ti-primary:hover,
         .ti-secondary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 18px 34px rgba(25, 120, 156, .14);
+          box-shadow: 0 18px 34px rgba(31, 80, 115, .14);
         }
 
         .ti-primary:focus-visible,
         .ti-secondary:focus-visible,
         .ti-mini-card:focus-visible,
         .ti-faq summary:focus-visible {
-          outline: 3px solid rgba(25, 120, 156, .2);
+          outline: 3px solid rgba(31, 80, 115, .2);
           outline-offset: 3px;
         }
 
@@ -252,9 +255,9 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-faq,
         .ti-check-list li,
         .ti-table-row {
-          border: 1px solid #dbe6f5;
+          border: 1px solid var(--ti-border);
           border-radius: 8px;
-          background: #fff;
+          background: var(--ti-surface);
           transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
         }
 
@@ -270,12 +273,12 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-table-row:not(.ti-table-head):hover {
           transform: translateY(-1px);
           border-color: var(--ti-primary-line);
-          box-shadow: 0 14px 30px rgba(25, 120, 156, .1);
+          box-shadow: 0 14px 30px rgba(31, 80, 115, .1);
         }
 
         .ti-mini-card h3 {
           margin: 0;
-          color: #0f172a;
+          color: var(--ti-text);
           font-size: 18px;
           line-height: 1.2;
         }
@@ -283,7 +286,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-mini-card p,
         .ti-faq p {
           margin: 0;
-          color: #64748b;
+          color: var(--ti-muted);
           font-weight: 700;
           line-height: 1.5;
         }
@@ -299,7 +302,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-check-list li {
           position: relative;
           padding: 14px 14px 14px 42px;
-          color: #334155;
+          color: var(--ti-text);
           font-weight: 800;
           line-height: 1.45;
         }
@@ -332,8 +335,8 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         }
 
         .ti-table-head {
-          background: #f8fbff;
-          color: #64748b;
+          background: var(--ti-primary-soft);
+          color: var(--ti-muted);
           font-size: 12px;
           font-weight: 950;
           letter-spacing: 0.04em;
@@ -341,7 +344,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         }
 
         .ti-table-row:not(.ti-table-head) {
-          color: #334155;
+          color: var(--ti-text);
           font-weight: 780;
         }
 
@@ -358,7 +361,7 @@ export default function TpmpkInfoPage({ slug, currentUser, onGoAuth, onGoAdmin, 
         .ti-faq summary {
           cursor: pointer;
           padding: 15px 16px;
-          color: #0f172a;
+          color: var(--ti-text);
           font-weight: 950;
         }
 

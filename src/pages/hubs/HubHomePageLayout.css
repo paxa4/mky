@@ -1,30 +1,30 @@
-.noko-page {
+.hub-home-page {
   min-height: 100vh;
   background: var(--imcro-color-bg);
 }
 
-.noko-page .imcro-container {
+.hub-home-page .imcro-container {
   max-width: calc(var(--imcro-container-max) + (var(--imcro-page-x-desktop) * 2));
   padding-right: clamp(var(--imcro-page-x-mobile), 3.2vw, var(--imcro-page-x-desktop));
   padding-left: clamp(var(--imcro-page-x-mobile), 3.2vw, var(--imcro-page-x-desktop));
 }
 
-.noko-main {
+.hub-home-main {
   padding: 44px 0 80px;
 }
 
-.noko-hero-section {
+.hub-home-hero-section {
   margin-bottom: 58px;
 }
 
-.noko-hero-grid {
+.hub-home-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
   align-items: stretch;
   gap: var(--imcro-gutter);
 }
 
-.noko-hero-copy {
+.hub-home-hero-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -36,7 +36,7 @@
   padding: clamp(28px, 4vw, 48px);
 }
 
-.noko-breadcrumbs {
+.hub-home-breadcrumbs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -48,17 +48,23 @@
   line-height: 1.4;
 }
 
-.noko-breadcrumbs a {
+.hub-home-breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hub-home-breadcrumbs a {
   color: var(--imcro-color-surface);
   text-decoration: none;
 }
 
-.noko-breadcrumbs a:hover {
+.hub-home-breadcrumbs a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.noko-hero-copy h1 {
+.hub-home-hero-copy h1 {
   max-width: 840px;
   margin: 0 0 20px;
   color: var(--imcro-color-surface);
@@ -68,7 +74,7 @@
   line-height: 1.04;
 }
 
-.noko-hero-copy p {
+.hub-home-hero-copy p {
   max-width: 760px;
   margin: 0;
   color: rgba(255, 255, 255, 0.9);
@@ -77,29 +83,41 @@
   line-height: 1.65;
 }
 
-.noko-news-panel {
+.hub-home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.hub-home-hero-actions .imcro-button {
+  min-height: 48px;
+  padding: 0 22px;
+}
+
+.hub-home-news-panel {
   min-width: 0;
   min-height: 100%;
 }
 
-.noko-news-panel .imcro-news-panel__head {
+.hub-home-news-panel .imcro-news-panel__head {
   margin-bottom: 12px;
 }
 
-.noko-news-panel .imcro-news-panel__item {
+.hub-home-news-panel .imcro-news-panel__item {
   padding: 16px 0;
 }
 
-.noko-news-panel .imcro-news-panel__all {
+.hub-home-news-panel .imcro-news-panel__all {
   min-height: 40px;
   align-items: center;
 }
 
-.noko-section-head {
+.hub-home-section-head {
   margin-bottom: 22px;
 }
 
-.noko-section-head h2 {
+.hub-home-section-head h2 {
   margin: 0;
   color: var(--imcro-color-surface);
   font-size: clamp(28px, 4vw, 42px);
@@ -107,119 +125,124 @@
   line-height: 1.15;
 }
 
-.noko-materials-grid {
+.hub-home-materials-grid {
   align-items: stretch;
 }
 
-.noko-materials-grid .imcro-service-card {
+.hub-home-materials-grid .imcro-service-card {
   height: 100%;
   min-height: 340px;
   padding: 24px;
 }
 
-.noko-materials-grid .imcro-service-card__icon {
+.hub-home-materials-grid .imcro-service-card__icon {
   width: 54px;
   height: 54px;
   flex-basis: 54px;
   font-size: 24px;
 }
 
-.noko-materials-grid .imcro-service-card__title {
+.hub-home-materials-grid .imcro-service-card__title {
   font-size: 21px;
 }
 
-.noko-materials-grid .imcro-service-card__button {
+.hub-home-materials-grid .imcro-service-card__button {
   min-height: 46px;
 }
 
-.noko-contact-section {
+.hub-home-contact-section {
   margin-bottom: 0;
 }
 
-.noko-contact-panel {
+.hub-home-contact-panel {
   padding: 26px;
 }
 
-.noko-contact-panel .imcro-contact-panel__intro {
+.hub-home-contact-panel .imcro-contact-panel__intro {
   display: grid;
   gap: 8px;
   margin-bottom: 20px;
 }
 
-.noko-contact-panel .imcro-contact-panel__description {
+.hub-home-contact-panel .imcro-contact-panel__description {
   max-width: 980px;
 }
 
-.noko-contact-panel .imcro-contact-panel__grid {
+.hub-home-contact-panel .imcro-contact-panel__grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-.noko-contact-panel .imcro-contact-panel__item {
+.hub-home-contact-panel .imcro-contact-panel__item {
   min-height: 86px;
 }
 
 @media (max-width: 1120px) {
-  .noko-contact-panel .imcro-contact-panel__grid {
+  .hub-home-contact-panel .imcro-contact-panel__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 980px) {
-  .noko-hero-grid {
+  .hub-home-hero-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
-  .noko-main {
+  .hub-home-main {
     padding: 28px 0 60px;
   }
 
-  .noko-hero-section {
+  .hub-home-hero-section {
     margin-bottom: 42px;
   }
 
-  .noko-hero-copy {
+  .hub-home-hero-copy {
     padding: 24px;
   }
 
-  .noko-hero-copy h1 {
+  .hub-home-hero-copy h1 {
     font-size: clamp(30px, 9vw, 40px);
   }
 
-  .noko-hero-copy p {
+  .hub-home-hero-copy p {
     font-size: 16px;
   }
 
-  .noko-contact-panel {
+  .hub-home-hero-actions .imcro-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hub-home-contact-panel {
     padding: 22px;
   }
 
-  .noko-contact-panel .imcro-contact-panel__grid {
+  .hub-home-contact-panel .imcro-contact-panel__grid {
     grid-template-columns: 1fr;
   }
 }
 
-body.mky-a11y-mode .noko-page {
+body.mky-a11y-mode .hub-home-page {
   background: var(--app-bg) !important;
   color: var(--app-text) !important;
 }
 
-body.mky-a11y-mode .noko-hero-copy {
+body.mky-a11y-mode .hub-home-hero-copy {
   border-color: var(--app-border-strong) !important;
   background: var(--app-surface) !important;
   color: var(--app-text) !important;
   box-shadow: none !important;
 }
 
-body.mky-a11y-mode .noko-breadcrumbs,
-body.mky-a11y-mode .noko-breadcrumbs a,
-body.mky-a11y-mode .noko-hero-copy h1,
-body.mky-a11y-mode .noko-section-head h2 {
+body.mky-a11y-mode .hub-home-breadcrumbs,
+body.mky-a11y-mode .hub-home-breadcrumbs a,
+body.mky-a11y-mode .hub-home-hero-copy h1,
+body.mky-a11y-mode .hub-home-section-head h2 {
   color: var(--app-text) !important;
 }
 
-body.mky-a11y-mode .noko-hero-copy p {
+body.mky-a11y-mode .hub-home-hero-copy p {
   color: var(--app-muted) !important;
 }
