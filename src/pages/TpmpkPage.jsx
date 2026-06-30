@@ -29,7 +29,7 @@ export default function TpmpkPage({ currentUser, onGoAuth, onGoAdmin, onGoProfil
     <div className="tpmpk-page">
       <style>{`
         .tpmpk-page {
-          --tpmpk-primary: #19789C;
+          --tpmpk-primary: #19789c;
           --tpmpk-primary-dark: #004f75;
           --tpmpk-primary-soft: #edf6f8;
           --tpmpk-primary-line: #b8d4dd;

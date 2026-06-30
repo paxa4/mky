@@ -1,19 +1,32 @@
-import { AUTH_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEYS } from "../auth.js";
+import { AUTH_REFRESH_TOKEN_STORAGE_KEYS, AUTH_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEYS, isAccessTokenExpired } from "../auth.js";
 
 export function getStoredAccessToken() {
   try {
     const user = JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || "null");
-    if (user?.access_token) return user.access_token;
+    const token = (
+      user?.access_token ||
+      AUTH_TOKEN_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean) ||
+      ""
+    );
+    if (token && isAccessTokenExpired(token)) {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+      AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+      return "";
+    }
+    return token;
   } catch {
-    // Fall back to the token keys already used by the current auth flow.
+    const token = (
+      AUTH_TOKEN_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean) ||
+      ""
+    );
+    if (token && isAccessTokenExpired(token)) {
+      AUTH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+      AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+      return "";
+    }
+    return token;
   }
-
-  for (const key of AUTH_TOKEN_STORAGE_KEYS) {
-    const token = window.localStorage.getItem(key);
-    if (token) return token;
-  }
-
-  return "";
 }
 
 export function authHeaders(headers = {}) {

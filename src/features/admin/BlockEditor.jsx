@@ -27,7 +27,7 @@ export function BlockPreview({ block }) {
         : <p style={{ fontSize: 15, color: "#334155", lineHeight: 1.75, marginBottom: 18, textAlign: block.data.align || "left" }}>{block.data.text}</p>;
     case "quote":
       return (
-        <blockquote style={{ borderLeft: "4px solid #19789C", paddingLeft: 20, margin: "24px 0", background: "#edf6f8", borderRadius: "0 12px 12px 0", padding: "16px 20px" }}>
+        <blockquote style={{ borderLeft: "4px solid #19789c", paddingLeft: 20, margin: "24px 0", background: "#edf6f8", borderRadius: "0 12px 12px 0", padding: "16px 20px" }}>
           {block.data.html
             ? <div style={{ fontSize: 16, fontStyle: "italic", color: "#004f75", lineHeight: 1.6, margin: 0 }} dangerouslySetInnerHTML={{ __html: block.data.html }} />
             : <p style={{ fontSize: 16, fontStyle: "italic", color: "#004f75", lineHeight: 1.6, margin: 0 }}>«{block.data.text || ""}»</p>
@@ -142,7 +142,7 @@ function ImageUpload({ value, onChange }) {
           )}
         </div>
       )}
-      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#edf6f8", border: "1.5px solid #b8d4dd", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#19789C" }}>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#edf6f8", border: "1.5px solid #b8d4dd", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#19789c" }}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M7 1v8M4 4l3-3 3 3M2 10v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -198,9 +198,9 @@ export function BlockEditor({ block, onChange }) {
               {[{ val: false, label: "• Маркированный" }, { val: true, label: "1. Нумерованный" }].map(opt => (
                 <button key={String(opt.val)} onClick={() => update("ordered", opt.val)}
                   style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                    borderColor: block.data.ordered === opt.val ? "#19789C" : "#E2E8F0",
+                    borderColor: block.data.ordered === opt.val ? "#19789c" : "#E2E8F0",
                     background: block.data.ordered === opt.val ? "#edf6f8" : "#fff",
-                    color: block.data.ordered === opt.val ? "#19789C" : "#64748B",
+                    color: block.data.ordered === opt.val ? "#19789c" : "#64748B",
                   }}>{opt.label}</button>
               ))}
             </div>
@@ -215,7 +215,7 @@ export function BlockEditor({ block, onChange }) {
             </div>
           ))}
           <button onClick={() => update("items", [...items, ""])}
-            style={{ fontSize: 13, fontWeight: 600, color: "#19789C", background: "#edf6f8", border: "1.5px solid #b8d4dd", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ fontSize: 13, fontWeight: 600, color: "#19789c", background: "#edf6f8", border: "1.5px solid #b8d4dd", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
             + Добавить пункт
           </button>
         </>
@@ -288,9 +288,9 @@ export function BlockConstructor({ blocks, onChange }) {
         <div style={{ flex: 1 }} />
         <button onClick={() => setPreview(v => !v)}
           style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            borderColor: preview ? "#19789C" : "#E2E8F0",
+            borderColor: preview ? "#19789c" : "#E2E8F0",
             background: preview ? "#edf6f8" : "#fff",
-            color: preview ? "#19789C" : "#64748B",
+            color: preview ? "#19789c" : "#64748B",
           }}>
           {preview ? "← Редактор" : "Предпросмотр →"}
         </button>
@@ -318,7 +318,7 @@ export function BlockConstructor({ blocks, onChange }) {
             const meta = BLOCK_TYPES.find(t => t.type === block.type);
             return (
               <div key={block.id} style={{
-                border: `2px solid ${isActive ? "#19789C" : "#E2E8F0"}`,
+                border: `2px solid ${isActive ? "#19789c" : "#E2E8F0"}`,
                 borderRadius: 12, marginBottom: 10, overflow: "hidden",
                 transition: "border-color 0.15s",
               }}>
@@ -364,7 +364,7 @@ export function BlockConstructor({ blocks, onChange }) {
               style={{
                 width: "100%", padding: "12px", borderRadius: 10,
                 border: "2px dashed #b8d4dd", background: "#F8FBFF",
-                fontSize: 14, fontWeight: 600, color: "#19789C",
+                fontSize: 14, fontWeight: 600, color: "#19789c",
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background 0.15s",
@@ -395,7 +395,7 @@ export function BlockConstructor({ blocks, onChange }) {
                       fontSize: 13, fontWeight: 500, color: "#334155",
                       transition: "all 0.12s",
                     }}
-                    onMouseOver={e => { e.currentTarget.style.borderColor = "#8fc4d4"; e.currentTarget.style.background = "#edf6f8"; e.currentTarget.style.color = "#19789C"; }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = "#8fc4d4"; e.currentTarget.style.background = "#edf6f8"; e.currentTarget.style.color = "#19789c"; }}
                     onMouseOut={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#334155"; }}
                   >
                     <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{bt.icon}</span>

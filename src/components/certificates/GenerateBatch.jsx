@@ -267,7 +267,7 @@ export default function GenerateBatch({ templates }) {
     <section className="batch-certificate">
       <style>{`
         .batch-certificate {
-          --batch-primary: #19789C;
+          --batch-primary: #19789c;
           --batch-primary-dark: #004f75;
           display: grid;
           grid-template-columns: minmax(420px, 1.1fr) minmax(360px, .9fr);

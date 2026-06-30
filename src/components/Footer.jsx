@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { A11Y_EVENT, readAccessibilitySettings, saveAccessibilitySettings } from "../accessibility.js";
+import { A11Y_EVENT, disableAccessibilityMode, enableAccessibilityMode, readAccessibilitySettings } from "../accessibility.js";
 import { useEffect, useState } from "react";
 
 const FOOTER_COLS = [
@@ -9,7 +9,7 @@ const FOOTER_COLS = [
       { label: "Главная", to: "/" },
       { label: "Сведения об организации", to: "/sveden/" },
       { label: "Новости", to: "/novosti/" },
-      { label: "События", to: "/#calendar" },
+      { label: "События", to: "/novosti/" },
     ],
   },
   {
@@ -17,7 +17,7 @@ const FOOTER_COLS = [
     links: [
       { label: "ТПМПК", to: "/tpmpk/" },
       { label: "Дом учителя", to: "/dom-uchitelya/" },
-      { label: "Методическое пространство", to: "/metodika/" },
+      { label: "Методическое пространство", to: "/metodicheskoe-prostranstvo/" },
       { label: "НОКО", to: "/noko/" },
     ],
   },
@@ -27,7 +27,6 @@ const FOOTER_COLS = [
       { label: "Деятельность", to: "/deyatelnost/" },
       { label: "Олимпиады и конкурсы", to: "/konkursy/" },
       { label: "Архив", to: "/archiv/" },
-      { label: "Контакты ТПМПК", to: "/tpmpk/kontakty/" },
     ],
   },
   {
@@ -50,14 +49,14 @@ export default function Footer() {
   }, []);
 
   function toggleA11y() {
-    setSettings(saveAccessibilitySettings({ ...settings, enabled: !settings.enabled }));
+    setSettings(settings.enabled ? disableAccessibilityMode(settings) : enableAccessibilityMode());
   }
 
   return (
     <footer className="site-footer">
       <style>{`
         .site-footer {
-          background: #19789C;
+          background: #1F5073;
           color: #ffffff;
           padding: 52px 24px 28px;
         }
@@ -88,7 +87,7 @@ export default function Footer() {
           min-height: 30px;
           display: inline-flex;
           align-items: center;
-          color: #dbeafe;
+          color: rgba(255, 255, 255, 0.82);
           font-size: 14px;
           font-weight: 650;
           text-decoration: none;
@@ -100,7 +99,7 @@ export default function Footer() {
           text-underline-offset: 4px;
         }
         .footer-bottom {
-          border-top: 1px solid rgba(255, 255, 255, 0.18);
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
           padding-top: 24px;
           padding-right: 78px;
           display: flex;
@@ -110,7 +109,7 @@ export default function Footer() {
           flex-wrap: wrap;
         }
         .footer-copy {
-          color: #dbeafe;
+          color: rgba(255, 255, 255, 0.72);
           font-size: 13px;
           line-height: 1.5;
         }
@@ -122,18 +121,37 @@ export default function Footer() {
         }
         .footer-a11y-btn {
           min-height: 40px;
-          border: 1px solid rgba(255, 255, 255, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.55);
           border-radius: 8px;
-          background: ${settings.enabled ? "#ffffff" : "rgba(255,255,255,0.08)"};
-          color: ${settings.enabled ? "#173285" : "#ffffff"};
+          background: ${settings.enabled ? "rgba(255,255,255,0.16)" : "transparent"};
+          color: #ffffff;
           padding: 0 14px;
           font: 900 13px/1 inherit;
           cursor: pointer;
         }
         .footer-a11y-btn:hover,
         .footer-a11y-btn:focus-visible {
-          background: #ffffff;
-          color: #173285;
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.82);
+        }
+        body.mky-a11y-mode .site-footer {
+          background: var(--app-bg) !important;
+          color: var(--app-text) !important;
+          border-top: 1px solid var(--app-border-strong) !important;
+        }
+        body.mky-a11y-mode .footer-bottom {
+          border-top-color: var(--app-border-strong) !important;
+        }
+        body.mky-a11y-mode .footer-title,
+        body.mky-a11y-mode .footer-link,
+        body.mky-a11y-mode .footer-copy,
+        body.mky-a11y-mode .footer-a11y-btn {
+          color: var(--app-text) !important;
+        }
+        body.mky-a11y-mode .footer-a11y-btn {
+          border-color: var(--app-border-strong) !important;
+          background: var(--app-surface) !important;
         }
         @media (max-width: 900px) {
           .site-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -2317,7 +2317,7 @@ export default function ArticlesModule({
 }
 
 const ARTICLE_CSS = `
-.articles-module { --article-primary: #19789C; --article-primary-dark: #004f75; color: #17232b; }
+.articles-module { --article-primary: #19789c; --article-primary-dark: #004f75; color: #17232b; }
 .article-btn, .article-row-actions button { min-height: 40px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
 .article-btn:disabled { opacity: .55; cursor: not-allowed; }
 .article-btn-primary { background: var(--article-primary); border-color: var(--article-primary); color: #fff; box-shadow: 0 10px 22px rgba(25, 120, 156, .2); }
@@ -2550,7 +2550,7 @@ const ARTICLE_CSS = `
 .article-wysiwyg-toolbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
 .article-wysiwyg-toolbar select { min-height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; padding: 0 10px; font: inherit; font-size: 13px; font-weight: 800; }
 .article-wysiwyg-toolbar button { width: 34px; height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font: inherit; font-size: 13px; font-weight: 900; cursor: pointer; }
-.article-wysiwyg-toolbar button:hover, .article-wysiwyg-toolbar button.is-active { border-color: #a9d4df; background: #edf6f8; color: var(--article-primary-dark); }
+.article-wysiwyg-toolbar button:hover, .article-wysiwyg-toolbar button.is-active { border-color: #9bc8d4; background: #edf6f8; color: var(--article-primary-dark); }
 .toolbar-divider { width: 1px; height: 24px; background: #dbe6f5; margin: 0 2px; }
 .article-wysiwyg-area { min-height: 520px; padding: 28px min(36px, 5vw); outline: 0; color: #1f2937; background: #fff; }
 .article-wysiwyg-area:empty::before { content: attr(data-placeholder); color: #94a3b8; }

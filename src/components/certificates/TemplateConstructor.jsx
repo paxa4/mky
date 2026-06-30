@@ -350,7 +350,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
   const [elements, setElements] = useState([
     { id: 1, text: "ГРАМОТА", x: 50, y: 17, size: 28, color: "#004f75", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
     { id: 2, text: "НАГРАЖДАЕТСЯ", x: 50, y: 28, size: 34, color: "#17232b", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
-    { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+    { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789c", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
     { id: 4, text: "{Мероприятие}", x: 50, y: 52, size: 18, color: "#17232b", weight: "600", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
   ]);
 
@@ -769,7 +769,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     setElements([
       { id: 1, text: "ГРАМОТА", x: 50, y: 17, size: 28, color: "#004f75", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
       { id: 2, text: "НАГРАЖДАЕТСЯ", x: 50, y: 28, size: 34, color: "#17232b", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
-      { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789C", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
+      { id: 3, text: "{ФИО}", x: 50, y: 40, size: 34, color: "#19789c", weight: "700", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
       { id: 4, text: "{Мероприятие}", x: 50, y: 52, size: 18, color: "#17232b", weight: "600", fontFamily: DEFAULT_FONT_FAMILY, align: "center" },
     ]);
     setPreviewVariables(DEFAULT_PREVIEW_VARIABLES);
@@ -834,7 +834,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       x: cx,
       y: cy,
       size: key === "ФИО" ? 34 : 20,
-      color: key === "ФИО" ? "#19789C" : "#334155",
+      color: key === "ФИО" ? "#19789c" : "#334155",
       weight: key === "ФИО" ? "700" : "500",
       fontFamily: DEFAULT_FONT_FAMILY,
       maxWidthMm: null,
@@ -1818,7 +1818,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
     >
       <style>{`
         .template-workbench {
-          --tpl-primary: #19789C;
+          --tpl-primary: #19789c;
           --tpl-primary-dark: #004f75;
           --tpl-border: #cdd8df;
           --tpl-border-soft: #e5ebef;
@@ -1842,7 +1842,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           min-height: 56px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
+          align-content: flex-start;
           gap: 14px;
           padding: 10px 18px;
           border-bottom: 1px solid var(--tpl-border);
@@ -1854,12 +1855,16 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           align-items: center;
           gap: 8px;
           min-width: 0;
+          flex: 0 0 auto;
+          flex-wrap: wrap;
+          row-gap: 8px;
         }
         .tpl-toolbar-title {
           color: var(--tpl-primary-dark);
           font-size: 15px;
           font-weight: 900;
           white-space: nowrap;
+          flex: 0 0 auto;
         }
         .tpl-back-btn {
           width: 34px;
@@ -1877,7 +1882,9 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         .tpl-back-btn:hover { border-color: var(--tpl-primary); background: #edf6f8; }
         .tpl-title-input {
           min-height: 34px;
-          width: 220px;
+          width: clamp(160px, 22vw, 220px);
+          min-width: 160px;
+          flex: 1 1 180px;
           padding: 0 10px;
           border: 1px solid var(--tpl-border);
           border-radius: 8px;
@@ -1890,6 +1897,9 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         .tpl-title-input:focus { outline: 0; border-color: var(--tpl-primary); box-shadow: 0 0 0 3px rgba(25,120,156,.14); }
         .tpl-template-select {
           min-height: 34px;
+          width: clamp(150px, 20vw, 200px);
+          min-width: 150px;
+          flex: 1 1 170px;
           max-width: 200px;
           padding: 0 10px;
           border: 1px solid var(--tpl-border);
@@ -1902,6 +1912,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         .tpl-zoom {
           display: inline-flex;
           align-items: center;
+          flex: 0 0 auto;
           border: 1px solid var(--tpl-border);
           border-radius: 8px;
           background: #fff;
@@ -1935,6 +1946,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         .tpl-icon-btn {
           width: 34px;
           height: 34px;
+          flex: 0 0 34px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1953,6 +1965,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
         .tpl-mode-toggle {
           display: inline-flex;
           align-items: center;
+          flex: 0 0 auto;
           border: 1px solid var(--tpl-border);
           border-radius: 8px;
           background: #f4f7f9;
@@ -1969,6 +1982,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           font-weight: 800;
           cursor: pointer;
           border-radius: 6px;
+          white-space: nowrap;
         }
         .tpl-mode-toggle button.is-active {
           background: var(--tpl-primary);
@@ -1980,9 +1994,10 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           color: var(--tpl-muted);
           padding: 0 6px;
           white-space: nowrap;
+          flex: 0 0 auto;
         }
         .tpl-save-status--saved { color: #047857; }
-        .tpl-save-status--autosaved { color: #19789C; }
+        .tpl-save-status--autosaved { color: #19789c; }
         .tpl-save-status--saving { color: var(--tpl-primary-dark); }
         .tpl-save-status--dirty { color: #b45309; }
         .tpl-save-status--error { color: #b91c1c; }
@@ -2000,6 +2015,8 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
           display: inline-flex;
           align-items: center;
           gap: 6px;
+          flex: 0 0 auto;
+          white-space: nowrap;
         }
         .tpl-btn:hover:not(:disabled) { border-color: var(--tpl-primary); color: var(--tpl-primary-dark); background: #edf6f8; }
         .tpl-btn:disabled { color: #b2bec5; cursor: not-allowed; }
@@ -2407,7 +2424,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
       `}</style>
 
       <div className="template-toolbar">
-        <div className="tpl-toolbar-group" style={{ minWidth: 0, flex: 1 }}>
+        <div className="tpl-toolbar-group" style={{ minWidth: 0, flex: "1 1 420px" }}>
           <span className="tpl-toolbar-title">Конструктор шаблонов</span>
           <input
             className="tpl-title-input"
@@ -2564,7 +2581,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexShrink: 0,
               }}>
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#19789C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#19789c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
               </span>
@@ -2625,7 +2642,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 style={isHidden ? { opacity: 0.5 } : undefined}
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ color: item.kind === "image" ? "#004f75" : "#19789C", fontSize: 11, fontWeight: 900 }}>{item.icon}</span>
+                  <span style={{ color: item.kind === "image" ? "#004f75" : "#19789c", fontSize: 11, fontWeight: 900 }}>{item.icon}</span>
                   <span style={{ minWidth: 0 }}>
                     {item.group ? `Подписант · ${item.label}` : item.label}
                   </span>
@@ -2652,7 +2669,7 @@ export default function TemplateConstructor({ templates, onTemplatesSaved }) {
                 style={isHidden ? { opacity: 0.5 } : undefined}
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ color: isVar ? "#19789C" : "#667783", fontSize: 11, fontWeight: 900 }}>{isVar ? "▣" : "T"}</span>
+                  <span style={{ color: isVar ? "#19789c" : "#667783", fontSize: 11, fontWeight: 900 }}>{isVar ? "▣" : "T"}</span>
                   {el.text}
                 </span>
                 <button type="button" onClick={(e) => { e.stopPropagation(); pushUndo(); moveElementZ(el.id, "front"); }} title="На передний план" style={{ fontSize: 11 }}>⤒</button>

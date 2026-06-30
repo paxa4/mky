@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   A11Y_EVENT,
-  DEFAULT_A11Y_SETTINGS,
+  disableAccessibilityMode,
+  enableAccessibilityMode,
   readAccessibilitySettings,
   saveAccessibilitySettings,
 } from "../../accessibility.js";
@@ -11,16 +12,23 @@ import MegaMenu from "./MegaMenu.jsx";
 
 const MAIN_NAV_ITEMS = [
   { label: "Главная", href: "/" },
-  { label: "Об организации", href: "/sveden/" },
+  { label: "Сведения об образовательной организации", href: "/sveden/" },
   { label: "ТПМПК", href: "/tpmpk/" },
+  { label: "Дом учителя", href: "/dom-uchitelya/" },
   { label: "Новости", href: "/novosti/" },
-  { label: "Безопасность", href: "/sveden/ovz/" },
+  { label: "Безопасность", href: "/bezopasnost/" },
   { label: "Музей", href: "/deyatelnost/muzey/" },
 ];
 
 function normalizePath(pathname) {
   if (!pathname) return "/";
   return pathname.endsWith("/") ? pathname : `${pathname}/`;
+}
+
+function isActiveNavItem(currentPath, href) {
+  const target = normalizePath(href);
+  if (target === "/") return currentPath === "/";
+  return currentPath === target || currentPath.startsWith(target);
 }
 
 function SearchIcon() {
@@ -40,6 +48,33 @@ function EyeIcon() {
     </svg>
   );
 }
+
+const A11Y_FONT_OPTIONS = [
+  { value: "normal", label: "Обычный", sample: "A", ariaLabel: "Размер шрифта: обычный" },
+  { value: "large", label: "Крупный", sample: "A+", ariaLabel: "Размер шрифта: крупный" },
+  { value: "xlarge", label: "Очень крупный", sample: "A++", ariaLabel: "Размер шрифта: очень крупный" },
+  { value: "xxlarge", label: "Макс.", sample: "A+++", ariaLabel: "Размер шрифта: максимальный" },
+];
+
+const A11Y_SCHEME_OPTIONS = [
+  { value: "white", label: "Белая", ariaLabel: "Цветовая схема: белый фон, черный текст" },
+  { value: "black", label: "Черная", ariaLabel: "Цветовая схема: черный фон, белый текст" },
+  { value: "yellow", label: "Черно-желтая", ariaLabel: "Цветовая схема: черный фон, желтый текст" },
+  { value: "blue", label: "Голубая", ariaLabel: "Цветовая схема: голубой фон, темный текст" },
+  { value: "beige", label: "Бежевая", ariaLabel: "Цветовая схема: бежевый фон, темный текст" },
+];
+
+const A11Y_LINE_OPTIONS = [
+  { value: "normal", label: "Обычный", ariaLabel: "Интервал между словами: обычный" },
+  { value: "large", label: "Увеличенный", ariaLabel: "Интервал между словами: увеличенный" },
+  { value: "xlarge", label: "Большой", ariaLabel: "Интервал между словами: большой" },
+];
+
+const A11Y_LETTER_OPTIONS = [
+  { value: "normal", label: "Обычный", ariaLabel: "Межбуквенный интервал: обычный" },
+  { value: "large", label: "Средний", ariaLabel: "Межбуквенный интервал: средний" },
+  { value: "xlarge", label: "Большой", ariaLabel: "Межбуквенный интервал: большой" },
+];
 
 export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }) {
   const location = useLocation();
@@ -85,12 +120,36 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     return () => window.removeEventListener(A11Y_EVENT, sync);
   }, []);
 
+  useEffect(() => {
+    if (!a11yPanelOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setA11yPanelOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [a11yPanelOpen]);
+
   function updateA11ySettings(patch) {
-    setA11ySettings(saveAccessibilitySettings({ ...a11ySettings, ...patch }));
+    setA11ySettings((current) => saveAccessibilitySettings({ ...current, ...patch, enabled: true }));
+  }
+
+  function handleA11yButtonClick() {
+    if (!a11ySettings.enabled) {
+      setA11ySettings(enableAccessibilityMode());
+      setA11yPanelOpen(true);
+      return;
+    }
+
+    setA11yPanelOpen((value) => !value);
+  }
+
+  function disableA11yMode() {
+    setA11ySettings(disableAccessibilityMode(a11ySettings));
+    setA11yPanelOpen(false);
   }
 
   function resetA11ySettings() {
-    setA11ySettings(saveAccessibilitySettings(DEFAULT_A11Y_SETTINGS));
+    setA11ySettings(enableAccessibilityMode());
   }
 
   const navSearchIndex = useMemo(
@@ -109,8 +168,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     navigate(path);
   }
 
-  function onSearchSubmit(event) {
-    event.preventDefault();
+  function executeSearch() {
     const normalized = searchQuery.trim().toLowerCase();
     if (!normalized) return;
 
@@ -129,6 +187,17 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
     }
   }
 
+  function onSearchSubmit(event) {
+    event.preventDefault();
+    executeSearch();
+  }
+
+  function onSearchKeyDown(event) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    executeSearch();
+  }
+
   return (
     <>
       <style>{`
@@ -136,7 +205,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           position: fixed;
           inset: 0 0 auto;
           z-index: 240;
-          border-bottom: 1px solid rgba(0, 79, 117, 0.12);
+          border-bottom: 1px solid rgba(31, 80, 115, 0.16);
           background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(18px);
           box-shadow: var(--header-shadow);
@@ -144,7 +213,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .site-header-shell *:focus-visible {
-          outline: 3px solid #1e3a8a;
+          outline: 3px solid #1F5073;
           outline-offset: 2px;
         }
 
@@ -153,11 +222,11 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           margin: 0 auto;
           height: 84px;
           min-width: 0;
-          padding: 0 28px;
+          padding: 0 18px;
           display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
+          grid-template-columns: minmax(188px, 240px) minmax(0, 1fr) auto;
           align-items: center;
-          column-gap: 22px;
+          column-gap: 12px;
         }
 
         .header-logo-slot {
@@ -168,9 +237,9 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-logo-slot img {
-          width: clamp(230px, 20vw, 318px) !important;
+          width: clamp(188px, 16vw, 240px) !important;
           height: auto !important;
-          max-height: 58px;
+          max-height: 54px;
         }
 
         .header-main-area {
@@ -188,8 +257,8 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          overflow: hidden;
+          gap: 3px;
+          overflow: visible;
           transition: opacity 0.16s ease, transform 0.2s ease, visibility 0.16s ease;
         }
 
@@ -207,9 +276,9 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           border: 1px solid transparent;
           border-radius: 8px;
           background: transparent;
-          color: #203243;
-          padding: 0 14px;
-          font: 800 13px/1.1 inherit;
+          color: #1F5073;
+          padding: 0 7px;
+          font: 800 12px/1.1 inherit;
           letter-spacing: 0;
           white-space: nowrap;
           cursor: pointer;
@@ -234,16 +303,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-nav-link:hover {
-          color: #19789C;
-          background: rgba(25, 120, 156, 0.08);
-          border-color: rgba(25, 120, 156, 0.18);
+          color: #1F5073;
+          background: rgba(31, 80, 115, 0.08);
+          border-color: rgba(31, 80, 115, 0.16);
           transform: translateY(-1px);
         }
 
         .header-nav-link.is-active {
-          color: #004f75;
-          background: rgba(227, 242, 248, 0.9);
-          border-color: rgba(25, 120, 156, 0.24);
+          color: #1F5073;
+          background: rgba(31, 80, 115, 0.1);
+          border-color: rgba(31, 80, 115, 0.22);
           box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.74);
         }
 
@@ -260,10 +329,10 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           align-items: center;
           gap: 10px;
           padding: 0 10px 0 14px;
-          border: 1px solid rgba(25, 120, 156, 0.34);
+          border: 1px solid rgba(31, 80, 115, 0.34);
           border-radius: 8px;
           background: #fff;
-          box-shadow: 0 16px 36px rgba(0, 79, 117, 0.14);
+          box-shadow: 0 16px 36px rgba(31, 80, 115, 0.14);
           opacity: 0;
           visibility: hidden;
           pointer-events: none;
@@ -280,7 +349,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-search-panel svg {
-          color: #19789C;
+          color: #1F5073;
           flex: 0 0 auto;
         }
 
@@ -291,25 +360,26 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           border: 0;
           outline: 0;
           background: transparent;
-          color: #1f3043;
+          color: #1F5073;
           font: 700 14px/1 inherit;
         }
 
         .header-search-input::placeholder {
-          color: #7b8ca0;
+          color: rgba(31, 80, 115, 0.68);
         }
 
+        .header-search-submit,
         .header-search-close,
         .header-icon-btn,
         .header-search-btn,
         .header-menu-btn {
-          width: 44px;
-          height: 44px;
-          flex: 0 0 44px;
-          border: 1px solid rgba(0, 79, 117, 0.16);
+          width: 40px;
+          height: 40px;
+          flex: 0 0 40px;
+          border: 1px solid rgba(31, 80, 115, 0.16);
           border-radius: 8px;
           background: #fff;
-          color: #314456;
+          color: #1F5073;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -317,13 +387,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
         }
 
+        .header-search-submit,
         .header-search-close {
           width: 32px;
           height: 32px;
           flex-basis: 32px;
-          background: #e3f2f8;
-          color: #004f75;
-          border-color: rgba(0, 79, 117, 0.14);
+          background: #ffffff;
+        }
+
+        .header-search-submit {
+          color: #1F5073;
         }
 
         .header-search-btn svg,
@@ -337,15 +410,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-icon-btn.active,
         .header-search-btn.active,
         .header-menu-btn:hover,
+        .header-search-submit:hover,
         .header-search-close:hover {
-          border-color: rgba(25, 120, 156, 0.42);
-          background: #edf6f8;
-          color: #19789C;
+          border-color: rgba(31, 80, 115, 0.34);
+          background: rgba(31, 80, 115, 0.08);
+          color: #1F5073;
           transform: translateY(-1px);
         }
 
         .header-search-btn.active {
-          box-shadow: 0 0 0 3px rgba(25, 120, 156, 0.14);
+          box-shadow: 0 0 0 3px rgba(31, 80, 115, 0.14);
         }
 
         .header-actions {
@@ -354,111 +428,240 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          gap: 10px;
+          gap: 6px;
         }
 
         .header-a11y-wrap {
-          position: relative;
+          position: static;
           display: inline-flex;
         }
 
         .header-a11y-panel {
           position: absolute;
-          top: calc(100% + 10px);
+          top: 100%;
+          left: 0;
           right: 0;
           z-index: 260;
-          width: min(360px, calc(100vw - 24px));
-          display: grid;
-          gap: 14px;
-          padding: 16px;
-          border: 1px solid #c9defb;
-          border-radius: 12px;
-          background: #ffffff;
-          box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+          width: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          align-items: end;
+          gap: 8px 18px;
+          padding: 10px 18px 12px;
+          border-top: 1px solid #bfc7d1;
+          border-bottom: 2px solid #1f2937;
+          background: #f2f4f7;
+          color: #111827;
+          box-shadow: none;
         }
 
-        .header-a11y-panel h2 {
+        .header-a11y-panel-head {
+          display: flex;
+          align-items: center;
+          align-content: center;
+          gap: 8px;
+          padding-right: 4px;
+        }
+
+        .header-a11y-panel h2,
+        .a11y-section-title {
           margin: 0;
-          color: #0f172a;
-          font-size: 18px;
-          line-height: 1.2;
-        }
-
-        .header-a11y-panel p {
-          margin: 0;
-          color: #475569;
-          font-size: 13px;
-          line-height: 1.45;
-          font-weight: 650;
-        }
-
-        .a11y-row {
-          display: grid;
-          gap: 7px;
-        }
-
-        .a11y-row label,
-        .a11y-toggle-label {
-          color: #0f172a;
-          font-size: 13px;
+          color: inherit;
           font-weight: 900;
         }
 
-        .a11y-row select {
-          width: 100%;
-          min-height: 40px;
-          border: 1px solid #dbe5f1;
-          border-radius: 8px;
-          background: #f8fbff;
-          color: #0f172a;
-          padding: 0 10px;
-          font: 750 13px/1 inherit;
+        .header-a11y-panel h2 {
+          font-size: 17px;
+          line-height: 1.15;
+          white-space: nowrap;
         }
 
-        .a11y-toggle-line {
+        .header-a11y-panel p {
+          display: none;
+          margin: 0;
+          color: #374151;
+          font-size: 12px;
+          line-height: 1.25;
+          font-weight: 750;
+          white-space: nowrap;
+        }
+
+        .a11y-control-section {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 12px;
+          gap: 6px;
+          min-width: 0;
         }
 
-        .a11y-switch {
-          width: 54px;
-          height: 32px;
-          border: 1px solid #cbd5e1;
-          border-radius: 999px;
-          background: #e2e8f0;
-          padding: 3px;
-          cursor: pointer;
+        .a11y-section-title {
+          font-size: 14px;
+          line-height: 1.2;
+          white-space: nowrap;
         }
 
-        .a11y-switch span {
-          display: block;
-          width: 24px;
-          height: 24px;
-          border-radius: 999px;
+        .a11y-choice-list {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .a11y-choice {
+          position: relative;
+          min-height: 40px !important;
+          min-width: 40px !important;
+          border: 1px solid #111827;
+          border-radius: 4px;
           background: #ffffff;
-          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
-          transform: translateX(0);
-        }
-
-        .a11y-switch.is-on {
-          background: #0b63ce;
-          border-color: #0b63ce;
-        }
-
-        .a11y-switch.is-on span {
-          transform: translateX(20px);
-        }
-
-        .a11y-reset {
-          min-height: 38px;
-          border: 1px solid #dbe5f1;
-          border-radius: 8px;
-          background: #ffffff;
-          color: #1e3a8a;
-          font: 900 13px/1 inherit;
+          color: #111827;
+          padding: 6px 10px !important;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          flex-wrap: nowrap;
+          font: 850 clamp(16px, 1rem, 20px)/1.15 inherit !important;
+          text-align: center;
           cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .a11y-choice:hover,
+        .a11y-choice:focus-visible {
+          background: #e5e7eb;
+          transform: none;
+        }
+
+        .a11y-choice.is-active {
+          border-width: 2px;
+          box-shadow: inset 0 -3px 0 currentColor;
+          outline: 2px solid #1f2937;
+          outline-offset: 1px;
+        }
+
+        .a11y-choice-state {
+          font-size: 0;
+          line-height: 1;
+        }
+
+        .a11y-choice-state::before {
+          content: "✓";
+          font-size: 13px;
+          font-weight: 950;
+        }
+
+        .a11y-font-sample {
+          font-size: 20px;
+          line-height: 1;
+        }
+
+        .a11y-font-choice {
+          min-width: 48px;
+        }
+
+        .a11y-font-choice > span:not(.a11y-font-sample):not(.a11y-choice-state) {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: clip;
+          clip: rect(0 0 0 0);
+          white-space: nowrap;
+        }
+
+        .a11y-font-choice--xlarge .a11y-font-sample {
+          font-size: 24px;
+        }
+
+        .a11y-font-choice--xxlarge .a11y-font-sample {
+          font-size: 27px;
+        }
+
+        .a11y-theme-choice {
+          min-width: 42px;
+          width: 42px;
+          padding: 4px;
+        }
+
+        .a11y-theme-swatch {
+          width: 28px;
+          height: 28px;
+          border: 2px solid currentColor;
+          border-radius: 3px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: 950;
+          line-height: 1;
+        }
+
+        .a11y-theme-choice > span:not(.a11y-theme-swatch):not(.a11y-choice-state) {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: clip;
+          clip: rect(0 0 0 0);
+          white-space: nowrap;
+        }
+
+        .a11y-theme-choice--white .a11y-theme-swatch {
+          background: #ffffff;
+          color: #000000;
+        }
+
+        .a11y-theme-choice--black .a11y-theme-swatch {
+          background: #000000;
+          color: #ffffff;
+        }
+
+        .a11y-theme-choice--yellow .a11y-theme-swatch {
+          background: #000000;
+          color: #ffff00;
+        }
+
+        .a11y-theme-choice--blue .a11y-theme-swatch {
+          background: #9dd1ff;
+          color: #000000;
+        }
+
+        .a11y-theme-choice--beige .a11y-theme-swatch {
+          background: #f7f3d0;
+          color: #000000;
+        }
+
+        .a11y-family-choice--serif {
+          font-family: Georgia, "Times New Roman", serif;
+        }
+
+        .a11y-panel-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .a11y-action {
+          min-height: 40px !important;
+          border: 1px solid #111827;
+          border-radius: 4px;
+          background: #ffffff;
+          color: #111827;
+          padding: 6px 12px !important;
+          font: 900 clamp(16px, 1rem, 20px)/1.2 inherit !important;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .a11y-action:hover,
+        .a11y-action:focus-visible {
+          background: #e5e7eb;
+          transform: none;
+        }
+
+        .a11y-disable {
+          border-color: #111827;
+          background: #111827;
+          color: #ffffff;
         }
 
         .header-admin-btn,
@@ -466,16 +669,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         .header-profile-btn,
         .header-auth-btn,
         .header-register-btn {
-          height: 44px;
-          border: 1px solid rgba(0, 79, 117, 0.16);
+          height: 40px;
+          border: 1px solid rgba(31, 80, 115, 0.16);
           border-radius: 8px;
           background: #fff;
-          color: #26364a;
+          color: #1F5073;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 0 15px;
+          padding: 0 12px;
           font: 800 13px/1 inherit;
           white-space: nowrap;
           cursor: pointer;
@@ -483,27 +686,27 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
         }
 
         .header-register-btn {
-          border-color: #19789C;
-          background: #19789C;
+          border-color: #1F5073;
+          background: #1F5073;
           color: #fff;
-          box-shadow: 0 10px 24px rgba(0, 79, 117, 0.18);
+          box-shadow: 0 10px 24px rgba(31, 80, 115, 0.18);
         }
 
         .header-admin-btn:hover,
         .header-tpmpk-btn:hover,
         .header-profile-btn:hover,
         .header-auth-btn:hover {
-          border-color: rgba(25, 120, 156, 0.42);
-          background: #edf6f8;
-          color: #19789C;
+          border-color: rgba(31, 80, 115, 0.34);
+          background: rgba(31, 80, 115, 0.08);
+          color: #1F5073;
           transform: translateY(-1px);
         }
 
         .header-register-btn:hover {
-          background: #004f75;
-          border-color: #004f75;
+          background: #1F5073;
+          border-color: #1F5073;
           transform: translateY(-1px);
-          box-shadow: 0 14px 28px rgba(0, 79, 117, 0.22);
+          box-shadow: 0 14px 28px rgba(31, 80, 115, 0.22);
         }
 
         .header-avatar {
@@ -513,7 +716,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #005e7d, #19789C);
+          background: #1F5073;
           color: #fff;
           font-size: 11px;
           font-weight: 900;
@@ -521,6 +724,10 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
 
         .header-spacer {
           height: 85px;
+        }
+
+        .header-spacer.a11y-panel-open {
+          height: 184px;
         }
 
         @media (max-width: 1440px) {
@@ -542,19 +749,19 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
 
           .header-nav-link {
-            font-size: 12.4px;
-            padding: 0 10px;
+            font-size: 11.5px;
+            padding: 0 5px;
           }
         }
 
         @media (max-width: 1320px) {
           .header-nav {
-            gap: 6px;
+            gap: 3px;
           }
 
           .header-nav-link {
-            font-size: 12px;
-            padding: 0 8px;
+            font-size: 11.1px;
+            padding: 0 5px;
           }
         }
 
@@ -570,12 +777,17 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           }
         }
 
-        @media (max-width: 1180px) {
+        @media (max-width: 1279px) {
           .header-nav {
             display: none;
           }
 
+          .header-logo-slot {
+            grid-column: 1;
+          }
+
           .header-main-area {
+            grid-column: 1 / -1;
             height: 0;
             position: absolute;
             left: 20px;
@@ -583,6 +795,10 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
             top: 84px;
             z-index: 1;
             display: block;
+          }
+
+          .header-actions {
+            grid-column: 3;
           }
 
           .header-search-panel {
@@ -610,6 +826,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .site-header-inner {
             padding: 0 12px;
             column-gap: 8px;
+            grid-template-columns: minmax(136px, 1fr) 0 auto;
           }
 
           .header-logo-slot img {
@@ -627,6 +844,10 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
             height: 69px;
           }
 
+          .header-spacer.a11y-panel-open {
+            height: 380px;
+          }
+
           .header-admin-btn,
           .header-tpmpk-btn {
             display: none;
@@ -640,22 +861,95 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-profile-btn {
             width: 40px;
             height: 40px;
+            min-width: 40px;
+            min-height: 40px;
             flex-basis: 40px;
+            padding: 0;
+            box-sizing: border-box;
+          }
+
+          .header-auth-icon,
+          .header-menu-btn svg,
+          .header-search-btn svg,
+          .header-icon-btn svg {
+            flex: 0 0 auto;
+          }
+
+          .header-a11y-panel {
+            width: auto;
+            justify-content: stretch;
+            align-items: stretch;
+            gap: 8px;
+            padding: 10px 12px 12px;
+          }
+
+          .header-a11y-panel h2 {
+            font-size: 16px;
+          }
+
+          .header-a11y-panel p {
+            font-size: 12px;
+            white-space: normal;
+          }
+
+          .a11y-control-section {
+            align-items: flex-start;
+            justify-content: space-between;
+          }
+
+          .a11y-choice-list {
+            justify-content: flex-end;
+          }
+
+          .a11y-theme-choice,
+          .a11y-font-choice,
+          .a11y-choice {
+            justify-content: center;
+          }
+
+          .a11y-panel-actions {
+            justify-content: stretch;
+          }
+
+          .a11y-action {
+            flex: 1 1 auto;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .site-header-inner {
+            padding: 0 8px;
+            column-gap: 5px;
+            grid-template-columns: minmax(112px, 1fr) 0 auto;
+          }
+
+          .header-actions {
+            min-width: max-content;
+            gap: 4px;
+            overflow: visible;
+          }
+
+          .header-logo-slot img {
+            width: clamp(118px, 30vw, 150px) !important;
+            max-height: 40px;
           }
         }
 
         @media (max-width: 420px) {
           .site-header-inner {
-            padding: 0 8px;
-            column-gap: 6px;
+            padding: 0 6px;
+            column-gap: 4px;
+            grid-template-columns: minmax(96px, 1fr) 0 auto;
           }
 
           .header-actions {
-            gap: 5px;
+            min-width: max-content;
+            gap: 4px;
+            overflow: visible;
           }
 
           .header-logo-slot img {
-            width: clamp(146px, 42vw, 174px) !important;
+            width: clamp(104px, 29vw, 122px) !important;
             max-height: 40px;
           }
 
@@ -671,21 +965,22 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           .header-auth-btn,
           .header-register-btn,
           .header-profile-btn {
-            width: 34px;
-            height: 34px;
-            flex-basis: 34px;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            min-height: 44px;
+            flex: 0 0 44px;
+            padding: 0;
+            box-sizing: border-box;
           }
 
-          .header-icon-btn {
-            display: none;
-          }
         }
       `}</style>
 
-      <div className="header-spacer" />
+      <div className={`header-spacer${a11yPanelOpen ? " a11y-panel-open" : ""}`} />
 
       <header
-        className="site-header-shell"
+        className={`site-header-shell${a11yPanelOpen ? " a11y-panel-open" : ""}`}
         style={{ "--header-shadow": scrolled ? "0 10px 28px rgba(15, 23, 42, 0.12)" : "0 2px 12px rgba(15, 23, 42, 0.06)" }}
       >
         <div className="site-header-inner">
@@ -696,7 +991,7 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
           <div className={`header-main-area${searchOpen ? " search-mode" : ""}`}>
             <nav className="header-nav" aria-label="Главная навигация">
               {MAIN_NAV_ITEMS.map((item) => {
-                const isActive = item.href === "/" ? currentPath === "/" : currentPath.startsWith(item.href);
+                const isActive = isActiveNavItem(currentPath, item.href);
                 return (
                   <button
                     key={item.href}
@@ -720,7 +1015,16 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
                 placeholder="Поиск по сайту"
                 aria-label="Поиск по сайту"
                 onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={onSearchKeyDown}
               />
+              <button
+                className="header-search-submit"
+                type="submit"
+                title="Найти"
+                aria-label="Найти"
+              >
+                <SearchIcon />
+              </button>
               <button
                 className="header-search-close"
                 type="button"
@@ -754,51 +1058,151 @@ export default function Header({ onGoAuth, onGoAdmin, onGoProfile, currentUser }
                 aria-label="Версия для слабовидящих"
                 aria-pressed={a11yMode}
                 aria-expanded={a11yPanelOpen}
-                onClick={() => setA11yPanelOpen((value) => !value)}
+                onClick={handleA11yButtonClick}
               >
                 <EyeIcon />
               </button>
               {a11yPanelOpen && (
-                <div className="header-a11y-panel" role="dialog" aria-label="Настройки версии для слабовидящих">
-                  <div>
-                    <h2>Версия для слабовидящих</h2>
-                    <p>Настройки применяются ко всем страницам и сохраняются после перезагрузки.</p>
+                <div className="header-a11y-panel" role="region" aria-labelledby="a11y-panel-title">
+                  <div className="header-a11y-panel-head">
+                    <h2 id="a11y-panel-title">Версия для слабовидящих</h2>
+                    <p>Настройки сохраняются автоматически.</p>
                   </div>
-                  <div className="a11y-toggle-line">
-                    <span className="a11y-toggle-label">Режим включён</span>
-                    <button type="button" className={`a11y-switch${a11ySettings.enabled ? " is-on" : ""}`} aria-label={a11ySettings.enabled ? "Выключить режим" : "Включить режим"} aria-pressed={a11ySettings.enabled} onClick={() => updateA11ySettings({ enabled: !a11ySettings.enabled })}>
-                      <span />
-                    </button>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-font-title">
+                    <h3 className="a11y-section-title" id="a11y-font-title">Размер</h3>
+                    <div className="a11y-choice-list">
+                      {A11Y_FONT_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`a11y-choice a11y-font-choice a11y-font-choice--${option.value}${option.value === a11ySettings.fontSize ? " is-active" : ""}`}
+                          aria-label={option.ariaLabel}
+                          aria-pressed={option.value === a11ySettings.fontSize}
+                          onClick={() => updateA11ySettings({ fontSize: option.value })}
+                        >
+                          <span className="a11y-font-sample" aria-hidden="true">{option.sample}</span>
+                          <span>{option.label}</span>
+                          {option.value === a11ySettings.fontSize && <span className="a11y-choice-state">Выбрано</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-scheme-title">
+                    <h3 className="a11y-section-title" id="a11y-scheme-title">Цвет</h3>
+                    <div className="a11y-choice-list">
+                      {A11Y_SCHEME_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`a11y-choice a11y-theme-choice a11y-theme-choice--${option.value}${option.value === a11ySettings.scheme ? " is-active" : ""}`}
+                          aria-label={option.ariaLabel}
+                          aria-pressed={option.value === a11ySettings.scheme}
+                          onClick={() => updateA11ySettings({ scheme: option.value })}
+                        >
+                          <span className="a11y-theme-swatch" aria-hidden="true">Ц</span>
+                          <span>{option.label}</span>
+                          {option.value === a11ySettings.scheme && <span className="a11y-choice-state">Выбрано</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-images-title">
+                    <h3 className="a11y-section-title" id="a11y-images-title">Изображения</h3>
+                    <div className="a11y-choice-list">
+                      <button
+                        type="button"
+                        className={`a11y-choice${!a11ySettings.hideImages ? " is-active" : ""}`}
+                        aria-label="Изображения: включены"
+                        aria-pressed={!a11ySettings.hideImages}
+                        onClick={() => updateA11ySettings({ hideImages: false })}
+                      >
+                        <span>Вкл</span>
+                        {!a11ySettings.hideImages && <span className="a11y-choice-state">Выбрано</span>}
+                      </button>
+                      <button
+                        type="button"
+                        className={`a11y-choice${a11ySettings.hideImages ? " is-active" : ""}`}
+                        aria-label="Изображения: выключены"
+                        aria-pressed={a11ySettings.hideImages}
+                        onClick={() => updateA11ySettings({ hideImages: true })}
+                      >
+                        <span>Выкл</span>
+                        {a11ySettings.hideImages && <span className="a11y-choice-state">Выбрано</span>}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-line-title">
+                    <h3 className="a11y-section-title" id="a11y-line-title">Интервал слов</h3>
+                    <div className="a11y-choice-list">
+                      {A11Y_LINE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`a11y-choice${option.value === a11ySettings.lineHeight ? " is-active" : ""}`}
+                          aria-label={option.ariaLabel}
+                          aria-pressed={option.value === a11ySettings.lineHeight}
+                          onClick={() => updateA11ySettings({ lineHeight: option.value })}
+                        >
+                          <span>{option.label}</span>
+                          {option.value === a11ySettings.lineHeight && <span className="a11y-choice-state">Выбрано</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-letter-title">
+                    <h3 className="a11y-section-title" id="a11y-letter-title">Межбуквенный интервал</h3>
+                    <div className="a11y-choice-list">
+                      {A11Y_LETTER_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`a11y-choice${option.value === a11ySettings.letterSpacing ? " is-active" : ""}`}
+                          aria-label={option.ariaLabel}
+                          aria-pressed={option.value === a11ySettings.letterSpacing}
+                          onClick={() => updateA11ySettings({ letterSpacing: option.value })}
+                        >
+                          <span>{option.label}</span>
+                          {option.value === a11ySettings.letterSpacing && <span className="a11y-choice-state">Выбрано</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="a11y-control-section" aria-labelledby="a11y-motion-title">
+                    <h3 className="a11y-section-title" id="a11y-motion-title">Анимации</h3>
+                    <div className="a11y-choice-list">
+                      <button
+                        type="button"
+                        className={`a11y-choice${!a11ySettings.reduceMotion ? " is-active" : ""}`}
+                        aria-label="Анимации: включены"
+                        aria-pressed={!a11ySettings.reduceMotion}
+                        onClick={() => updateA11ySettings({ reduceMotion: false })}
+                      >
+                        <span>Вкл</span>
+                        {!a11ySettings.reduceMotion && <span className="a11y-choice-state">Выбрано</span>}
+                      </button>
+                      <button
+                        type="button"
+                        className={`a11y-choice${a11ySettings.reduceMotion ? " is-active" : ""}`}
+                        aria-label="Анимации: выключены"
+                        aria-pressed={a11ySettings.reduceMotion}
+                        onClick={() => updateA11ySettings({ reduceMotion: true })}
+                      >
+                        <span>Выкл</span>
+                        {a11ySettings.reduceMotion && <span className="a11y-choice-state">Выбрано</span>}
+                      </button>
+                    </div>
+                  </section>
+
+                  <div className="a11y-panel-actions">
+                    <button type="button" className="a11y-action" onClick={resetA11ySettings}>Сброс</button>
+                    <button type="button" className="a11y-action a11y-disable" onClick={disableA11yMode}>Обычная версия</button>
                   </div>
-                  <div className="a11y-row">
-                    <label htmlFor="a11y-font">Размер шрифта</label>
-                    <select id="a11y-font" value={a11ySettings.fontSize} onChange={(event) => updateA11ySettings({ fontSize: event.target.value, enabled: true })}>
-                      <option value="large">Крупный</option>
-                      <option value="xlarge">Очень крупный</option>
-                    </select>
-                  </div>
-                  <div className="a11y-row">
-                    <label htmlFor="a11y-scheme">Цветовая схема</label>
-                    <select id="a11y-scheme" value={a11ySettings.scheme} onChange={(event) => updateA11ySettings({ scheme: event.target.value, enabled: true })}>
-                      <option value="light">Светлая контрастная</option>
-                      <option value="dark">Тёмная контрастная</option>
-                      <option value="mono">Чёрно-белая</option>
-                    </select>
-                  </div>
-                  <div className="a11y-row">
-                    <label htmlFor="a11y-line">Интервал</label>
-                    <select id="a11y-line" value={a11ySettings.lineHeight} onChange={(event) => updateA11ySettings({ lineHeight: event.target.value, enabled: true })}>
-                      <option value="wide">Увеличенный</option>
-                      <option value="extra">Очень широкий</option>
-                    </select>
-                  </div>
-                  <div className="a11y-toggle-line">
-                    <span className="a11y-toggle-label">Скрыть изображения</span>
-                    <button type="button" className={`a11y-switch${a11ySettings.hideImages ? " is-on" : ""}`} aria-label={a11ySettings.hideImages ? "Показывать изображения" : "Скрыть изображения"} aria-pressed={a11ySettings.hideImages} onClick={() => updateA11ySettings({ hideImages: !a11ySettings.hideImages, enabled: true })}>
-                      <span />
-                    </button>
-                  </div>
-                  <button type="button" className="a11y-reset" onClick={resetA11ySettings}>Сбросить настройки</button>
                 </div>
               )}
             </div>

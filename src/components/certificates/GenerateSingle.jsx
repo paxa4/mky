@@ -203,7 +203,7 @@ export default function GenerateSingle({ templates }) {
     <section className="single-certificate">
       <style>{`
         .single-certificate {
-          --cert-primary: #19789C;
+          --cert-primary: #19789c;
           --cert-primary-dark: #004f75;
           display: grid;
           grid-template-columns: minmax(340px, 520px) minmax(360px, 1fr);

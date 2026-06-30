@@ -9,9 +9,13 @@ function makeSessionId() {
   return `admin-test-${crypto.randomUUID()}`;
 }
 
+function makeInitialMessages(text = "Здравствуйте! Я помощник МКУ развития образования города Иркутска. Задайте ваш вопрос.") {
+  return [{ id: Date.now(), from: "bot", text, rateable: false }];
+}
+
 export default function TestChatPanel() {
-  const [sessionId, setSessionId] = useState(makeSessionId);
-  const [messages, setMessages] = useState([]);
+  const [sessionId] = useState(makeSessionId);
+  const [messages, setMessages] = useState(() => makeInitialMessages());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -90,8 +94,7 @@ export default function TestChatPanel() {
     } catch (e) {
       void e;
     }
-    setSessionId(makeSessionId());
-    setMessages([]);
+    setMessages(makeInitialMessages("История очищена. Задайте новый вопрос."));
     setError(null);
     inputRef.current?.focus();
   };
@@ -105,6 +108,12 @@ export default function TestChatPanel() {
 
   return (
     <div style={{ ...cardStyle, display: "flex", flexDirection: "column", minHeight: 600, maxHeight: "80vh" }}>
+      <style>{`
+        @keyframes adminChatTyping {
+          0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+          40% { transform: scale(1.1); opacity: 1; }
+        }
+      `}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0F172A" }}>Тестовый чат</h2>
@@ -136,7 +145,7 @@ export default function TestChatPanel() {
         flex: 1,
         overflowY: "auto",
         padding: "12px",
-        background: "#F8FAFC",
+        background: "#fff",
         borderRadius: 12,
         border: "1px solid #E2E8F0",
         marginBottom: 12,
@@ -151,11 +160,7 @@ export default function TestChatPanel() {
 
         {messages.map(msg => <TestMessage key={msg.id} msg={msg} sessionId={sessionId} />)}
 
-        {loading && (
-          <div style={{ padding: "12px 16px", color: "#64748B", fontSize: 14, fontStyle: "italic" }}>
-            Ассистент отвечает...
-          </div>
-        )}
+        {loading && !messages[messages.length - 1]?.text && <TypingIndicator />}
 
         <div ref={bottomRef} />
       </div>
@@ -211,6 +216,37 @@ export default function TestChatPanel() {
   );
 }
 
+function BotAvatar() {
+  return (
+    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#19789C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: 8, marginTop: 2 }}>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M3 5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5l-2 2V5Z" stroke="white" strokeWidth="1.3"/>
+      </svg>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 12 }}>
+      <BotAvatar />
+      <div style={{ padding: "12px 16px", background: "#F1F5F9", borderRadius: "4px 16px 16px 16px", display: "flex", gap: 5, alignItems: "center" }}>
+        {[0, 1, 2].map((i) => (
+          <span key={i} style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: "#94A3B8",
+            display: "inline-block",
+            animation: "adminChatTyping 1.2s infinite",
+            animationDelay: `${i * 0.2}s`,
+          }}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TestMessage({ msg, sessionId }) {
   const isBot = msg.from === "bot";
 
@@ -219,18 +255,19 @@ function TestMessage({ msg, sessionId }) {
       display: "flex",
       justifyContent: isBot ? "flex-start" : "flex-end",
       marginBottom: 12,
+      minWidth: 0,
     }}>
+      {isBot && <BotAvatar />}
       <div style={{
-        maxWidth: "88%",
-        padding: "12px 16px",
-        borderRadius: isBot ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
-        background: isBot ? "#fff" : "#19789C",
+        maxWidth: "80%",
+        minWidth: 0,
+        padding: "10px 14px",
+        borderRadius: isBot ? "4px 16px 16px 16px" : "16px 4px 16px 16px",
+        background: isBot ? "#F1F5F9" : "#19789C",
         color: isBot ? "#0F172A" : "#fff",
-        fontSize: 14,
+        fontSize: 13,
         lineHeight: 1.55,
         whiteSpace: "pre-line",
-        border: isBot ? "1px solid #E2E8F0" : "none",
-        boxShadow: isBot ? "0 1px 3px rgba(0,0,0,0.04)" : "none",
         wordBreak: "break-word",
         overflowWrap: "anywhere",
       }}>

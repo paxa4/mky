@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiAsk, apiClearChat, apiGetLatestAssistantAnswer } from "../api.js";
 import AnswerFeedback from "./chat/AnswerFeedback.jsx";
 import { getLinkHref, linkifyText, shortenUrlLabel } from "../utils/chatLinks.jsx";
@@ -151,7 +151,7 @@ export default function ChatBot() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const adjustInputHeight = () => {
+  const adjustInputHeight = useCallback(() => {
     const element = inputRef.current;
     if (!element) return;
     const maxHeight = Math.min(160, Math.max(80, Math.round(chatSize.height * 0.28)));
@@ -159,7 +159,7 @@ export default function ChatBot() {
     const nextHeight = Math.min(element.scrollHeight, maxHeight);
     element.style.height = `${nextHeight}px`;
     element.style.overflowY = element.scrollHeight > maxHeight ? "auto" : "hidden";
-  };
+  }, [chatSize.height]);
 
   useEffect(() => {
     if (open) {
@@ -168,11 +168,11 @@ export default function ChatBot() {
         adjustInputHeight();
       }, 100);
     }
-  }, [open]);
+  }, [adjustInputHeight, open]);
 
   useEffect(() => {
     adjustInputHeight();
-  }, [input, chatSize.height, open]);
+  }, [adjustInputHeight, input, open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

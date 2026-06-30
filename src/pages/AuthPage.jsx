@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiLoginWithProfile, apiRegister } from "../api.js";
+import { authenticate, canAccessAdmin, canAccessDomuAdmin, canAccessTpmpkAdmin, mergeTestUserProfile } from "../auth.js";
 
 export default function AuthPage({ onLogin }) {
   const navigate = useNavigate();
@@ -21,11 +22,17 @@ export default function AuthPage({ onLogin }) {
     if (!pass) return 0;
     let score = 0;
     if (pass.length >= 8) score += 1;
-    if (/[A-ZА-Я]/.test(pass) && /[a-zа-я]/.test(pass)) score += 1;
+    if (/[A-Z\u0410-\u042F\u0401]/.test(pass) && /[a-z\u0430-\u044F\u0451]/.test(pass)) score += 1;
     if (/\d/.test(pass)) score += 1;
-    if (/[^A-Za-zА-Яа-я0-9]/.test(pass)) score += 1;
+    if (/[^A-Za-z\u0410-\u044F\u0401\u04510-9]/.test(pass)) score += 1;
     if (pass.length >= 12) score += 1;
     return Math.min(score, 4);
+  };
+
+  const getPasswordStrengthColor = (score) => {
+    if (score <= 1) return "rgba(31, 80, 115, 0.34)";
+    if (score === 2) return "#477799";
+    return "#1F5073";
   };
 
   const passScore = getPasswordStrength(regForm.password);
@@ -34,11 +41,23 @@ export default function AuthPage({ onLogin }) {
     event.preventDefault();
     setError("");
     setSubmitting("login");
+    let backendError = "";
     try {
-      const user = await apiLoginWithProfile(loginForm.email.trim(), loginForm.password);
+      const user = await apiLoginWithProfile(loginForm.email, loginForm.password);
+      onLogin?.(mergeTestUserProfile(user));
+      return;
+    } catch (err) {
+      backendError = err?.message || "Backend авторизации недоступен.";
+      const user = authenticate(loginForm.email, loginForm.password);
+      if (!user) {
+        setError(backendError || "Неверный логин или пароль.");
+        return;
+      }
+      if (canAccessAdmin(user) || canAccessTpmpkAdmin(user) || canAccessDomuAdmin(user)) {
+        setError(`${backendError || "Backend не выдал access token."} Для административных разделов нужен реальный серверный вход.`);
+        return;
+      }
       onLogin?.(user);
-    } catch (e) {
-      setError(e.message || "Не удалось войти. Проверьте email и пароль.");
     } finally {
       setSubmitting(null);
     }
@@ -53,14 +72,14 @@ export default function AuthPage({ onLogin }) {
       const email = regForm.email.trim();
       const password = regForm.password;
       await apiRegister({
-        full_name: regForm.name.trim(),
+        name: regForm.name.trim(),
         email,
         password,
       });
       setLoginForm({ email, password });
       setDone(true);
-    } catch (e) {
-      setError(e.message || "Не удалось зарегистрироваться. Проверьте данные.");
+    } catch (err) {
+      setError(err?.message || "Не удалось зарегистрироваться. Проверьте данные.");
     } finally {
       setSubmitting(null);
     }
@@ -69,20 +88,18 @@ export default function AuthPage({ onLogin }) {
   return (
     <div className="auth-page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-
         .auth-page {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           color: #0F172A;
           background:
-            radial-gradient(circle at 84% 6%, rgba(124, 58, 237, 0.16), transparent 28rem),
-            radial-gradient(circle at 10% 18%, rgba(25, 120, 156, 0.18), transparent 30rem),
-            linear-gradient(135deg, #FFFFFF 0%, #edf6f8 100%);
+            radial-gradient(circle at 84% 6%, rgba(255, 255, 255, 0.16), transparent 28rem),
+            radial-gradient(circle at 10% 18%, rgba(255, 255, 255, 0.12), transparent 30rem),
+            #477799;
         }
         .auth-top {
           position: relative;
@@ -112,7 +129,7 @@ export default function AuthPage({ onLogin }) {
           cursor: pointer;
           transition: all .18s ease;
         }
-        .back-btn:hover { border-color: #a9d4df; color: #19789C; transform: translateY(-1px); }
+        .back-btn:hover { border-color: #1F5073; color: #1F5073; transform: translateY(-1px); }
         .auth-logo { height: 46px; object-fit: contain; cursor: pointer; }
         .auth-content {
           position: relative;
@@ -122,16 +139,16 @@ export default function AuthPage({ onLogin }) {
           place-items: start center;
           padding: clamp(24px, 7vh, 72px) 20px 42px;
         }
-        .auth-wrap { width: min(100%, 520px); }
+        .auth-wrap { width: min(100%, 520px); display: block; }
         .auth-intro { text-align: center; margin-bottom: 26px; }
         .auth-icon {
           width: 66px; height: 66px; border-radius: 22px;
           display: grid; place-items: center; margin: 0 auto 18px;
-          color: #19789C; background: linear-gradient(135deg, #dceaf2, #F5F3FF);
-          box-shadow: 0 18px 40px rgba(25, 120, 156, 0.13);
+          color: #1F5073; background: #FFFFFF;
+          box-shadow: 0 18px 40px rgba(31, 80, 115, 0.13);
         }
-        .auth-intro h1 { margin: 0 0 8px; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; letter-spacing: -0.045em; }
-        .auth-intro p { margin: 0; color: #64748B; font-size: 15px; line-height: 1.6; }
+        .auth-intro h1 { margin: 0 0 8px; color: #FFFFFF; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; letter-spacing: 0; }
+        .auth-intro p { margin: 0; color: rgba(255, 255, 255, 0.82); font-size: 15px; line-height: 1.6; }
         .auth-card {
           background: rgba(255, 255, 255, 0.9);
           border: 1px solid rgba(255,255,255,0.86);
@@ -147,7 +164,7 @@ export default function AuthPage({ onLogin }) {
           flex: 1; min-height: 44px; border: 0; border-radius: 13px; background: transparent;
           color: #64748B; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
         }
-        .tab-btn.active { background: #fff; color: #19789C; box-shadow: 0 8px 20px rgba(15,23,42,.06); }
+        .tab-btn.active { background: #fff; color: #1F5073; box-shadow: 0 8px 20px rgba(15,23,42,.06); }
         .auth-form { display: grid; gap: 18px; }
         .auth-field label {
           display: block; margin-bottom: 8px; color: #475569; font-size: 13px; font-weight: 800;
@@ -160,7 +177,7 @@ export default function AuthPage({ onLogin }) {
           transition: all .2s ease;
         }
         .auth-input:focus {
-          border-color: #19789C; background: #fff; box-shadow: 0 0 0 4px rgba(25, 120, 156, 0.16);
+          border-color: #1F5073; background: #fff; box-shadow: 0 0 0 4px rgba(31, 80, 115, 0.15);
         }
         .password-box { position: relative; }
         .password-box .auth-input { padding-right: 48px; }
@@ -172,12 +189,12 @@ export default function AuthPage({ onLogin }) {
         .show-btn:hover { background: #F1F5F9; }
         .auth-btn {
           width: 100%; min-height: 52px; border: none; border-radius: 16px;
-          color: #fff; background: linear-gradient(135deg, #19789C, #7C3AED);
+          color: #fff; background: #1F5073;
           font: inherit; font-size: 16px; font-weight: 800; cursor: pointer;
-          box-shadow: 0 16px 36px rgba(29, 78, 216, 0.28);
+          box-shadow: 0 16px 36px rgba(31, 80, 115, 0.28);
           transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
         }
-        .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 20px 46px rgba(25,120,156,.34); }
+        .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 20px 46px rgba(31, 80, 115, 0.34); }
         .auth-btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
         .auth-error {
           padding: 12px 14px; border-radius: 15px; color: #B91C1C; background: #FEF2F2;
@@ -193,9 +210,6 @@ export default function AuthPage({ onLogin }) {
           to { opacity: 1; transform: translateY(0); }
         }
         .form-animate { animation: fadeSlideIn .28s ease both; }
-        @media (max-width: 860px) {
-          .auth-wrap { width: min(100%, 520px); }
-        }
         @media (max-width: 620px) {
           .auth-top { grid-template-columns: 1fr; justify-items: center; padding: 14px; }
           .back-btn { justify-self: stretch; justify-content: center; }
@@ -312,8 +326,8 @@ export default function AuthPage({ onLogin }) {
                                   key={index}
                                   style={{
                                     background: index <= passScore
-                                      ? passScore <= 1 ? "#EF4444" : passScore === 2 ? "#F59E0B" : "#10B981"
-                                      : "#E2E8F0",
+                                      ? getPasswordStrengthColor(passScore)
+                                      : "rgba(31, 80, 115, 0.16)",
                                   }}
                                 />
                               ))}
@@ -330,6 +344,7 @@ export default function AuthPage({ onLogin }) {
               </div>
             </div>
           </section>
+
         </div>
       </main>
     </div>

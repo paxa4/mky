@@ -36,17 +36,17 @@ export default function RegModal({ open, onClose }) {
           transition: border-color 0.2s, background 0.2s;
           font-family: inherit; box-sizing: border-box;
         }
-        .reg-input:focus { border-color: #a9d4df; background: #fff; }
+        .reg-input:focus { border-color: #93C5FD; background: #fff; }
         .reg-input::placeholder { color: #94A3B8; }
         .reg-submit {
           width: 100%; padding: 12px; font-size: 15px; font-weight: 700;
-          color: #fff; background: #19789C; border: none; border-radius: 10px;
+          color: #fff; background: #1D4ED8; border: none; border-radius: 10px;
           cursor: pointer; font-family: inherit;
           transition: background 0.15s, transform 0.1s;
         }
-        .reg-submit:hover  { background: #145F7D; transform: translateY(-1px); }
+        .reg-submit:hover  { background: #1E40AF; transform: translateY(-1px); }
         .reg-submit:active { transform: translateY(0); }
-        .reg-submit:disabled { background: #a9d4df; cursor: default; transform: none; }
+        .reg-submit:disabled { background: #93C5FD; cursor: default; transform: none; }
       `}</style>
 
       {/* Backdrop */}
@@ -81,9 +81,9 @@ export default function RegModal({ open, onClose }) {
           /* Form */
           <>
             <div style={{ marginBottom: 24 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#edf6f8", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM2 18c0-3.314 3.582-6 8-6s8 2.686 8 6" stroke="#19789C" strokeWidth="1.6" strokeLinecap="round"/>
+                  <path d="M10 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM2 18c0-3.314 3.582-6 8-6s8 2.686 8 6" stroke="#1D4ED8" strokeWidth="1.6" strokeLinecap="round"/>
                 </svg>
               </div>
               <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", marginBottom: 4 }}>Регистрация</h2>
@@ -134,7 +134,7 @@ export default function RegModal({ open, onClose }) {
 
               <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", lineHeight: 1.5 }}>
                 Нажимая кнопку, вы соглашаетесь с{" "}
-                <span style={{ color: "#19789C", cursor: "pointer" }}>политикой конфиденциальности</span>
+                <span style={{ color: "#1D4ED8", cursor: "pointer" }}>политикой конфиденциальности</span>
               </p>
             </form>
           </>

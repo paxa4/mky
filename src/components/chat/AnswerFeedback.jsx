@@ -54,7 +54,7 @@ export default function AnswerFeedback({ message, sessionId }) {
   useEffect(() => {
     setScore(getInitialScore(message));
     setComment(getInitialComment(message));
-  }, [message?.messageId, message?.manualQuality?.score, message?.manual_quality?.score, message?.feedbackScore]);
+  }, [message]);
 
   if (!message?.rateable || !message.text || !message.messageId) return null;
 

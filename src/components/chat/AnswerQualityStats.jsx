@@ -363,7 +363,7 @@ export default function AnswerQualityStats() {
             style={{
               border: "1px solid #CBD5E1",
               background: "#19789C",
-              color: "#0F766E",
+              color: "#fff",
               borderRadius: 8,
               padding: "10px 14px",
               fontWeight: 800,
@@ -503,6 +503,7 @@ export default function AnswerQualityStats() {
                     <th style={{ padding: "10px 8px" }}>Дата ответа</th>
                     <th style={{ padding: "10px 8px" }}>Оценка</th>
                     <th style={{ padding: "10px 8px" }}>Вопрос</th>
+                    <th style={{ padding: "10px 8px" }}>Ответ ассистента</th>
                     <th style={{ padding: "10px 8px" }}>Комментарий</th>
                   </tr>
                 </thead>
@@ -517,11 +518,9 @@ export default function AnswerQualityStats() {
                       </td>
                       <td style={{ padding: "11px 8px", color: "#0F172A", minWidth: 280, verticalAlign: "top" }}>
                         <div style={{ fontWeight: 700 }}>{trimText(item.question || "-", 180)}</div>
-                        {item.answer && (
-                          <div style={{ marginTop: 5, color: "#64748B", fontSize: 12 }}>
-                            {trimText(item.answer, 180)}
-                          </div>
-                        )}
+                      </td>
+                      <td style={{ padding: "11px 8px", color: "#64748B", minWidth: 320, verticalAlign: "top", lineHeight: 1.5 }}>
+                        {trimText(item.answer || "-", 240)}
                       </td>
                       <td style={{ padding: "11px 8px", color: "#64748B", minWidth: 180, verticalAlign: "top" }}>
                         {item.manualComment || "-"}

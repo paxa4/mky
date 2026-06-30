@@ -1,23 +1,33 @@
 import { API_BASE } from "./constants/index.js";
 import { AUTH_REFRESH_TOKEN_STORAGE_KEYS, AUTH_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEYS } from "./auth.js";
 
-const TOKEN_STORAGE_KEY = "access_token";
-const MKY_TOKEN_STORAGE_KEY = "mky_access_token";
-const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
-const MKY_REFRESH_TOKEN_STORAGE_KEY = "mky_refresh_token";
 export const AUTH_SESSION_EXPIRED_EVENT = "mky:auth-session-expired";
 
 function getToken() {
-  return localStorage.getItem(TOKEN_STORAGE_KEY) || localStorage.getItem(MKY_TOKEN_STORAGE_KEY);
+  return AUTH_TOKEN_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) || "";
 }
 
 function getRefreshToken() {
-  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || localStorage.getItem(MKY_REFRESH_TOKEN_STORAGE_KEY);
+  return AUTH_REFRESH_TOKEN_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) || "";
 }
 
 export function getAuthHeaders(headers = {}) {
   const token = getToken();
   return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+}
+
+function omitAuthHeader(headers = {}) {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([key]) => key.toLowerCase() !== "authorization")
+  );
+}
+
+async function isAuthTokenFailure(response) {
+  if (response.status === 401) return true;
+  if (response.status !== 403) return false;
+
+  const data = await readJson(response.clone());
+  return getErrorMessage(data, "").toLowerCase().includes("token");
 }
 
 function updateStoredUserTokens({ access_token, refresh_token } = {}) {
@@ -31,7 +41,7 @@ function updateStoredUserTokens({ access_token, refresh_token } = {}) {
       ...(refresh_token ? { refresh_token } : {}),
     }));
   } catch {
-    // If a legacy value is malformed, token storage below is still enough for API calls.
+    // Legacy malformed storage should not block token-based API calls.
   }
 }
 
@@ -41,21 +51,17 @@ function saveToken(token) {
   const refreshToken = typeof token === "string" ? "" : token.refresh_token;
 
   if (accessToken) {
-    localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
-    localStorage.setItem(MKY_TOKEN_STORAGE_KEY, accessToken);
+    AUTH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.setItem(key, accessToken));
   }
   if (refreshToken) {
-    localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
-    localStorage.setItem(MKY_REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+    AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.setItem(key, refreshToken));
   }
   updateStoredUserTokens({ access_token: accessToken, refresh_token: refreshToken });
 }
 
 function removeToken() {
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  localStorage.removeItem(MKY_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(MKY_REFRESH_TOKEN_STORAGE_KEY);
+  AUTH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  AUTH_REFRESH_TOKEN_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
 function clearStoredAuthSession() {
@@ -109,6 +115,17 @@ function normalizeRegisterPayload(input, password) {
   return { email: input, password };
 }
 
+function splitFullName(fullName) {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return {};
+  if (parts.length === 1) return { first_name: parts[0] };
+  return {
+    last_name: parts[0],
+    first_name: parts[1],
+    ...(parts.length > 2 ? { middle_name: parts.slice(2).join(" ") } : {}),
+  };
+}
+
 async function postRegister(payload) {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
@@ -120,14 +137,25 @@ async function postRegister(payload) {
 
 export async function apiRegister(input, password) {
   const rawPayload = normalizeRegisterPayload(input, password);
+  const email = String(rawPayload.email || "").trim();
   const fullName = String(rawPayload.full_name || rawPayload.fullName || rawPayload.name || "").trim();
   const basePayload = {
-    email: String(rawPayload.email || "").trim(),
+    email,
     password: rawPayload.password || "",
+    ...(rawPayload.username ? { username: String(rawPayload.username).trim() } : {}),
   };
-  const payload = fullName ? { ...basePayload, full_name: fullName } : basePayload;
+  const structuredPayload = fullName
+    ? { ...basePayload, ...splitFullName(fullName) }
+    : basePayload;
+  const legacyPayload = fullName
+    ? { ...basePayload, full_name: fullName }
+    : basePayload;
 
-  let { res, data } = await postRegister(payload);
+  let { res, data } = await postRegister(structuredPayload);
+
+  if (!res.ok && res.status === 422 && fullName) {
+    ({ res, data } = await postRegister(legacyPayload));
+  }
 
   if (!res.ok && res.status === 422 && fullName) {
     ({ res, data } = await postRegister(basePayload));
@@ -138,7 +166,7 @@ export async function apiRegister(input, password) {
 }
 
 export async function apiLogin(email, password) {
-  const body = new URLSearchParams({ username: email, password });
+  const body = new URLSearchParams({ username: String(email || "").trim(), password });
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -156,11 +184,12 @@ export async function apiLoginWithProfile(email, password) {
   let profile;
   try {
     profile = await apiMe(token.access_token);
-  } catch (e) {
+  } catch (error) {
     removeToken();
-    throw e;
+    throw error;
   }
   return {
+    ...(token.user || {}),
     ...profile,
     access_token: token.access_token,
     refresh_token: token.refresh_token,
@@ -244,6 +273,36 @@ export async function authFetch(input, options = {}) {
   }
 
   return response;
+}
+
+async function assistantFetch(input, options = {}) {
+  const headers = options.headers || {};
+  const hadToken = Boolean(getToken());
+  let response = await fetch(input, {
+    ...options,
+    headers: getAuthHeaders(headers),
+  });
+
+  if (!hadToken || !(await isAuthTokenFailure(response))) return response;
+
+  if (getRefreshToken()) {
+    try {
+      await refreshAuthToken();
+      response = await fetch(input, {
+        ...options,
+        headers: getAuthHeaders(headers),
+      });
+      if (!(await isAuthTokenFailure(response))) return response;
+    } catch {
+      // Public assistant requests can continue without a broken auth session.
+    }
+  }
+
+  clearStoredAuthSession();
+  return fetch(input, {
+    ...options,
+    headers: omitAuthHeader(headers),
+  });
 }
 
 export function isLoggedIn() {
@@ -390,9 +449,9 @@ async function readAssistantStream(response, { onDelta } = {}) {
 }
 
 export async function apiAsk(question, sessionId = "default", options = {}) {
-  const res = await fetch(`${API_BASE}/assistant/ask/stream`, {
+  const res = await assistantFetch(`${API_BASE}/assistant/ask/stream`, {
     method: "POST",
-    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, session_id: sessionId }),
     signal: options.signal,
   });
@@ -406,9 +465,8 @@ export async function apiAsk(question, sessionId = "default", options = {}) {
 }
 
 export async function apiClearChat(sessionId = "default") {
-  const res = await fetch(`${API_BASE}/assistant/clear/${encodeURIComponent(sessionId)}`, {
+  const res = await assistantFetch(`${API_BASE}/assistant/clear/${encodeURIComponent(sessionId)}`, {
     method: "POST",
-    headers: getAuthHeaders(),
   });
   if (!res.ok) {
     const data = await readJson(res);
@@ -418,18 +476,14 @@ export async function apiClearChat(sessionId = "default") {
 
 export async function apiGetChatHistory(sessionId = "default", limit = 50) {
   const params = new URLSearchParams({ limit: String(limit) });
-  const res = await fetch(`${API_BASE}/assistant/history/${encodeURIComponent(sessionId)}?${params}`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await assistantFetch(`${API_BASE}/assistant/history/${encodeURIComponent(sessionId)}?${params}`);
   const data = await readJson(res);
   if (!res.ok) throw new Error(getErrorMessage(data, "Не удалось загрузить историю чата"));
   return data;
 }
 
 export async function apiAssistantStatus() {
-  const res = await fetch(`${API_BASE}/assistant/status`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await assistantFetch(`${API_BASE}/assistant/status`);
   const data = await readJson(res);
   if (!res.ok) throw new Error(getErrorMessage(data, "Не удалось получить статус ассистента"));
   return data;

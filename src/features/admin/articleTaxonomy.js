@@ -214,8 +214,8 @@ export function resolveArticleLocation(article) {
     const storedLabel = !isGeneratedSectionMeta(key, storedSection.label) ? storedSection.label : "";
     const sectionLabel = rest.join(" / ") || storedLabel || labelFromStoredSectionKey(key);
     if (key.startsWith("domu:")) return { parentLabel: parentLabel || "Дом учителя", parentPath: "/dom-uchitelya/", sectionLabel, sectionPath: `/dom-uchitelya/${key.replace("domu:", "").replace("root", "")}/` };
-    if (key.startsWith("methodika_subject:")) return { parentLabel: parentLabel || "Методическое пространство", parentPath: "/metodika/", sectionLabel, sectionPath: `/metodika/${methodikaSubjectSlug(key.replace("methodika_subject:", ""))}/` };
-    if (key.startsWith("methodika_section:")) return { parentLabel: parentLabel || "Методическое пространство", parentPath: "/metodika/", sectionLabel, sectionPath: `/metodika/${key.replace("methodika_section:", "")}/` };
+    if (key.startsWith("methodika_subject:")) return { parentLabel: parentLabel || "Методическое пространство", parentPath: "/metodicheskoe-prostranstvo/", sectionLabel, sectionPath: "/metodicheskoe-prostranstvo/" };
+    if (key.startsWith("methodika_section:")) return { parentLabel: parentLabel || "Методическое пространство", parentPath: "/metodicheskoe-prostranstvo/", sectionLabel, sectionPath: "/metodicheskoe-prostranstvo/" };
     if (key.startsWith("noko:")) return { parentLabel: parentLabel || "НОКО", parentPath: "/noko/", sectionLabel, sectionPath: `/noko/${key.replace("noko:", "").replace("root", "")}/` };
     if (key.startsWith("konkursy:")) return { parentLabel: parentLabel || "Олимпиады и конкурсы", parentPath: "/konkursy/", sectionLabel, sectionPath: `/konkursy/${key.replace("konkursy:", "").replace("root", "")}/` };
     if (key.startsWith("deyatelnost:")) return { parentLabel: parentLabel || "Деятельность", parentPath: "/deyatelnost/", sectionLabel, sectionPath: `/deyatelnost/${key.replace("deyatelnost:", "").replace("root", "")}/` };
@@ -232,18 +232,18 @@ export function resolveArticleLocation(article) {
   if (article.methodika_subject) {
     return {
       parentLabel: "Методическое пространство",
-      parentPath: "/metodika/",
+      parentPath: "/metodicheskoe-prostranstvo/",
       sectionLabel: article.methodika_subject,
-      sectionPath: `/metodika/${methodikaSubjectSlug(article.methodika_subject)}/`,
+      sectionPath: "/metodicheskoe-prostranstvo/",
     };
   }
   if (article.hub_kind === "methodika" && article.hub_path) {
     const section = METHODIKA_STATIC_PAGES.find((item) => item.path.includes(`/${article.hub_path}/`));
     return {
       parentLabel: "Методическое пространство",
-      parentPath: "/metodika/",
+      parentPath: "/metodicheskoe-prostranstvo/",
       sectionLabel: section?.title || findLabel(METHODIKA_SECTIONS, article.hub_path),
-      sectionPath: section?.path || `/metodika/${article.hub_path}/`,
+      sectionPath: "/metodicheskoe-prostranstvo/",
     };
   }
   if (article.noko_section) {

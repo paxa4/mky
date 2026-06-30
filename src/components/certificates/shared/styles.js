@@ -33,7 +33,7 @@ export const primaryBtn = (disabled) => ({
   padding: "16px",
   fontSize: 16,
   fontWeight: 700,
-  background: disabled ? "#CBD5E1" : "#19789C",
+  background: disabled ? "#CBD5E1" : "#19789c",
   color: "#fff",
   border: "none",
   borderRadius: 8,

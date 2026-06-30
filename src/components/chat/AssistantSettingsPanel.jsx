@@ -159,10 +159,10 @@ export default function AssistantSettingsPanel({ onSaved }) {
               value={settings.gigachat_model}
               onChange={(event) => change("gigachat_model", event.target.value)}
               disabled={saving}
-              style={{ ...inputStyle, marginTop: 8, background: "#19789C" }}
+              style={{ ...inputStyle, marginTop: 8, background: "#fff", color: "#0F172A" }}
             >
               {(settings.available_gigachat_models || []).map((model) => (
-                <option key={model} value={model}>{model}</option>
+                <option key={model} value={model} style={{ background: "#fff", color: "#0F172A" }}>{model}</option>
               ))}
             </select>
           </label>

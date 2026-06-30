@@ -1073,7 +1073,7 @@ export default function TpmpkAdmin({ currentUser, onLogout }) {
     <div className="tp-admin-page">
       <style>{`
         .tp-admin-page {
-          --tp-primary: #19789C;
+          --tp-primary: #19789c;
           --tp-primary-dark: #004f75;
           --tp-primary-soft: #edf6f8;
           --tp-primary-softest: #f8fbfc;

@@ -59,7 +59,7 @@ export default function CertificateSheetPreview({
           border: 10px solid #f7fbfc;
           background:
             linear-gradient(#ffffff, #ffffff) padding-box,
-            linear-gradient(135deg, #19789C, #d8e7ed 42%, #004f75) border-box;
+            linear-gradient(135deg, #19789c, #d8e7ed 42%, #004f75) border-box;
           box-shadow: 0 20px 48px rgba(15, 23, 42, .14);
           color: #17232b;
           text-align: center;
